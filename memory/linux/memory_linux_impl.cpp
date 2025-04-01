@@ -26,11 +26,11 @@ void memory_impl::Release() {
 void* memory_impl::Commit( u64 size ) {
     if( !Data ) {
         //VirtualAlloc(Data + CommitSize, size, MEM_COMMIT, PAGE_READWRITE);
-        mprotect(Data + CommitSize, size, PROT_READ|PROT_WRITE);
+        mprotect((u8*)Data + CommitSize, size, PROT_READ|PROT_WRITE);
         u64 PreNewCommitSize = CommitSize;
         CommitSize += size;
         
-        return Data + PreNewCommitSize;
+        return (u8*)Data + PreNewCommitSize;
     }
     return NULL;
 }
@@ -49,7 +49,7 @@ void memory_impl::Decommit( u64 size ) {
         }
         
         //VirtualFree(Data + CommitSize, size, MEM_DECOMMIT);
-        madvise(Data + CommitSize, size, MADV_DONTNEED);
-        mprotect(Data + CommitSize, size, PROT_NONE);
+        madvise((u8*)Data + CommitSize, size, MADV_DONTNEED);
+        mprotect((u8*)Data + CommitSize, size, PROT_NONE);
     }
 }

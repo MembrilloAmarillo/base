@@ -5,7 +5,7 @@
 
 #include <sys/mman.h>
 
-#include "../types/types.h"
+#include "../../types/types.h"
 
 
 // class that implements memory operations over the OS
