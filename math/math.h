@@ -6,8 +6,15 @@
 #include "../types/types.h"
 
 struct Vec2 {
-    f32 x;
-    f32 y;
+	union {
+		struct {
+			f32 x;
+			f32 y;
+		};
+		struct {
+			f32 vec[3];
+		};
+	};
 };
 
 struct Vec3 {
@@ -22,55 +29,48 @@ struct Vec3 {
             f32 g;
             f32 b;
         };
+		struct {
+			f32 vec[3];
+        };
     };
 };
 
-u64 Min( u64 a, u64 b ) {
-    if( a < b ) { return a; }
+struct Vec4 {
+    union {
+        struct {
+            f32 x;
+            f32 y;
+            f32 z;
+			f32 w;
+        };
+        struct {
+            f32 r;
+            f32 g;
+            f32 b;
+			f32 a;
+        };
+		struct {
+			f32 vec[4];
+        };
+    };
+};
 
-    return b;
-}
+u64 Min(u64 a, u64 b);
 
-u64 Max( u64 a, u64 b ) {
-    if( a > b ) { return a; }
+u64 Max(u64 a, u64 b);
 
-    return b;
-}
+u32 Min(u32 a, u32 b);
 
-u32 Min( u32 a, u32 b ) {
-    if( a < b ) { return a; }
+u32 Max(u32 a, u32 b);
 
-    return b;
-}
+f32 Min(f32 a, f32 b);
 
-u32 Max( u32 a, u32 b ) {
-    if( a > b ) { return a; }
+f32 Max(f32 a, f32 b);
 
-    return b;
-}
+f64 Min(f64 a, f64 b);
 
-f32 Min( f32 a, f32 b ) {
-    if( a < b ) { return a; }
+f64 Max(f64 a, f64 b);
 
-    return b;
-}
-
-f32 Max( f32 a, f32 b ) {
-    if( a > b ) { return a; }
-
-    return b;
-}
-
-f64 Min( f64 a, f64 b ) {
-    if( a < b ) { return a; }
-
-    return b;
-}
-
-f64 Max( f64 a, f64 b ) {
-    if( a > b ) { return a; }
-
-    return b;
-}
+f32 Clamp(f32 x, f32 min, f32 max);
 
 #endif //MATH_H

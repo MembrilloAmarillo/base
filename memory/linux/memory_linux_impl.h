@@ -24,6 +24,9 @@ class memory_impl {
     void* Commit( u64 size );
     void Decommit( u64 size );
     
+	u64 GetCommitSize()   { return CommitSize; }
+	u64 GetReservedSize() { return ReserveSize; }
+
     private:
     void* Data;
     u64 CommitSize;

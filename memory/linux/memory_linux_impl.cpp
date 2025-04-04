@@ -3,19 +3,16 @@
 // Initialization of memory ---------------------------------------------------
 // TODO: CommitSize is not supported for now, just allocating as is
 void memory_impl::Init( u64 CommitSize, u64 ReserveSize ) {
-    if( !Data ) {
-        //Data = VirtualAlloc(0, ReserveSize, MEM_RESERVE, PAGE_NOACCESS);
-        Data = mmap(0, ReserveSize, PROT_NONE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
+	Data = mmap(0, ReserveSize, PROT_NONE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
         
-        this->CommitSize  = 0;
-        this->ReserveSize = ReserveSize;
-    }
+	this->CommitSize  = 0;
+	this->ReserveSize = ReserveSize;
 }
 
 // Free memory ----------------------------------------------------------------
 //
 void memory_impl::Release() {
-    if( !Data ) {
+    if( Data ) {
         //VirtualFree(Data, 0, MEM_RELEASE);
         munmap(Data, ReserveSize);
     }
@@ -24,7 +21,7 @@ void memory_impl::Release() {
 // Commit memory --------------------------------------------------------------
 //
 void* memory_impl::Commit( u64 size ) {
-    if( !Data ) {
+    if( Data ) {
         //VirtualAlloc(Data + CommitSize, size, MEM_COMMIT, PAGE_READWRITE);
         mprotect((u8*)Data + CommitSize, size, PROT_READ|PROT_WRITE);
         u64 PreNewCommitSize = CommitSize;
@@ -38,7 +35,7 @@ void* memory_impl::Commit( u64 size ) {
 // Decommit memory ------------------------------------------------------------
 //
 void memory_impl::Decommit( u64 size ) {
-    if( !Data ) {
+    if( Data ) {
         
         if( CommitSize < size ) { 
             size = CommitSize;

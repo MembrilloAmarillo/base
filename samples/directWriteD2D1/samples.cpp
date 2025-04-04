@@ -4,6 +4,11 @@
 
 #include <iostream>
 
+#pragma comment(lib, "d2d1.lib")
+#pragma comment(lib, "dwrite.lib")
+#pragma comment(lib, "user32.lib")
+#pragma comment(lib, "gdi32.lib")
+
 IDWriteFactory* pDWriteFactory_;
 IDWriteTextFormat* pTextFormat_;
 

@@ -5,8 +5,10 @@
 
 #ifdef __linux__
 #include "./linux/memory_linux_impl.h"
-#elif _WIN32
+#else
+#ifdef _WIN32
 #include "./win/memory_win_impl.h"
+#endif
 #endif
 
 class Arena : memory_impl {

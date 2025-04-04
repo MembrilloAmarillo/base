@@ -4,7 +4,7 @@
 #define MEMORY_WIN_IMPL_H
 
 #include <windows.h>
-#include "../types/types.h"
+#include "../../types/types.h"
 
 // class that implements memory operations over the OS
 // we do not want constructors of any kind
@@ -21,6 +21,9 @@ class memory_impl {
     void Release();
     void* Commit( u64 size );
     void Decommit( u64 size );
+
+	u64 GetCommitSize()   { return CommitSize; }
+	u64 GetReservedSize() { return ReserveSize; }
     
     private:
     void* Data;
