@@ -15,9 +15,9 @@ int main() {
 	Arena* MainArena = (Arena*)malloc(sizeof(Arena));
 	MainArena->Init(0, 256 << 20);
 
-	vector<u32> MyVector(MainArena, 256000);
+	vector<U32> MyVector(MainArena, 256000);
 
-	for (u32 i = 0; i < 255999; i += 1) 
+	for (U32 i = 0; i < 255999; i += 1) 
 	{
 		MyVector.PushBack(i);
 	}
@@ -25,7 +25,7 @@ int main() {
 	fprintf(stdout, "Length  : %d\n", MyVector.GetLength());
 	fprintf(stdout, "Capacity: %d\n", MyVector.GetCapacity());
 
-	for (u32 i = 0; i < 255998; i += 1) 
+	for (U32 i = 0; i < 255998; i += 1) 
 	{
 		MyVector.PopBack();
 	}
@@ -33,7 +33,7 @@ int main() {
 	fprintf(stdout, "Length  : %d\n", MyVector.GetLength());
 	fprintf(stdout, "Capacity: %d\n", MyVector.GetCapacity());
 
-	for (u32 i = 0; i < 255998; i += 1) 
+	for (U32 i = 0; i < 255998; i += 1) 
 	{
 		MyVector.PushFront(i);
 	}

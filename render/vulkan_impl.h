@@ -32,8 +32,8 @@ do {                                                                   \
 
 class window {
 public:
-    i32          Width;
-    i32          Height;
+    I32          Width;
+    I32          Height;
 	GLFWwindow*  Window { nullptr };
     VkSurfaceKHR Surface;
     Vec2         ScalingFactor;
@@ -41,8 +41,8 @@ public:
 };
 
 struct queue_family_indices {
-	u32 GraphicsAndCompute;
-	u32 Presentation;
+	U32 GraphicsAndCompute;
+	U32 Presentation;
 };
 
 struct swapchain_support_details
@@ -50,8 +50,8 @@ struct swapchain_support_details
 	VkSurfaceCapabilitiesKHR Capabilities;
 	VkSurfaceFormatKHR*      Formats;
 	VkPresentModeKHR*        PresentModes;
-	u32 FormatCount;
-	u32 PresentModeCount;
+	U32 FormatCount;
+	U32 PresentModeCount;
 };
 
 class vk_device {
@@ -68,9 +68,9 @@ class vk_swapchain {
 public:
 	VkSwapchainKHR 	         Swapchain;
 	VkImage*       	         Images { nullptr };
-	u32            	         N_Images;
+	U32            	         N_Images;
 	VkImageView*   	         ImageViews { nullptr };
-	u32            	         N_ImageViews;
+	U32            	         N_ImageViews;
 	VkFormat                 Format;
 	VkExtent2D               Extent;
 	VkSurfaceCapabilitiesKHR Capabilities;
@@ -124,15 +124,15 @@ public:
 	Vec4 Color11;
 	Vec2 TexCoordP0;
 	Vec2 TexCoordP1;
-	f32 CornerRadius;
-	f32 EdgeSoftness;
-	f32 BorderThickness;
+	F32 CornerRadius;
+	F32 EdgeSoftness;
+	F32 BorderThickness;
 };
 
 class vk_image {
 public:
-	u32 Width;
-	u32 Height;
+	U32 Width;
+	U32 Height;
 	VkFormat Format;
 	VkImageTiling Tiling;
 	VkImageUsageFlags UsageFlags;
@@ -153,30 +153,30 @@ public:
 	VkDeviceSize          MaxSize;
 	VkMemoryPropertyFlags Properties;
 	VkBufferUsageFlags    UsageFlags;
-	u32                   InstanceCount;
+	U32                   InstanceCount;
 	bool                  ToDestroy;
 };
 
 struct uniform_buffer_ui {
-	f32 Time;
-	f32 DeltaTime;
-	f32 Width;
-	f32 Height;
-	f32 AtlasWidth;
-	f32 AtlasHeight;
+	F32 Time;
+	F32 DeltaTime;
+	F32 Width;
+	F32 Height;
+	F32 AtlasWidth;
+	F32 AtlasHeight;
 };
 
 struct batch_2d {
 	vertex2d* Vertices { nullptr };
-	u32* Indices { nullptr };
-	u32* Instances { nullptr };
+	U32* Indices { nullptr };
+	U32* Instances { nullptr };
 };
 
 class buffer_batch_group {
 public:
 	vk_buffer* Buffer { nullptr };
-	u32 N_Batches;
-	u32 CurrentBatchIdx;
+	U32 N_Batches;
+	U32 CurrentBatchIdx;
 };
 
 class vulkan_iface {
@@ -232,10 +232,10 @@ class vulkan_iface {
 
 	// ----- For frames ---------------------------------------------
 	//
-	u32  CurrentFrame       { 0  };
-	f64  LastTimeFrame      { 0.0f  };
+	U32  CurrentFrame       { 0  };
+	F64  LastTimeFrame      { 0.0f  };
 	bool FramebufferResized { false };
-	f64  LastTime           { 0.0f  };
+	F64  LastTime           { 0.0f  };
 
 	// ----- Debug Uitilities ---------------------------------------
 	// 
@@ -268,7 +268,7 @@ class vulkan_iface {
 
 	VkSemaphoreCreateInfo SemaphoreCreateInfo(VkSemaphoreCreateFlags flags /*= 0*/);
 
-	VkCommandPoolCreateInfo CommandPoolCreateInfo(u32 queueFamilyIndex, VkCommandPoolCreateFlags flags /*= 0*/);
+	VkCommandPoolCreateInfo CommandPoolCreateInfo(U32 queueFamilyIndex, VkCommandPoolCreateFlags flags /*= 0*/);
 	
 	VkCommandBufferAllocateInfo CommandBufferAllocateInfo(VkCommandPool pool, uint32_t count /*= 1*/);
 	

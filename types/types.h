@@ -8,16 +8,16 @@
 #define local_persist static
 #define global        static
 
-#define u8  char
-#define u16 uint16_t
-#define u32 uint32_t
-#define u64 uint64_t
+#define U8  char
+#define U16 uint16_t
+#define U32 uint32_t
+#define U64 uint64_t
 
-#define i16 int16_t
-#define i32 int32_t
-#define i64 int64_t
+#define I16 int16_t
+#define I32 int32_t
+#define I64 int64_t
 
-#define f32 float
-#define f64 double
+#define F32 float
+#define F64 double
 
 #endif //TYPES_H

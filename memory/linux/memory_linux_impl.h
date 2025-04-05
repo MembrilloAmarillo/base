@@ -19,18 +19,18 @@ class memory_impl {
     memory_impl( memory_impl &&m ) = delete;
     ~memory_impl()                 = delete;
     
-    void Init( u64 CommitSize, u64 ReserveSize );
+    void Init( U64 CommitSize, U64 ReserveSize );
     void Release();
-    void* Commit( u64 size );
-    void Decommit( u64 size );
+    void* Commit( U64 size );
+    void Decommit( U64 size );
     
-	u64 GetCommitSize()   { return CommitSize; }
-	u64 GetReservedSize() { return ReserveSize; }
+	U64 GetCommitSize()   { return CommitSize; }
+	U64 GetReservedSize() { return ReserveSize; }
 
     private:
     void* Data;
-    u64 CommitSize;
-    u64 ReserveSize;
+    U64 CommitSize;
+    U64 ReserveSize;
 };
 
 

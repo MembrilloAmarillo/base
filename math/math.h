@@ -8,11 +8,11 @@
 struct Vec2 {
 	union {
 		struct {
-			f32 x;
-			f32 y;
+			F32 x;
+			F32 y;
 		};
 		struct {
-			f32 vec[3];
+			F32 vec[3];
 		};
 	};
 };
@@ -20,17 +20,17 @@ struct Vec2 {
 struct Vec3 {
     union {
         struct {
-            f32 x;
-            f32 y;
-            f32 z;
+            F32 x;
+            F32 y;
+            F32 z;
         };
         struct {
-            f32 r;
-            f32 g;
-            f32 b;
+            F32 r;
+            F32 g;
+            F32 b;
         };
 		struct {
-			f32 vec[3];
+			F32 vec[3];
         };
     };
 };
@@ -38,39 +38,39 @@ struct Vec3 {
 struct Vec4 {
     union {
         struct {
-            f32 x;
-            f32 y;
-            f32 z;
-			f32 w;
+            F32 x;
+            F32 y;
+            F32 z;
+			F32 w;
         };
         struct {
-            f32 r;
-            f32 g;
-            f32 b;
-			f32 a;
+            F32 r;
+            F32 g;
+            F32 b;
+			F32 a;
         };
 		struct {
-			f32 vec[4];
+			F32 vec[4];
         };
     };
 };
 
-u64 Min(u64 a, u64 b);
+U64 Min(U64 a, U64 b);
 
-u64 Max(u64 a, u64 b);
+U64 Max(U64 a, U64 b);
 
-u32 Min(u32 a, u32 b);
+U32 Min(U32 a, U32 b);
 
-u32 Max(u32 a, u32 b);
+U32 Max(U32 a, U32 b);
 
-f32 Min(f32 a, f32 b);
+F32 Min(F32 a, F32 b);
 
-f32 Max(f32 a, f32 b);
+F32 Max(F32 a, F32 b);
 
-f64 Min(f64 a, f64 b);
+F64 Min(F64 a, F64 b);
 
-f64 Max(f64 a, f64 b);
+F64 Max(F64 a, F64 b);
 
-f32 Clamp(f32 x, f32 min, f32 max);
+F32 Clamp(F32 x, F32 min, F32 max);
 
 #endif //MATH_H

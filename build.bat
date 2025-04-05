@@ -1,6 +1,6 @@
 @echo off
 
-set cl_libs=/LIBPATH:C:\devel\glfw\lib-vc2022\ /LIBPATH:C:\devel\VulkanSDK\Lib\
+set cl_libs=/LIBPATH:C:\devel\glfw\lib-vc2022\ /LIBPATH:C:\devel\VulkanSDK\Lib\ /LIBPATH:C:\VulkanSDK\Lib\
 
 mkdir build
 pushd build
@@ -12,7 +12,7 @@ IF "%1" == "directWriteD2D1Sample" (
 ) ELSE IF "%1" == "vectorSample" (
 	cl /Zii ..\samples\sample_vector\sample_vector.cpp /Fe:sample_vector.exe
 ) ELSE IF "%1" == "vulkanSample" (
-	cl /Zii /MD /DDEBUG /std:c++20 ..\samples\vulkan_sample\vulkan_sample.cpp /I C:\devel\glfw\include\ /I C:\devel\VulkanSDK\Include\ /link %cl_libs% /Fe:vulkan_sample.exe
+	cl /Zii /MD /DDEBUG /std:c++20 ..\samples\vulkan_sample\vulkan_sample.cpp /I C:\devel\glfw\include\ /I C:\devel\VulkanSDK\Include\ /I C:\VulkanSDK\Include\ /link %cl_libs% /Fe:vulkan_sample.exe
 )
 
 popd

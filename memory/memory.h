@@ -18,14 +18,14 @@ class Arena : memory_impl {
     Arena( Arena &&m ) = delete;
     ~Arena()           = delete;
     
-    void Init( u64 CommitSize, u64 ReserveSize );
+    void Init( U64 CommitSize, U64 ReserveSize );
     template<typename T> 
-        T* Push( u64 Size );
+        T* Push( U64 Size );
     template<typename T>
-        void Pop( u64 size);
+        void Pop( U64 size);
     void FreeAll();
     
-    u64 current_offset;
+    U64 current_offset;
 };
 
 #endif //MEMORY_H

@@ -1,19 +1,19 @@
 #include "./memory.h"
 
-void Arena::Init( u64 CommitSize, u64 ReserveSize ) {
+void Arena::Init( U64 CommitSize, U64 ReserveSize ) {
     this->memory_impl::Init( CommitSize, ReserveSize ); 
     current_offset = 0;
 }
 
 template<typename T> 
-T* Arena::Push( u64 Size ) {
+T* Arena::Push( U64 Size ) {
     T* data = (T*)this->memory_impl::Commit( sizeof(T) * Size );
     current_offset += sizeof(T) * Size;
     return data;
 }
 
 template<typename T> 
-void Arena::Pop( u64 Size ) {
+void Arena::Pop( U64 Size ) {
     this->memory_impl::Decommit( sizeof(T) * Size );
     if (current_offset > sizeof(T) * Size) {
         current_offset -= sizeof(T) * Size;

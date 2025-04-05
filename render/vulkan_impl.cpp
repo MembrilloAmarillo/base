@@ -146,7 +146,7 @@ void vulkan_iface::TransitionImage(VkCommandBuffer cmd, VkImage image, VkImageLa
 
 void vulkan_iface::BeginDrawing()
 {
-	u32 FrameIdx = CurrentFrame % MAX_FRAMES_IN_FLIGHT;
+	U32 FrameIdx = CurrentFrame % MAX_FRAMES_IN_FLIGHT;
 	// wait until the gpu has finished rendering the last frame. Timeout of 1
 	// second
 	VK_CHECK(vkWaitForFences(Device.LogicalDevice, 1, &Semaphores.InFlight[FrameIdx], true, 1000000000));
@@ -230,7 +230,7 @@ void vulkan_iface::BeginDrawing()
 // ------------------------------------------------------------------
 
 VkCommandPoolCreateInfo 
-vulkan_iface::CommandPoolCreateInfo(u32 queueFamilyIndex, VkCommandPoolCreateFlags flags /*= 0*/)
+vulkan_iface::CommandPoolCreateInfo(U32 queueFamilyIndex, VkCommandPoolCreateFlags flags /*= 0*/)
 {
     VkCommandPoolCreateInfo info = {};
     info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
@@ -281,7 +281,7 @@ void vulkan_iface::CreateImageViews()
 	{
 		Swapchain.ImageViews  = RenderArena->Push<VkImageView>(Swapchain.N_ImageViews);
 	}
-	for( u32 i = 0; i < Swapchain.N_ImageViews; ++i )
+	for( U32 i = 0; i < Swapchain.N_ImageViews; ++i )
 	{
 		VkImageViewCreateInfo createInfo{};
 		createInfo.sType                           = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -310,10 +310,10 @@ void vulkan_iface::CreateImageViews()
 
 void vulkan_iface::CreateSwapchain()
 {
-	u32 U32_MAX = (1 << 30) - 1;
+	U32 U32_MAX = (1 << 30) - 1;
 	swapchain_support_details swap_chain_support = QuerySwapChainSupport( Device.PhysicalDevice );
  
-	u32 imageCount = swap_chain_support.Capabilities.minImageCount + 1;
+	U32 imageCount = swap_chain_support.Capabilities.minImageCount + 1;
  
 	VkSurfaceFormatKHR surface_format;
 	VkPresentModeKHR present_mode;
@@ -325,7 +325,7 @@ void vulkan_iface::CreateSwapchain()
 		imageCount = swap_chain_support.Capabilities.maxImageCount;
 	}
  
-	for( u32 i = 0; i < swap_chain_support.FormatCount; ++i )
+	for( U32 i = 0; i < swap_chain_support.FormatCount; ++i )
 	{
 		if (swap_chain_support.Formats[i].format     == VK_FORMAT_R8G8B8A8_SRGB &&
 			swap_chain_support.Formats[i].colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR )
@@ -339,7 +339,7 @@ void vulkan_iface::CreateSwapchain()
 
 	#ifndef ENABLE_VSYNC
  
-	for( u32 i = 0; i < swap_chain_support.PresentModeCount; ++i )
+	for( U32 i = 0; i < swap_chain_support.PresentModeCount; ++i )
 	{
 		if (swap_chain_support.PresentModes[i] == VK_PRESENT_MODE_MAILBOX_KHR)
 		{
@@ -362,7 +362,7 @@ void vulkan_iface::CreateSwapchain()
 		int width, height;
 		glfwGetFramebufferSize( Window.Window, &width, &height );
   
-		extent = {(u32)width, (u32)height};
+		extent = {(U32)width, (U32)height};
   
 		extent.width = Clamp(
 			extent.width, 
@@ -394,7 +394,7 @@ void vulkan_iface::CreateSwapchain()
   
 	queue_family_indices indices = FindQueueFamilies( Device.PhysicalDevice );
  
-	u32 qFamilyIndices[] = { indices.GraphicsAndCompute, indices.Presentation };
+	U32 qFamilyIndices[] = { indices.GraphicsAndCompute, indices.Presentation };
  
 	if( indices.GraphicsAndCompute != indices.Presentation )
 	{
@@ -453,8 +453,8 @@ vulkan_iface::vulkan_iface( const char* window_name = "Base" ) {
 	glfwInit();
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 
-	u32 width = 1920;
-	u32 height = 1080;
+	U32 width = 1920;
+	U32 height = 1080;
 
 	Window.Width = width;
 	Window.Height = height;
@@ -492,7 +492,7 @@ vulkan_iface::vulkan_iface( const char* window_name = "Base" ) {
 	createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
 	createInfo.pApplicationInfo = &appInfo;
 
-	u32 ExtensionCount;
+	U32 ExtensionCount;
 	char** extensions = GetRequiredExtensions( &ExtensionCount );
 	createInfo.enabledExtensionCount = static_cast<uint32_t>( ExtensionCount );
 	createInfo.ppEnabledExtensionNames = (const char**)extensions;
@@ -545,7 +545,7 @@ vulkan_iface::vulkan_iface( const char* window_name = "Base" ) {
 	// ---------------------- SETUP DEVICE --------------------------
 	//
 	queue_family_indices qfi;
-	u32 DeviceCount = 0;
+	U32 DeviceCount = 0;
 	vkEnumeratePhysicalDevices( Instance, &DeviceCount, nullptr );
 	if( DeviceCount == 0 )
 	{
@@ -555,7 +555,7 @@ vulkan_iface::vulkan_iface( const char* window_name = "Base" ) {
 	VkPhysicalDevice* Devices = TempArena->Push<VkPhysicalDevice>(DeviceCount);
 	vkEnumeratePhysicalDevices(Instance, &DeviceCount, Devices);
 
-	for( u32 i = 0; i < DeviceCount; ++i )
+	for( U32 i = 0; i < DeviceCount; ++i )
 	{
 		if( IsSuitableDevice( Devices[i] ) )
 		{
@@ -573,7 +573,7 @@ vulkan_iface::vulkan_iface( const char* window_name = "Base" ) {
 	qfi = FindQueueFamilies(Device.PhysicalDevice);
 	Device.FamilyIndices = qfi;
 
-	f32 queue_priority = 1.0f;
+	F32 queue_priority = 1.0f;
 	VkDeviceQueueCreateInfo queue_create_info{};
 	queue_create_info.sType              = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
 	queue_create_info.queueFamilyIndex   = qfi.GraphicsAndCompute;
@@ -663,16 +663,16 @@ vulkan_iface::QuerySwapChainSupport( VkPhysicalDevice Device )
 bool
 vulkan_iface::CheckDeviceExtensionSupport( VkPhysicalDevice Device )
 {
-	u32 extensionCount;
+	U32 extensionCount;
 	vkEnumerateDeviceExtensionProperties(Device, nullptr, &extensionCount, nullptr);
  
 	VkExtensionProperties* available_extensions = TempArena->Push<VkExtensionProperties>(extensionCount);
 	vkEnumerateDeviceExtensionProperties(Device, nullptr, &extensionCount, available_extensions );
  
-	u32 TotalExtensions = extensionCount;
-	for (u32 extIdx = 0; extIdx < 3; extIdx += 1) {
+	U32 TotalExtensions = extensionCount;
+	for (U32 extIdx = 0; extIdx < 3; extIdx += 1) {
 		bool extFound = false;
-		for (u32 i = 0; i < extensionCount; ++i)
+		for (U32 i = 0; i < extensionCount; ++i)
 		{
 			if (strcmp(available_extensions[i].extensionName, DEVICE_EXTENSIONS[extIdx]) == 0)
 			{
@@ -701,7 +701,7 @@ vulkan_iface::FindQueueFamilies( VkPhysicalDevice& device )
 	indices.GraphicsAndCompute = (1 << 30) - 1;
 	indices.Presentation       = (1 << 30) - 1;
  
-	u32 queue_family_count = 0;
+	U32 queue_family_count = 0;
 	vkGetPhysicalDeviceQueueFamilyProperties( device, &queue_family_count, nullptr );
  
 	VkQueueFamilyProperties* queue_families = TempArena->Push<VkQueueFamilyProperties>( queue_family_count );
@@ -738,7 +738,7 @@ vulkan_iface::FindQueueFamilies( VkPhysicalDevice& device )
 bool
 vulkan_iface::IsSuitableDevice(VkPhysicalDevice& device) 
 {
-	u32 U32_MAX = (1 << 30) - 1;
+	U32 U32_MAX = (1 << 30) - 1;
 	queue_family_indices indices = FindQueueFamilies( device );
  
 	bool extensions_supported = CheckDeviceExtensionSupport( device );
@@ -783,20 +783,20 @@ bool vulkan_iface::CheckValidationLayerSupport()
 char**
 vulkan_iface::GetRequiredExtensions( uint32_t* ExtensionCount )
 {
-	u32 glfwExtensionCount = 0;
+	U32 glfwExtensionCount = 0;
 	const char** glfwExtensions;
 	glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
  
 	#ifdef DEBUG
 	// Add the extension that goes for debugging
 	//
-	u64 tmp = glfwExtensionCount + 1;
+	U64 tmp = glfwExtensionCount + 1;
 	char** extensions = RenderArena->Push<char*>( tmp );
 	#else
 	char** extensions = RenderArena->Push<char*>( glfwExtensionCount );
 	#endif
  
-	u64 i;
+	U64 i;
 	for( i = 0; i < glfwExtensionCount; ++i )
 	{
 		extensions[i] = RenderArena->Push<char>(strlen( glfwExtensions[i] ) + 1 );
