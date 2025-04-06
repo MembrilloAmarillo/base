@@ -20,11 +20,16 @@
 
 #include "../../memory/memory.cpp"
 
+#include "../../vector/vector.cpp"
+
 int main() {
 
 	vulkan_iface vIface("Hello World");
 
-	for (; true; ) {
+	while (!glfwWindowShouldClose(vIface.Window.Window)) {
+		glfwPollEvents(); // Process window events (key press, mouse move, close button, etc.)
+
+		// Render your Vulkan frame here
 		vIface.BeginDrawing();
 	}
 	return 0;

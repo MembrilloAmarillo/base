@@ -21,11 +21,11 @@ void memory_impl::Release() {
 //
 void* memory_impl::Commit( U64 size ) {
     if( Data ) {
-        VirtualAlloc((u8*)Data + CommitSize, size, MEM_COMMIT, PAGE_READWRITE);
+        VirtualAlloc((U8*)Data + CommitSize, size, MEM_COMMIT, PAGE_READWRITE);
         U64 PreNewCommitSize = CommitSize;
         CommitSize += size;
         
-        return (u8*)Data + PreNewCommitSize;
+        return (U8*)Data + PreNewCommitSize;
     }
     return NULL;
 }
@@ -43,7 +43,7 @@ void memory_impl::Decommit( U64 size ) {
             CommitSize -= size; 
         }
         
-        VirtualFree((u8*)Data + CommitSize, size, MEM_DECOMMIT);
+        VirtualFree((U8*)Data + CommitSize, size, MEM_DECOMMIT);
     }
 }
 

@@ -7,10 +7,14 @@
 // TODO: ERASE AND REPLACE
 //
 #include <cstdlib>
+#include <fstream>
+#include <functional>
 
 #include <vulkan/vulkan.h>
 #include <vulkan/vulkan_core.h>
 #include <vulkan/vk_enum_string_helper.h> 
+#define VMA_IMPLEMENTATION
+#include <vma/vk_mem_alloc.h>
 
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
@@ -18,6 +22,7 @@
 #include "../types/types.h"
 #include "../math/math.h"
 #include "../memory/memory.h" 
+#include "../vector/vector.h"
 
 #define VK_CHECK(x)                                                    \
 do {                                                                   \
@@ -94,8 +99,102 @@ public:
 
 class vk_descriptor_set {
 public:
-	VkDescriptorSet DescriptorSets[MAX_FRAMES_IN_FLIGHT];
+	VkDescriptorSet DescriptorSets;
 	VkDescriptorSetLayout DescriptorSetLayout;
+
+	vector<VkDescriptorSetLayoutBinding> bindings;
+
+	void Init(Arena* vecArena, U32 MaxDescriptorSetLayoutBinding)
+	{
+		bindings.Init(vecArena, MaxDescriptorSetLayoutBinding);
+	}
+
+	void AddBinding(U32 binding, VkDescriptorType type)
+	{
+		VkDescriptorSetLayoutBinding newbind {};
+		newbind.binding = binding;
+		newbind.descriptorCount = 1;
+		newbind.descriptorType = type;
+
+		if (bindings.GetCapacity() == 0) {
+			printf("[ERROR] Cannot bind, vector is not inited");
+			exit(1);
+		}
+
+		bindings.PushBack(newbind);
+	}
+	
+	void Clear() {
+		bindings.Clear();
+	}
+
+	VkDescriptorSetLayout Build(VkDevice Device, VkShaderStageFlags ShaderStages, void* pNext = nullptr, VkDescriptorSetLayoutCreateFlags Flags = 0)
+	{
+		for (U32 idx = 0; idx < bindings.GetLength(); idx += 1 ) {
+			bindings.At(idx).stageFlags |= ShaderStages;
+		}
+
+		VkDescriptorSetLayoutCreateInfo info = {.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
+		info.pNext = pNext;
+
+		info.pBindings = bindings.GetData();
+		info.bindingCount = bindings.GetLength();
+		info.flags = Flags;
+
+		VkDescriptorSetLayout set;
+		VK_CHECK(vkCreateDescriptorSetLayout(Device, &info, nullptr, &set));
+
+		return set;
+	}
+};
+
+class vk_descriptor_allocator {
+public:
+	struct pool_size_ratio {
+		VkDescriptorType Type;
+		F32 Ratio;
+	};
+	VkDescriptorPool Pool;
+
+	void InitPool(Arena* arena, VkDevice Device, U32 MaxSets, vector<pool_size_ratio>& PoolRatios) {
+		
+		vector<VkDescriptorPoolSize> PoolSizes( arena, PoolRatios.GetCapacity());
+
+		for (U32 it = 0; it < PoolRatios.GetLength(); it += 1) {
+			pool_size_ratio& Ratio = PoolRatios.At(it);
+			PoolSizes.PushBack(VkDescriptorPoolSize{
+				.type = Ratio.Type,
+				.descriptorCount = U32(Ratio.Ratio * MaxSets)
+			});
+		}
+
+		VkDescriptorPoolCreateInfo pool_info = {.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
+		pool_info.flags = 0;
+		pool_info.maxSets = MaxSets;
+		pool_info.poolSizeCount = PoolSizes.GetCapacity();
+		pool_info.pPoolSizes = PoolSizes.GetData();
+
+		vkCreateDescriptorPool(Device, &pool_info, nullptr, &Pool);
+	}
+	void ClearDescriptors(VkDevice Device) {
+	    vkResetDescriptorPool(Device, Pool, 0);
+	}
+	void DestroyPool(VkDevice Device) {
+		vkDestroyDescriptorPool( Device, Pool, nullptr);
+	}
+
+	VkDescriptorSet Allocate(VkDevice Device, VkDescriptorSetLayout Layout) {
+		VkDescriptorSetAllocateInfo allocInfo = {.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
+		allocInfo.pNext = nullptr;
+		allocInfo.descriptorPool = Pool;
+		allocInfo.descriptorSetCount = 1;
+		allocInfo.pSetLayouts = &Layout;
+
+		VkDescriptorSet ds;
+		VK_CHECK(vkAllocateDescriptorSets(Device, &allocInfo, &ds));
+
+		return ds;
+	}
 };
 
 class vk_semaphore {
@@ -139,6 +238,7 @@ public:
 	VkMemoryPropertyFlags Properties;
 	VkImage Image;
 	VkDeviceMemory Memory;
+	VmaAllocation Alloc;
 	VkImageView ImageView;
 	VkImageLayout Layout;
 	VkSampler Sampler;
@@ -157,6 +257,106 @@ public:
 	bool                  ToDestroy;
 };
 
+class vk_pipeline_builder {
+public:
+    vector<VkPipelineShaderStageCreateInfo> ShaderStages;
+   
+    VkPipelineInputAssemblyStateCreateInfo InputAssembly;
+    VkPipelineRasterizationStateCreateInfo Rasterizer;
+    VkPipelineColorBlendAttachmentState    ColorBlendAttachment;
+    VkPipelineMultisampleStateCreateInfo   Multisampling;
+    VkPipelineDepthStencilStateCreateInfo  DepthStencil;
+    VkPipelineRenderingCreateInfo          RenderInfo;
+    VkPipelineLayout                       PipelineLayout;
+    VkFormat                               ColorAttachmentformat;
+
+	vk_pipeline_builder( Arena* arena, U32 NShaderStages ){ 
+		ShaderStages.Init(arena, NShaderStages);
+		Clear(); 
+	}
+
+	void Clear()
+	{
+		// clear all of the structs we need back to 0 with their correct stype
+
+		InputAssembly = { .sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO };
+
+		Rasterizer = { .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO };
+
+		ColorBlendAttachment = {};
+
+		Multisampling = { .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO };
+
+		PipelineLayout = {};
+
+		DepthStencil = { .sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO };
+
+		RenderInfo = { .sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO };
+
+		ShaderStages.Clear();
+	}
+
+	global VkPipelineShaderStageCreateInfo PipelineShaderStageCreateInfo(VkShaderStageFlagBits StageFlag, VkShaderModule Module, const char * entry) {
+		
+		VkPipelineShaderStageCreateInfo info {};
+		info.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+		info.pNext = nullptr;
+		// shader stage
+		info.stage = StageFlag;
+		// module containing the code for this shader stage
+		info.module = Module;
+		// the entry point of the shader
+		info.pName = entry;
+
+		return info;
+	}
+
+    VkPipeline BuildPipeline(VkDevice Device);
+
+	void SetShaders(VkShaderModule vertexShader, VkShaderModule fragmentShader);
+
+	void SetInputTopology(VkPrimitiveTopology topology);
+
+	void SetPolygonMode(VkPolygonMode mode)
+	{
+		Rasterizer.polygonMode = mode;
+		Rasterizer.lineWidth = 1.f;
+	}
+
+	void SetCullMode(VkCullModeFlags cullMode, VkFrontFace frontFace)
+	{
+		Rasterizer.cullMode = cullMode;
+		Rasterizer.frontFace = frontFace;
+	}
+
+	void DisableBlending()
+	{
+		// default write mask
+		ColorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+		// no blending
+		ColorBlendAttachment.blendEnable = VK_FALSE;
+	}
+
+	void SetColorAttachmentFormat(VkFormat format)
+	{
+		ColorAttachmentformat = format;
+		// connect the format to the renderInfo  structure
+		RenderInfo.colorAttachmentCount = 1;
+		RenderInfo.pColorAttachmentFormats = &ColorAttachmentformat;
+	}
+
+	void SetDepthFormat(VkFormat format)
+	{
+		RenderInfo.depthAttachmentFormat = format;
+	}
+
+	void SetMultisamplingNone();
+
+	void DisableDepthTest();
+
+};
+
+
 struct uniform_buffer_ui {
 	F32 Time;
 	F32 DeltaTime;
@@ -167,14 +367,14 @@ struct uniform_buffer_ui {
 };
 
 struct batch_2d {
-	vertex2d* Vertices { nullptr };
+	vector<vertex2d> Vertices;
 	U32* Indices { nullptr };
 	U32* Instances { nullptr };
 };
 
 class buffer_batch_group {
 public:
-	vk_buffer* Buffer { nullptr };
+	vector<vk_buffer> Buffer;
 	U32 N_Batches;
 	U32 CurrentBatchIdx;
 };
@@ -187,24 +387,34 @@ class vulkan_iface {
     global inline  const char* DEVICE_EXTENSIONS[] =  {
         "VK_KHR_swapchain",
     	"VK_KHR_dynamic_rendering",
-    	"VK_EXT_descriptor_indexing"
+    	"VK_EXT_descriptor_indexing",
+		VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME
     };
 
 	// -------- General ---------------------------------------------
 	//
-	VkInstance         Instance;
-	window             Window;
-	vk_device          Device;
-	vk_swapchain       Swapchain;
-	vk_pipeline*       Pipelines;
-	VkDescriptorPool   DescriptorPool;
-	vk_descriptor_set* Descriptors;
-	vk_semaphore       Semaphores;
+	VkInstance              Instance;
+	window                  Window;
+	vk_device               Device;
+	vk_swapchain            Swapchain;
+	vk_pipeline*            Pipelines;
+	vk_descriptor_allocator GlobalDescriptorAllocator;
+	VkDescriptorSet         DrawImageDescriptors;
+	VkDescriptorSetLayout   DrawImageDescriptorLayout;
+	vk_semaphore            Semaphores;
 
 	// ----- Compute pipeline ---------------------------------------
 	//
 	VkBuffer* ShaderStorage;
 	VkDeviceMemory* ShaderMemory;
+
+	VkPipeline BackgroundComputePipeline;
+	VkPipelineLayout BackgroundComputePipelineLayout;
+
+	// ----- Testing Triangle pipelines -----------------------------
+	//
+	VkPipeline TrianglePipeline;
+	VkPipelineLayout TrianglePipelineLayout;
 
 	// ----- Uniform Buffers ----------------------------------------
 	//
@@ -229,6 +439,7 @@ class vulkan_iface {
 	// ----- Our Texture Images -------------------------------------
 	//
 	vk_image* TextureImage;
+	U32 N_TextureImages { 0 };
 
 	// ----- For frames ---------------------------------------------
 	//
@@ -241,29 +452,75 @@ class vulkan_iface {
 	// 
 	VkDebugUtilsMessengerEXT DebugMessenger;
 
-
 	// ----- Main Functions -----------------------------------------
 	//
 	vulkan_iface( const char* window_name );
+
 	~vulkan_iface() {}
+	
 	vulkan_iface(vulkan_iface& v) = delete;
+	
 	vulkan_iface(vulkan_iface&& v) = delete;
 
 	void CreateSwapchain();
+	
 	void CreateImageViews();
+	
 	void InitCommands();
+	
 	void InitSyncStructures();
-	void TransitionImage(VkCommandBuffer cmd, VkImage image, VkImageLayout currentLayout, VkImageLayout newLayout);
+
+	void InitDescriptors();
+
+	void InitPipelines();
+
+	void InitBackgroundPipelines();
+	
+	void InitTrianglePipeline();
+
+	void DrawGeometry( VkCommandBuffer cmd );
 
 	void BeginDrawing();
 
     private:
+
+	// -------- Memory Handling -------------------------------------
+	//
 	Arena* RenderArena;
 	Arena* TempArena;
+	VmaAllocator GPUAllocator;
+
+	// -------- Destruction queue -----------------------------------
+	//
+	vector<std::function<void()>> *FrameDeletionQueue[MAX_FRAMES_IN_FLIGHT];
+	vector<std::function<void()>> *MainDeletionQueue;
+
+	// -------- Private Functions -----------------------------------
+	//
+	void TransitionImage(VkCommandBuffer cmd, VkImage image, VkImageLayout currentLayout, VkImageLayout newLayout);
+
+	void DrawBackground( VkCommandBuffer cmd );
+
+	bool LoadShaderModule( const char* FilePath, VkDevice Device, VkShaderModule* OutShaderModule );
+
+	void CopyImageToImage(VkCommandBuffer cmd, VkImage source, VkImage destination, VkExtent2D srcSize, VkExtent2D dstSize);
+
+	VkPipelineLayoutCreateInfo PipelineLayoutCreateInfo();
+
+	VkRenderingInfo RenderingInfo( VkExtent2D Extent, VkRenderingAttachmentInfo* ColorInfo, VkRenderingAttachmentInfo* DepthInfo);
+
+	VkRenderingAttachmentInfo AttachmentInfo( VkImageView View, VkClearValue* Clear, VkImageLayout Layout );
+
+	VkImageCreateInfo ImageCreateInfo(VkFormat format, VkImageUsageFlags usageFlags, VkExtent3D extent);
+
+	VkImageViewCreateInfo ImageViewCreateInfo( VkFormat format, VkImage image, VkImageAspectFlags aspectFlags );
 
 	VkCommandBufferSubmitInfo CommandBufferSubmitInfo(VkCommandBuffer cmd);
+	
 	VkSemaphoreSubmitInfo SemaphoreSubmitInfo( VkPipelineStageFlags2 stageMask, VkSemaphore semaphore );
+	
 	VkSubmitInfo2 SubmitInfo( VkCommandBufferSubmitInfo* cmd, VkSemaphoreSubmitInfo* signalSemaphoreInfo, VkSemaphoreSubmitInfo* waitSemaphoreInfo );
+	
 	VkFenceCreateInfo FenceCreateInfo(VkFenceCreateFlags flags /*= 0*/);
 
 	VkSemaphoreCreateInfo SemaphoreCreateInfo(VkSemaphoreCreateFlags flags /*= 0*/);

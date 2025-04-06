@@ -142,6 +142,46 @@ void vulkan_iface::TransitionImage(VkCommandBuffer cmd, VkImage image, VkImageLa
     vkCmdPipelineBarrier2(cmd, &depInfo);
 }
 
+// ------------------------------------------------------------------ 
+
+void
+vulkan_iface::DrawGeometry( VkCommandBuffer cmd )
+{
+	vk_image* DrawImage = &TextureImage[0];
+	//begin a render pass  connected to our draw image
+	VkRenderingAttachmentInfo colorAttachment = AttachmentInfo(DrawImage->ImageView, nullptr, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+
+	VkExtent2D DrawExtent = { DrawImage->Width, DrawImage->Height };
+	VkRenderingInfo renderInfo = RenderingInfo(DrawExtent, &colorAttachment, nullptr);
+	vkCmdBeginRendering(cmd, &renderInfo);
+
+	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, TrianglePipeline);
+
+	//set dynamic viewport and scissor
+	VkViewport viewport = {};
+	viewport.x = 0;
+	viewport.y = 0;
+	viewport.width = DrawExtent.width;
+	viewport.height = DrawExtent.height;
+	viewport.minDepth = 0.f;
+	viewport.maxDepth = 1.f;
+
+	vkCmdSetViewport(cmd, 0, 1, &viewport);
+
+	VkRect2D scissor = {};
+	scissor.offset.x = 0;
+	scissor.offset.y = 0;
+	scissor.extent.width = DrawExtent.width;
+	scissor.extent.height = DrawExtent.height;
+
+	vkCmdSetScissor(cmd, 0, 1, &scissor);
+
+	//launch a draw command to draw 3 vertices
+	vkCmdDraw(cmd, 3, 1, 0, 0);
+
+	vkCmdEndRendering(cmd);
+}
+
 // ------------------------------------------------------------------
 
 void vulkan_iface::BeginDrawing()
@@ -150,10 +190,19 @@ void vulkan_iface::BeginDrawing()
 	// wait until the gpu has finished rendering the last frame. Timeout of 1
 	// second
 	VK_CHECK(vkWaitForFences(Device.LogicalDevice, 1, &Semaphores.InFlight[FrameIdx], true, 1000000000));
-	VK_CHECK(vkResetFences(Device.LogicalDevice, 1, &Semaphores.InFlight[FrameIdx]));
 
 	uint32_t swapchainImageIndex;
-	VK_CHECK(vkAcquireNextImageKHR(Device.LogicalDevice, Swapchain.Swapchain, 1000000000, Semaphores.ImageAvailable[FrameIdx], nullptr, &swapchainImageIndex));
+	VkResult result = vkAcquireNextImageKHR(Device.LogicalDevice, Swapchain.Swapchain, 1000000000, Semaphores.ImageAvailable[FrameIdx], nullptr, &swapchainImageIndex);
+
+	if( result == VK_ERROR_OUT_OF_DATE_KHR ) {
+		//recreate_swapchain(vi)
+		printf("[TODO] We have to recreate swapchain!!\n");
+		return;
+	} else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR){
+		printf("[ERROR] Could not acquire next image");
+		exit(1);
+	}
+
 
 	VkCommandBufferBeginInfo cmdBeginInfo = {};
     cmdBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -165,6 +214,8 @@ void vulkan_iface::BeginDrawing()
 	//naming it cmd for shorter writing
 	VkCommandBuffer cmd = CommandBuffers[FrameIdx];
 
+	VK_CHECK(vkResetFences(Device.LogicalDevice, 1, &Semaphores.InFlight[FrameIdx]));
+
 	// now that we are sure that the commands finished executing, we can safely
 	// reset the command buffer to begin recording again.
 	VK_CHECK(vkResetCommandBuffer(cmd, 0));
@@ -172,27 +223,22 @@ void vulkan_iface::BeginDrawing()
 	//start the command buffer recording
 	VK_CHECK(vkBeginCommandBuffer(cmd, &cmdBeginInfo));
 
-	
-	//make the swapchain image into writeable mode before rendering
-	TransitionImage(cmd, Swapchain.Images[swapchainImageIndex], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+	vk_image* DrawImage = &TextureImage[0];
+	TransitionImage(cmd, DrawImage->Image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
 
-	//make a clear-color from frame number. This will flash with a 120 frame period.
-	VkClearColorValue clearValue;
-	float flash = abs(sin(FrameIdx / 120.f));
-	clearValue = { { 0.0f, 0.0f, flash, 1.0f } };
+	DrawBackground(cmd);
 
-	VkImageSubresourceRange clearRange {};
-    clearRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    clearRange.baseMipLevel = 0;
-    clearRange.levelCount = VK_REMAINING_MIP_LEVELS;
-    clearRange.baseArrayLayer = 0;
-    clearRange.layerCount = VK_REMAINING_ARRAY_LAYERS;
+	TransitionImage(cmd, DrawImage->Image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 
-	//clear image
-	vkCmdClearColorImage(cmd, Swapchain.Images[swapchainImageIndex], VK_IMAGE_LAYOUT_GENERAL, &clearValue, 1, &clearRange);
+	DrawGeometry(cmd);
 
-	//make the swapchain image into presentable mode
-	TransitionImage(cmd, Swapchain.Images[swapchainImageIndex], VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+	TransitionImage(cmd, DrawImage->Image, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+	TransitionImage(cmd, Swapchain.Images[swapchainImageIndex], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+
+	VkExtent2D DrawExtent = { DrawImage->Width, DrawImage->Height };
+	CopyImageToImage(cmd, DrawImage->Image, Swapchain.Images[swapchainImageIndex], DrawExtent, Swapchain.Extent);
+
+	TransitionImage(cmd, Swapchain.Images[swapchainImageIndex], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 
 	//finalize the command buffer (we can no longer add commands, but it can now be executed)
 	VK_CHECK(vkEndCommandBuffer(cmd));
@@ -221,7 +267,15 @@ void vulkan_iface::BeginDrawing()
 
 	presentInfo.pImageIndices = &swapchainImageIndex;
 
-	VK_CHECK(vkQueuePresentKHR(Device.GraphicsQueue, &presentInfo));
+	result = vkQueuePresentKHR(Device.PresentationQueue, &presentInfo);
+
+	if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || FramebufferResized ) {
+		FramebufferResized = false;
+		printf("[TODO] We have to recreate swapchain!!\n");
+	} else if (result != VK_SUCCESS) {
+		printf("[ERROR] Failed to present swapchain image");
+		exit(1);
+	}
 
 	//increase the number of frames drawn
 	CurrentFrame++;
@@ -434,6 +488,205 @@ void vulkan_iface::CreateSwapchain()
 	Swapchain.Format = surface_format.format;
 	Swapchain.Extent = extent;
 	Swapchain.Capabilities = swap_chain_support.Capabilities;
+
+	//draw image size will match the window
+	VkExtent3D drawImageExtent = {
+		(U32)Window.Width,
+		(U32)Window.Height,
+		1
+	};
+
+	if (N_TextureImages == 0)
+	{
+		TextureImage = RenderArena->Push<vk_image>(1);
+		N_TextureImages += 1;
+	}
+	vk_image* DrawImage = &TextureImage[0];
+
+	DrawImage->Format = VK_FORMAT_R16G16B16A16_SFLOAT;
+	DrawImage->Width = Window.Width;
+	DrawImage->Height = Window.Height;
+
+	VkImageUsageFlags drawImageUsages{};
+	drawImageUsages |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+	drawImageUsages |= VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+	drawImageUsages |= VK_IMAGE_USAGE_STORAGE_BIT;
+	drawImageUsages |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+
+	VkImageCreateInfo ImgCreateInfo = ImageCreateInfo( DrawImage->Format, drawImageUsages, drawImageExtent );
+
+	VmaAllocationCreateInfo VmaImgCreateInfo = {};
+	VmaImgCreateInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+	VmaImgCreateInfo.requiredFlags = VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+	vmaCreateImage(GPUAllocator, &ImgCreateInfo, &VmaImgCreateInfo, &DrawImage->Image, &DrawImage->Alloc, nullptr);
+
+	VkImageViewCreateInfo ImgVwCreateInfo = ImageViewCreateInfo(DrawImage->Format, DrawImage->Image, VK_IMAGE_ASPECT_COLOR_BIT);
+
+	VK_CHECK(vkCreateImageView(Device.LogicalDevice, &ImgVwCreateInfo, nullptr, &DrawImage->ImageView));
+
+	MainDeletionQueue->PushBack([ = ]() {
+		vkDestroyImageView(Device.LogicalDevice, DrawImage->ImageView, nullptr);
+		vmaDestroyImage(GPUAllocator, DrawImage->Image, DrawImage->Alloc);
+	});
+}
+
+// ------------------------------------------------------------------ 
+
+void
+vulkan_iface::InitDescriptors()
+{
+	//create a descriptor pool that will hold 10 sets with 1 image each
+	vector<vk_descriptor_allocator::pool_size_ratio> sizes(TempArena, 1);
+	sizes.PushBack( { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1 } );
+
+	GlobalDescriptorAllocator.InitPool(TempArena, Device.LogicalDevice, 10, sizes);
+
+	//make the descriptor set layout for our compute draw
+	{
+		vk_descriptor_set builder;
+		builder.Init(RenderArena, 1);
+		builder.AddBinding(0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+		DrawImageDescriptorLayout = builder.Build(Device.LogicalDevice, VK_SHADER_STAGE_COMPUTE_BIT);
+	}
+
+	DrawImageDescriptors = GlobalDescriptorAllocator.Allocate(Device.LogicalDevice, DrawImageDescriptorLayout);
+
+	vk_image* DrawImage = &TextureImage[0];
+	VkDescriptorImageInfo imgInfo{};
+	imgInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+	imgInfo.imageView = DrawImage->ImageView;
+
+	VkWriteDescriptorSet drawImageWrite = {};
+	drawImageWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	drawImageWrite.pNext = nullptr;
+	
+	drawImageWrite.dstBinding = 0;
+	drawImageWrite.dstSet = DrawImageDescriptors;
+	drawImageWrite.descriptorCount = 1;
+	drawImageWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+	drawImageWrite.pImageInfo = &imgInfo;
+
+	vkUpdateDescriptorSets(Device.LogicalDevice, 1, &drawImageWrite, 0, nullptr);
+
+	MainDeletionQueue->PushBack([&]() {
+		GlobalDescriptorAllocator.DestroyPool(Device.LogicalDevice);
+		vkDestroyDescriptorSetLayout(Device.LogicalDevice, DrawImageDescriptorLayout, nullptr);
+	});
+}
+
+// ------------------------------------------------------------------ 
+
+void vulkan_iface::InitBackgroundPipelines()
+{
+	VkPipelineLayoutCreateInfo computeLayout{};
+	computeLayout.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+	computeLayout.pNext = nullptr;
+	computeLayout.pSetLayouts = &DrawImageDescriptorLayout;
+	computeLayout.setLayoutCount = 1;
+
+	VK_CHECK(vkCreatePipelineLayout(Device.LogicalDevice, &computeLayout, nullptr, &BackgroundComputePipelineLayout));
+
+	//layout code
+	VkShaderModule computeDrawShader;
+	if (!LoadShaderModule("./samples/vulkan_sample/compute.comp.spv", Device.LogicalDevice, &computeDrawShader))
+	{
+		printf("[ERROR] Error when building the compute shader \n");
+	}
+
+	VkPipelineShaderStageCreateInfo stageinfo{};
+	stageinfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	stageinfo.pNext = nullptr;
+	stageinfo.stage = VK_SHADER_STAGE_COMPUTE_BIT;
+	stageinfo.module = computeDrawShader;
+	stageinfo.pName = "main";
+
+	VkComputePipelineCreateInfo computePipelineCreateInfo{};
+	computePipelineCreateInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+	computePipelineCreateInfo.pNext = nullptr;
+	computePipelineCreateInfo.layout = BackgroundComputePipelineLayout;
+	computePipelineCreateInfo.stage = stageinfo;
+	
+	VK_CHECK(vkCreateComputePipelines(Device.LogicalDevice, VK_NULL_HANDLE, 1, &computePipelineCreateInfo, nullptr, &BackgroundComputePipeline));
+	
+	vkDestroyShaderModule(Device.LogicalDevice, computeDrawShader, nullptr);
+
+	MainDeletionQueue->PushBack([&]() {
+		vkDestroyPipelineLayout(Device.LogicalDevice, BackgroundComputePipelineLayout, nullptr);
+		vkDestroyPipeline(Device.LogicalDevice, BackgroundComputePipeline, nullptr);
+	});
+}
+
+// ------------------------------------------------------------------ 
+
+void vulkan_iface::InitPipelines()
+{
+	InitBackgroundPipelines();
+}
+
+// ------------------------------------------------------------------ 
+
+void
+vulkan_iface::InitTrianglePipeline()
+{
+	VkShaderModule triangleFragShader;
+	if (!LoadShaderModule("./samples/vulkan_sample/ColoredTriangle.frag.spv", Device.LogicalDevice, &triangleFragShader)) {
+		printf("[ERROR] when building the triangle fragment shader module\n");
+	}
+	else {
+		printf("[INFO] Triangle fragment shader succesfully loaded\n");
+	}
+
+	VkShaderModule triangleVertexShader;
+	if (!LoadShaderModule("./samples/vulkan_sample/ColoredTriangle.vert.spv", Device.LogicalDevice, &triangleVertexShader)) {
+		printf("[ERROR] when building the triangle vertex shader module\n");
+	}
+	else {
+		printf("[INFO] Triangle vertex shader succesfully loaded\n");
+	}
+	
+	//build the pipeline layout that controls the inputs/outputs of the shader
+	//we are not using descriptor sets or other systems yet, so no need to use anything other than empty default
+	VkPipelineLayoutCreateInfo pipeline_layout_info = PipelineLayoutCreateInfo();
+	VK_CHECK(vkCreatePipelineLayout(Device.LogicalDevice, &pipeline_layout_info, nullptr, &TrianglePipelineLayout));
+
+	// Two shader stages, vertex and fragment shader
+	//
+	vk_pipeline_builder pipelineBuilder(TempArena, 2);
+
+	//use the triangle layout we created
+	pipelineBuilder.PipelineLayout = TrianglePipelineLayout;
+	//connecting the vertex and pixel shaders to the pipeline
+	pipelineBuilder.SetShaders(triangleVertexShader, triangleFragShader);
+	//it will draw triangles
+	pipelineBuilder.SetInputTopology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+	//filled triangles
+	pipelineBuilder.SetPolygonMode(VK_POLYGON_MODE_FILL);
+	//no backface culling
+	pipelineBuilder.SetCullMode(VK_CULL_MODE_NONE, VK_FRONT_FACE_CLOCKWISE);
+	//no multisampling
+	pipelineBuilder.SetMultisamplingNone();
+	//no blending
+	pipelineBuilder.DisableBlending();
+	//no depth testing
+	pipelineBuilder.DisableDepthTest();
+
+	vk_image* DrawImage = &TextureImage[0];
+	//connect the image format we will draw into, from draw image
+	pipelineBuilder.SetColorAttachmentFormat(DrawImage->Format);
+	pipelineBuilder.SetDepthFormat(VK_FORMAT_UNDEFINED);
+
+	//finally build the pipeline
+	TrianglePipeline = pipelineBuilder.BuildPipeline(Device.LogicalDevice);
+
+	//clean structures
+	vkDestroyShaderModule(Device.LogicalDevice, triangleFragShader, nullptr);
+	vkDestroyShaderModule(Device.LogicalDevice, triangleVertexShader, nullptr);
+
+	MainDeletionQueue->PushBack([&]() {
+		vkDestroyPipelineLayout(Device.LogicalDevice, TrianglePipelineLayout, nullptr);
+		vkDestroyPipeline(Device.LogicalDevice, TrianglePipeline, nullptr);
+	});
 }
 
 // ------------------------------------------------------------------ 
@@ -447,6 +700,9 @@ vulkan_iface::vulkan_iface( const char* window_name = "Base" ) {
 
 	TempArena = (Arena*)malloc(sizeof(Arena));
 	TempArena->Init(64 << 10, 256 << 20);
+
+	MainDeletionQueue = RenderArena->Push<vector<std::function<void()>>>(256);
+	MainDeletionQueue->Init(RenderArena, (U32)256);
 
 	// -------------- Window creaation ------------------------------
 	//
@@ -580,34 +836,34 @@ vulkan_iface::vulkan_iface( const char* window_name = "Base" ) {
 	queue_create_info.queueCount         = 1;
 	queue_create_info.pQueuePriorities   = &queue_priority;
 
-	VkPhysicalDeviceSynchronization2Features synchronization2Features = {};
-	synchronization2Features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SYNCHRONIZATION_2_FEATURES;
-	synchronization2Features.synchronization2 = VK_TRUE;
+	// Vulkan 1.3 features
+	VkPhysicalDeviceVulkan13Features features13 = {};
+	features13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
+	features13.dynamicRendering = VK_TRUE;
+	features13.synchronization2 = VK_TRUE;
+	features13.pNext = nullptr;
 
-	VkPhysicalDeviceFeatures device_features{};
-	device_features.samplerAnisotropy = VK_TRUE;
+	// Vulkan 1.2 features
+	VkPhysicalDeviceVulkan12Features features12 = {};
+	features12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
+	features12.bufferDeviceAddress = VK_TRUE;
+	features12.descriptorIndexing = VK_TRUE;
+	features12.pNext = &features13;
 
+	// Core Vulkan features
 	VkPhysicalDeviceFeatures2 deviceFeatures = {};
 	deviceFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
-	deviceFeatures.pNext = &synchronization2Features; // Chain synchronization features
-	deviceFeatures.features = device_features;
-
-	VkPhysicalDeviceDescriptorIndexingFeatures indexingFeatures = {};
-	indexingFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES;
-	indexingFeatures.descriptorBindingVariableDescriptorCount = VK_TRUE;
-	indexingFeatures.runtimeDescriptorArray = VK_TRUE;
-	indexingFeatures.descriptorBindingPartiallyBound = VK_TRUE;
-	indexingFeatures.pNext = &deviceFeatures;
-
+	deviceFeatures.features.samplerAnisotropy = VK_TRUE;
+	deviceFeatures.pNext = &features12;
 
 	VkDeviceCreateInfo create_info{};
 	create_info.sType                 = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
 	create_info.pQueueCreateInfos     = &queue_create_info;
 	create_info.queueCreateInfoCount  = 1;
 	create_info.pEnabledFeatures      = nullptr;
-	create_info.enabledExtensionCount = 1;
+	create_info.enabledExtensionCount = 4;
 	create_info.ppEnabledExtensionNames = DEVICE_EXTENSIONS;
-	create_info.pNext = &indexingFeatures;
+	create_info.pNext = &deviceFeatures;
 
 	#ifdef DEBUG
 	create_info.enabledLayerCount   = 1;
@@ -624,16 +880,263 @@ vulkan_iface::vulkan_iface( const char* window_name = "Base" ) {
  
 	vkGetDeviceQueue(Device.LogicalDevice, qfi.GraphicsAndCompute, 0, &Device.GraphicsQueue);
 	vkGetDeviceQueue(Device.LogicalDevice, qfi.Presentation, 0, &Device.PresentationQueue);
-	//vkGetDeviceQueue(Device.LogicalDevice, qfi.GraphicsAndCompute, 0, &Device.ComputeQueue);
+	vkGetDeviceQueue(Device.LogicalDevice, qfi.GraphicsAndCompute, 0, &Device.ComputeQueue);
+
+	// initialize the memory allocator
+    VmaAllocatorCreateInfo allocatorInfo = {};
+    allocatorInfo.physicalDevice = Device.PhysicalDevice;
+    allocatorInfo.device = Device.LogicalDevice;
+    allocatorInfo.instance = Instance;
+    allocatorInfo.flags = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT;
+    VkResult result = vmaCreateAllocator(&allocatorInfo, &GPUAllocator);
+	if (result != VK_SUCCESS) {
+		fprintf(stderr, "[ERROR] Failed to create VMA allocator\n");
+		exit(1);
+	}
+
+	MainDeletionQueue->PushBack([ & ]() { vmaDestroyAllocator(GPUAllocator); });
 
 	CreateSwapchain();
+
 	CreateImageViews();
+	
 	InitCommands();
+	
 	InitSyncStructures();
+	
+	InitDescriptors();
+
+	InitPipelines();
+
+	InitTrianglePipeline();
 }
 
 // -------------------- PRIVATE CLASS FUNCTIONS ---------------------
 //
+
+VkRenderingAttachmentInfo
+vulkan_iface::AttachmentInfo(VkImageView View, VkClearValue* Clear, VkImageLayout Layout)
+{
+	VkRenderingAttachmentInfo colorAttachment {};
+    colorAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+    colorAttachment.pNext = nullptr;
+
+    colorAttachment.imageView = View;
+    colorAttachment.imageLayout = Layout;
+    colorAttachment.loadOp = Clear ? VK_ATTACHMENT_LOAD_OP_CLEAR : VK_ATTACHMENT_LOAD_OP_LOAD;
+    colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    if (Clear) {
+        colorAttachment.clearValue = *Clear;
+    }
+
+    return colorAttachment;
+}
+
+// ------------------------------------------------------------------ 
+
+VkRenderingInfo
+vulkan_iface::RenderingInfo(VkExtent2D Extent, VkRenderingAttachmentInfo* ColorInfo, VkRenderingAttachmentInfo* DepthInfo)
+{
+	VkRenderingInfo renderInfo {};
+    renderInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
+    renderInfo.pNext = nullptr;
+
+    renderInfo.renderArea = VkRect2D { VkOffset2D { 0, 0 }, Extent };
+    renderInfo.layerCount = 1;
+    renderInfo.colorAttachmentCount = 1;
+    renderInfo.pColorAttachments = ColorInfo;
+    renderInfo.pDepthAttachment = DepthInfo;
+    renderInfo.pStencilAttachment = nullptr;
+
+    return renderInfo;
+}
+
+// ------------------------------------------------------------------
+
+VkPipelineLayoutCreateInfo 
+vulkan_iface::PipelineLayoutCreateInfo()
+{
+	VkPipelineLayoutCreateInfo Layout{};
+	Layout.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+	Layout.pNext = nullptr;
+	Layout.pSetLayouts = &DrawImageDescriptorLayout;
+	Layout.setLayoutCount = 1;
+	
+	return Layout;
+}
+
+// ------------------------------------------------------------------
+
+bool 
+vulkan_iface::LoadShaderModule(const char* FilePath, VkDevice Device, VkShaderModule* OutShaderModule)
+{
+	// open the file. With cursor at the end
+    std::ifstream file(FilePath, std::ios::ate | std::ios::binary);
+
+    if (!file.is_open()) {
+        return false;
+    }
+
+    // find what the size of the file is by looking up the location of the cursor
+    // because the cursor is at the end, it gives the size directly in bytes
+    size_t fileSize = (size_t)file.tellg();
+
+    // spirv expects the buffer to be on U32, so make sure to reserve a int
+    // vector big enough for the entire file
+    vector<U32> buffer(TempArena, fileSize / sizeof(U32));
+
+
+    // put file cursor at beginning
+    file.seekg(0);
+
+    // load the entire file into the buffer
+    file.read((char*)buffer.GetData(), fileSize);
+	buffer.BufferSetLength(fileSize / sizeof(U32));
+
+    // now that the file is loaded into the buffer, we can close it
+    file.close();
+
+    // create a new shader module, using the buffer we loaded
+    VkShaderModuleCreateInfo createInfo = {};
+    createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+    createInfo.pNext = nullptr;
+
+    // codeSize has to be in bytes, so multply the ints in the buffer by size of
+    // int to know the real size of the buffer
+    createInfo.codeSize = buffer.GetLength() * sizeof(uint32_t);
+    createInfo.pCode = buffer.GetData();
+
+    // check that the creation goes well.
+    VkShaderModule shaderModule;
+    if (vkCreateShaderModule(Device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS) {
+        return false;
+    }
+    *OutShaderModule = shaderModule;
+    return true;
+}
+
+// ------------------------------------------------------------------
+
+VkImageCreateInfo 
+vulkan_iface::ImageCreateInfo(VkFormat format, VkImageUsageFlags usageFlags, VkExtent3D extent)
+{
+	VkImageCreateInfo info = {};
+    info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    info.pNext = nullptr;
+
+    info.imageType = VK_IMAGE_TYPE_2D;
+
+    info.format = format;
+    info.extent = extent;
+
+    info.mipLevels = 1;
+    info.arrayLayers = 1;
+
+    //for MSAA. we will not be using it by default, so default it to 1 sample per pixel.
+    info.samples = VK_SAMPLE_COUNT_1_BIT;
+
+    //optimal tiling, which means the image is stored on the best gpu format
+    info.tiling = VK_IMAGE_TILING_OPTIMAL;
+    info.usage = usageFlags;
+
+    return info;
+}
+
+// ------------------------------------------------------------------
+
+void
+vulkan_iface::DrawBackground(VkCommandBuffer cmd)
+{
+	U32 FrameIdx = CurrentFrame % MAX_FRAMES_IN_FLIGHT;
+
+	vk_image* DrawImage = &TextureImage[0];
+	//make a clear-color from frame number. This will flash with a 120 frame period.
+	VkClearColorValue clearValue;
+	float flash = abs(sin(FrameIdx / 120.f));
+	clearValue = { { 0.0f, 0.0f, flash, 1.0f } };
+
+	VkImageSubresourceRange clearRange {};
+    clearRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    clearRange.baseMipLevel = 0;
+    clearRange.levelCount = VK_REMAINING_MIP_LEVELS;
+    clearRange.baseArrayLayer = 0;
+    clearRange.layerCount = VK_REMAINING_ARRAY_LAYERS;
+
+	VkExtent2D Extent = { DrawImage->Width, DrawImage->Height };
+
+	//clear image
+	//vkCmdClearColorImage(cmd, DrawImage->Image, VK_IMAGE_LAYOUT_GENERAL, &clearValue, 1, &clearRange);
+
+	// bind the gradient drawing compute pipeline
+	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, BackgroundComputePipeline);
+
+	// bind the descriptor set containing the draw image for the compute pipeline
+	vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, BackgroundComputePipelineLayout, 0, 1, &DrawImageDescriptors, 0, nullptr);
+
+	// execute the compute pipeline dispatch. We are using 16x16 workgroup size so we need to divide by it
+	vkCmdDispatch(cmd, ceil(Extent.width / 16.0), ceil(Extent.height / 16.0), 1);
+}
+
+// ------------------------------------------------------------------
+
+void 
+vulkan_iface::CopyImageToImage(VkCommandBuffer cmd, VkImage source, VkImage destination, VkExtent2D srcSize, VkExtent2D dstSize)
+{
+	VkImageBlit2 blitRegion{ .sType = VK_STRUCTURE_TYPE_IMAGE_BLIT_2, .pNext = nullptr };
+
+	blitRegion.srcOffsets[1].x = srcSize.width;
+	blitRegion.srcOffsets[1].y = srcSize.height;
+	blitRegion.srcOffsets[1].z = 1;
+
+	blitRegion.dstOffsets[1].x = dstSize.width;
+	blitRegion.dstOffsets[1].y = dstSize.height;
+	blitRegion.dstOffsets[1].z = 1;
+
+	blitRegion.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	blitRegion.srcSubresource.baseArrayLayer = 0;
+	blitRegion.srcSubresource.layerCount = 1;
+	blitRegion.srcSubresource.mipLevel = 0;
+
+	blitRegion.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	blitRegion.dstSubresource.baseArrayLayer = 0;
+	blitRegion.dstSubresource.layerCount = 1;
+	blitRegion.dstSubresource.mipLevel = 0;
+
+	VkBlitImageInfo2 blitInfo{ .sType = VK_STRUCTURE_TYPE_BLIT_IMAGE_INFO_2, .pNext = nullptr };
+	blitInfo.dstImage = destination;
+	blitInfo.dstImageLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+	blitInfo.srcImage = source;
+	blitInfo.srcImageLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+	blitInfo.filter = VK_FILTER_LINEAR;
+	blitInfo.regionCount = 1;
+	blitInfo.pRegions = &blitRegion;
+
+	vkCmdBlitImage2(cmd, &blitInfo);
+}
+
+// ------------------------------------------------------------------
+
+VkImageViewCreateInfo 
+vulkan_iface::ImageViewCreateInfo(VkFormat format, VkImage image, VkImageAspectFlags aspectFlags)
+{
+	// build a image-view for the depth image to use for rendering
+    VkImageViewCreateInfo info = {};
+    info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    info.pNext = nullptr;
+
+    info.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    info.image = image;
+    info.format = format;
+    info.subresourceRange.baseMipLevel = 0;
+    info.subresourceRange.levelCount = 1;
+    info.subresourceRange.baseArrayLayer = 0;
+    info.subresourceRange.layerCount = 1;
+    info.subresourceRange.aspectMask = aspectFlags;
+
+    return info;
+}
+
+// ------------------------------------------------------------------
 
 swapchain_support_details
 vulkan_iface::QuerySwapChainSupport( VkPhysicalDevice Device )
@@ -670,16 +1173,18 @@ vulkan_iface::CheckDeviceExtensionSupport( VkPhysicalDevice Device )
 	vkEnumerateDeviceExtensionProperties(Device, nullptr, &extensionCount, available_extensions );
  
 	U32 TotalExtensions = extensionCount;
-	for (U32 extIdx = 0; extIdx < 3; extIdx += 1) {
+	for (U32 extIdx = 0; extIdx < 4; extIdx += 1) {
 		bool extFound = false;
 		for (U32 i = 0; i < extensionCount; ++i)
 		{
 			if (strcmp(available_extensions[i].extensionName, DEVICE_EXTENSIONS[extIdx]) == 0)
 			{
+				printf("[INFO] Extension %s found\n", DEVICE_EXTENSIONS[extIdx]);
 				extFound = true;
 			}
 		}
 		if (!extFound) {
+			printf("[ERROR] EXTENSION: %s | NOT_FOUND", DEVICE_EXTENSIONS[extIdx]);
 			TotalExtensions -= 1;
 		}
 	}
@@ -860,4 +1365,123 @@ VkSubmitInfo2 vulkan_iface::SubmitInfo(VkCommandBufferSubmitInfo* cmd, VkSemapho
     info.pCommandBufferInfos = cmd;
 
     return info;
+}
+
+// =============== vk_pipeline_builder CLASS ========================
+
+void vk_pipeline_builder::SetShaders(VkShaderModule vertexShader, VkShaderModule fragmentShader)
+{
+    ShaderStages.Clear();
+
+    ShaderStages.PushBack(
+        vk_pipeline_builder::PipelineShaderStageCreateInfo(VK_SHADER_STAGE_VERTEX_BIT, vertexShader, "main"));
+
+    ShaderStages.PushBack(
+        vk_pipeline_builder::PipelineShaderStageCreateInfo(VK_SHADER_STAGE_FRAGMENT_BIT, fragmentShader, "main"));
+}
+
+// ------------------------------------------------------------------
+
+void vk_pipeline_builder::SetInputTopology(VkPrimitiveTopology topology)
+{
+	InputAssembly.topology = topology;
+    // we are not going to use primitive restart on the entire tutorial so leave
+    // it on false
+    InputAssembly.primitiveRestartEnable = VK_FALSE;
+}
+// ------------------------------------------------------------------
+
+void vk_pipeline_builder::SetMultisamplingNone()
+{
+    Multisampling.sampleShadingEnable = VK_FALSE;
+    // multisampling defaulted to no multisampling (1 sample per pixel)
+    Multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+    Multisampling.minSampleShading = 1.0f;
+    Multisampling.pSampleMask = nullptr;
+    // no alpha to coverage either
+    Multisampling.alphaToCoverageEnable = VK_FALSE;
+    Multisampling.alphaToOneEnable = VK_FALSE;
+}
+
+// ------------------------------------------------------------------
+
+void vk_pipeline_builder::DisableDepthTest()
+{
+    DepthStencil.depthTestEnable = VK_FALSE;
+    DepthStencil.depthWriteEnable = VK_FALSE;
+    DepthStencil.depthCompareOp = VK_COMPARE_OP_NEVER;
+    DepthStencil.depthBoundsTestEnable = VK_FALSE;
+    DepthStencil.stencilTestEnable = VK_FALSE;
+    DepthStencil.front = {};
+    DepthStencil.back = {};
+    DepthStencil.minDepthBounds = 0.f;
+    DepthStencil.maxDepthBounds = 1.f;
+}
+
+
+// ------------------------------------------------------------------
+
+VkPipeline
+vk_pipeline_builder::BuildPipeline(VkDevice Device)
+{
+	// make viewport state from our stored viewport and scissor.
+    // at the moment we wont support multiple viewports or scissors
+    VkPipelineViewportStateCreateInfo viewportState = {};
+    viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+    viewportState.pNext = nullptr;
+
+    viewportState.viewportCount = 1;
+    viewportState.scissorCount = 1;
+
+    // setup dummy color blending. We arent using transparent objects yet
+    // the blending is just "no blend", but we do write to the color attachment
+    VkPipelineColorBlendStateCreateInfo colorBlending = {};
+    colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+    colorBlending.pNext = nullptr;
+
+    colorBlending.logicOpEnable = VK_FALSE;
+    colorBlending.logicOp = VK_LOGIC_OP_COPY;
+    colorBlending.attachmentCount = 1;
+    colorBlending.pAttachments = &ColorBlendAttachment;
+
+    // completely clear VertexInputStateCreateInfo, as we have no need for it
+    VkPipelineVertexInputStateCreateInfo _vertexInputInfo = { .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO };
+	// build the actual pipeline
+    // we now use all of the info structs we have been writing into into this one
+    // to create the pipeline
+    VkGraphicsPipelineCreateInfo pipelineInfo = { .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO };
+    // connect the renderInfo to the pNext extension mechanism
+    pipelineInfo.pNext = &RenderInfo;
+
+    pipelineInfo.stageCount          = ShaderStages.GetLength();
+    pipelineInfo.pStages             = ShaderStages.GetData();
+    pipelineInfo.pVertexInputState   = &_vertexInputInfo;
+    pipelineInfo.pInputAssemblyState = &InputAssembly;
+    pipelineInfo.pViewportState      = &viewportState;
+    pipelineInfo.pRasterizationState = &Rasterizer;
+    pipelineInfo.pMultisampleState   = &Multisampling;
+    pipelineInfo.pColorBlendState    = &colorBlending;
+    pipelineInfo.pDepthStencilState  = &DepthStencil;
+    pipelineInfo.layout              = PipelineLayout;
+
+	VkDynamicState state[] = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
+
+    VkPipelineDynamicStateCreateInfo dynamicInfo = { .sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO };
+    dynamicInfo.pDynamicStates = &state[0];
+    dynamicInfo.dynamicStateCount = 2;
+
+    pipelineInfo.pDynamicState = &dynamicInfo;
+	// its easy to error out on create graphics pipeline, so we handle it a bit
+    // better than the common VK_CHECK case
+    VkPipeline newPipeline;
+    if (vkCreateGraphicsPipelines(Device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &newPipeline) != VK_SUCCESS) 
+	{
+		printf("[ERROR] Failed to create pipeline");
+        return VK_NULL_HANDLE;
+    } 
+	else 
+	{
+        return newPipeline;
+    }
+
 }

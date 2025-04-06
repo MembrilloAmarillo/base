@@ -1,10 +1,28 @@
 #include "vector.h"
 
+// ------------------------------------------------------------------
+
+template <typename T>
+vector<T>::vector() :
+	ArenaData( nullptr ),
+	Data( nullptr ),
+	IdxStart( 0 ),
+	IdxTail( 0 ),
+	N_Elements( 0 ),
+	Size(0)
+{
+}
 
 // ------------------------------------------------------------------
 
 template <typename T>
-vector<T>::vector( Arena* pArenaData = nullptr, u32 Size = 0  ) {
+vector<T>::vector( Arena* pArenaData, U32 Size ) : 
+	ArenaData(ArenaData), 
+	Size(Size), 
+	IdxStart(0),
+	IdxTail(0), 
+	N_Elements(0)
+{
 	if (pArenaData == nullptr) {
 		ArenaData = (Arena*)malloc(sizeof(Arena));
 		ArenaData->Init(0, Size);
@@ -13,12 +31,28 @@ vector<T>::vector( Arena* pArenaData = nullptr, u32 Size = 0  ) {
 		ArenaData = pArenaData;
 	}
 
-	this->Size = Size;
-
 	Data = ArenaData->Push<T>(Size);
-	N_Elements = 0;
-	IdxStart = 0;
-	IdxTail  = 0;
+}
+
+
+// ------------------------------------------------------------------
+
+template <typename T> 
+void vector<T>::Init( Arena* pArenaData, U32 Size)
+{
+	if (ArenaData == nullptr) {
+		if (pArenaData == nullptr) {
+			ArenaData = (Arena*)malloc(sizeof(Arena));
+			ArenaData->Init(0, Size);
+		}
+		else {
+			ArenaData = pArenaData;
+		}
+
+		IdxStart = IdxTail = N_Elements = 0;
+		this->Size = Size;
+		Data = ArenaData->Push<T>(Size);
+	}
 }
 
 // ------------------------------------------------------------------
@@ -30,7 +64,7 @@ void vector<T>::PushBack(T value) {
 		exit(1);
 	}
 	Data[IdxTail] = value;
-	IdxTail = IdxTail % Size;
+	IdxTail = (IdxTail + 1) % Size;
 	N_Elements += 1;
 }
 

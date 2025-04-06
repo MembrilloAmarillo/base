@@ -15,7 +15,8 @@ int main() {
 	Arena* MainArena = (Arena*)malloc(sizeof(Arena));
 	MainArena->Init(0, 256 << 20);
 
-	vector<U32> MyVector(MainArena, 256000);
+	vector<U32> MyVector;
+	MyVector.Init(MainArena, 256000);
 
 	for (U32 i = 0; i < 255999; i += 1) 
 	{
