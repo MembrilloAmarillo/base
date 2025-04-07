@@ -3,7 +3,14 @@
 #ifndef MATH_H
 #define MATH_H
 
+#include <xmmintrin.h>
+#include <immintrin.h>
+
 #include "../types/types.h"
+
+#define POW2(a) ((a) * (a))
+
+#define POW3(a) ((a) * (a) * (a))
 
 struct Vec2 {
 	union {
@@ -12,7 +19,7 @@ struct Vec2 {
 			F32 y;
 		};
 		struct {
-			F32 vec[3];
+			F32 vec[2];
 		};
 	};
 };
@@ -52,6 +59,57 @@ struct Vec4 {
 		struct {
 			F32 vec[4];
         };
+    };
+};
+
+struct m4x4 {
+	// [row][column]
+	//
+	F32 V[4][4];
+};
+
+struct f32_4v_simd {
+	union {
+		__m128 V;
+		F32    F[4];
+		U32    U[4];
+	};
+};
+
+
+// Casey style simd matrix
+//
+struct m4x4_simd {
+	union
+    {
+        struct
+        {
+            union
+            {
+                f32_4v_simd x;
+                f32_4v_simd r;
+            };
+            
+            union
+            {
+                f32_4v_simd y;
+                f32_4v_simd g;
+            };
+            
+            union
+            {
+                f32_4v_simd z;
+                f32_4v_simd b;
+            };
+            
+            union
+            {
+                f32_4v_simd w;
+                f32_4v_simd a;
+            };
+        };
+        
+        f32_4v_simd E[4];
     };
 };
 

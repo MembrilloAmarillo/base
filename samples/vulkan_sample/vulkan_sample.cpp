@@ -26,11 +26,26 @@ int main() {
 
 	vulkan_iface vIface("Hello World");
 
+	vk_pipeline_builder builder(vIface.RenderArena, 2);
+	builder.SetInputTopology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+	builder.SetPolygonMode(VK_POLYGON_MODE_LINE);
+	builder.SetCullMode(VK_CULL_MODE_NONE, VK_FRONT_FACE_CLOCKWISE);
+	builder.DisableBlending();
+	builder.DisableDepthTest();
+	builder.SetMultisamplingNone();
+
+	vIface.AddPipeline(
+		builder, 
+		"./samples/vulkan_sample/ColoredTriangle.vert.comp", 
+		"./samples/vulkan_sample/ColoredTriangle.frag.comp"
+	);
+
 	while (!glfwWindowShouldClose(vIface.Window.Window)) {
 		glfwPollEvents(); // Process window events (key press, mouse move, close button, etc.)
 
 		// Render your Vulkan frame here
 		vIface.BeginDrawing();
+		glfwSwapBuffers(vIface.Window.Window);
 	}
 	return 0;
 }

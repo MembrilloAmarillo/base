@@ -14,9 +14,10 @@ public:
 	~vector();
 
 	void Init(Arena* ArenaData, U32 Size);
+	void Resize(U64 Size);
+
 	void PushBack( T value );
 	void PushFront( T value );
-
 	void PopBack();
 	void PopFront();
 

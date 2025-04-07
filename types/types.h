@@ -5,6 +5,10 @@
 
 #include <stdint.h>
 
+#if defined(_WIN64) || defined(_WIN32)
+#include <Windows.h>
+#endif
+
 #define local_persist static
 #define global        static
 
@@ -19,5 +23,29 @@
 
 #define F32 float
 #define F64 double
+
+global U32 IsPow2(U32 Value)
+{
+    U32 Result = ((Value & ~(Value - 1)) == Value);
+    return(Result);
+}
+
+global U32 GetThreadID(void)
+{
+    U32 ThreadID;
+	#if defined(__APPLE__) && defined(__x86_64__)
+    asm("mov %%gs:0x00,%0" : "=r"(ThreadID));
+	#elif defined(__i386__)
+    asm("mov %%gs:0x08,%0" : "=r"(ThreadID));
+	#elif defined(__x86_64__)
+    asm("mov %%fs:0x10,%0" : "=r"(ThreadID));
+	#elif defined(_WIN64) || defined(_WIN32)
+	ThreadID = GetCurrentThreadId();
+	#else
+	#error Unsupported architecture
+	#endif
+    
+    return ThreadID;
+}
 
 #endif //TYPES_H

@@ -57,6 +57,15 @@ void vector<T>::Init( Arena* pArenaData, U32 Size)
 
 // ------------------------------------------------------------------
 
+template <typename T> 
+void vector<T>::Resize( U32 Size)
+{
+	T* offset = Data + Size - 1;
+	offset = ArenaData->Push<T>(Size);
+}
+
+// ------------------------------------------------------------------
+
 template<typename T>
 void vector<T>::PushBack(T value) {
 	if (N_Elements == Size) {

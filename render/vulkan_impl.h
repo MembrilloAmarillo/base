@@ -249,6 +249,8 @@ public:
 	VkBuffer              Buffer;
 	VkDeviceMemory        DeviceMemory;
 	void*                 MappedMemory { nullptr };
+	VmaAllocation         Allocation;
+	VmaAllocationInfo     AllocationInfo;
 	VkDeviceSize          Size;
 	VkDeviceSize          MaxSize;
 	VkMemoryPropertyFlags Properties;
@@ -256,6 +258,13 @@ public:
 	U32                   InstanceCount;
 	bool                  ToDestroy;
 };
+
+struct gpu_mesh_buffer {
+    vk_buffer IndexBuffer;
+    vk_buffer VertexBuffer;
+    VkDeviceAddress VertexBufferAddress;
+};
+
 
 class vk_pipeline_builder {
 public:
@@ -313,8 +322,6 @@ public:
 
     VkPipeline BuildPipeline(VkDevice Device);
 
-	void SetShaders(VkShaderModule vertexShader, VkShaderModule fragmentShader);
-
 	void SetInputTopology(VkPrimitiveTopology topology);
 
 	void SetPolygonMode(VkPolygonMode mode)
@@ -337,14 +344,6 @@ public:
 		ColorBlendAttachment.blendEnable = VK_FALSE;
 	}
 
-	void SetColorAttachmentFormat(VkFormat format)
-	{
-		ColorAttachmentformat = format;
-		// connect the format to the renderInfo  structure
-		RenderInfo.colorAttachmentCount = 1;
-		RenderInfo.pColorAttachmentFormats = &ColorAttachmentformat;
-	}
-
 	void SetDepthFormat(VkFormat format)
 	{
 		RenderInfo.depthAttachmentFormat = format;
@@ -354,8 +353,21 @@ public:
 
 	void DisableDepthTest();
 
-};
+	// This are used privately because the format color is from the DrawImage
+	// format we use to draw, and the and to set shaders and build the modules
+	// is done internally
+	//
+	void SetShaders(VkShaderModule vertexShader, VkShaderModule fragmentShader);
 
+	void SetColorAttachmentFormat(VkFormat format)
+	{
+		ColorAttachmentformat = format;
+		// connect the format to the renderInfo  structure
+		RenderInfo.colorAttachmentCount = 1;
+		RenderInfo.pColorAttachmentFormats = &ColorAttachmentformat;
+	}
+
+};
 
 struct uniform_buffer_ui {
 	F32 Time;
@@ -397,11 +409,22 @@ class vulkan_iface {
 	window                  Window;
 	vk_device               Device;
 	vk_swapchain            Swapchain;
-	vk_pipeline*            Pipelines;
+	vector<vk_pipeline>     Pipelines;
 	vk_descriptor_allocator GlobalDescriptorAllocator;
 	VkDescriptorSet         DrawImageDescriptors;
 	VkDescriptorSetLayout   DrawImageDescriptorLayout;
 	vk_semaphore            Semaphores;
+
+	// -------- Memory Handling -------------------------------------
+	//
+	Arena* RenderArena;
+	Arena* TempArena;
+	VmaAllocator GPUAllocator;
+
+	// ----- Immediate Submite --------------------------------------
+	//
+	VkFence ImmFence;
+	VkCommandBuffer ImmCommandBuffer;
 
 	// ----- Compute pipeline ---------------------------------------
 	//
@@ -482,13 +505,11 @@ class vulkan_iface {
 
 	void BeginDrawing();
 
-    private:
+	void UploadMesh( vector<U32>& indices, vector<vertex2d>& vertices );
 
-	// -------- Memory Handling -------------------------------------
-	//
-	Arena* RenderArena;
-	Arena* TempArena;
-	VmaAllocator GPUAllocator;
+	void AddPipeline( vk_pipeline_builder& builder, const char* vert_path, const char* frag_path  );
+
+    private:
 
 	// -------- Destruction queue -----------------------------------
 	//
@@ -497,6 +518,10 @@ class vulkan_iface {
 
 	// -------- Private Functions -----------------------------------
 	//
+	VkCommandBufferBeginInfo CommandBufferBeginInfo(VkCommandBufferUsageFlags flags);
+
+	void ImmediateSubmit( std::function<void(VkCommandBuffer cmd)>&& function);
+
 	void TransitionImage(VkCommandBuffer cmd, VkImage image, VkImageLayout currentLayout, VkImageLayout newLayout);
 
 	void DrawBackground( VkCommandBuffer cmd );
@@ -504,6 +529,10 @@ class vulkan_iface {
 	bool LoadShaderModule( const char* FilePath, VkDevice Device, VkShaderModule* OutShaderModule );
 
 	void CopyImageToImage(VkCommandBuffer cmd, VkImage source, VkImage destination, VkExtent2D srcSize, VkExtent2D dstSize);
+
+	vk_buffer AllocateBuffer(size_t AllocSize, VkBufferUsageFlags Usage, VmaMemoryUsage MemoryUsage);
+	
+	void DestroyBuffer(const vk_buffer& buffer);
 
 	VkPipelineLayoutCreateInfo PipelineLayoutCreateInfo();
 

@@ -154,7 +154,7 @@ vulkan_iface::DrawGeometry( VkCommandBuffer cmd )
 	VkExtent2D DrawExtent = { DrawImage->Width, DrawImage->Height };
 	VkRenderingInfo renderInfo = RenderingInfo(DrawExtent, &colorAttachment, nullptr);
 	vkCmdBeginRendering(cmd, &renderInfo);
-
+	#if 0
 	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, TrianglePipeline);
 
 	//set dynamic viewport and scissor
@@ -178,8 +178,146 @@ vulkan_iface::DrawGeometry( VkCommandBuffer cmd )
 
 	//launch a draw command to draw 3 vertices
 	vkCmdDraw(cmd, 3, 1, 0, 0);
+	#endif
+
+	for (U32 i = 0; i < Pipelines.GetLength(); i += 1)
+	{
+		VkPipeline Pipe = Pipelines.At(i).Pipeline;
+		vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, Pipe);
+
+		//set dynamic viewport and scissor
+		VkViewport viewport = {};
+		viewport.x = 0;
+		viewport.y = 0;
+		viewport.width = DrawExtent.width;
+		viewport.height = DrawExtent.height;
+		viewport.minDepth = 0.f;
+		viewport.maxDepth = 1.f;
+
+		vkCmdSetViewport(cmd, 0, 1, &viewport);
+
+		VkRect2D scissor = {};
+		scissor.offset.x = 0;
+		scissor.offset.y = 0;
+		scissor.extent.width = DrawExtent.width;
+		scissor.extent.height = DrawExtent.height;
+
+		vkCmdSetScissor(cmd, 0, 1, &scissor);
+
+		//launch a draw command to draw 3 vertices
+		vkCmdDraw(cmd, 3, 1, 0, 0);
+	}
 
 	vkCmdEndRendering(cmd);
+}
+
+// ------------------------------------------------------------------
+
+VkCommandBufferBeginInfo 
+vulkan_iface::CommandBufferBeginInfo(VkCommandBufferUsageFlags flags)
+{
+    VkCommandBufferBeginInfo info = {};
+    info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    info.pNext = nullptr;
+
+    info.pInheritanceInfo = nullptr;
+    info.flags = flags;
+    return info;
+}
+
+// ------------------------------------------------------------------
+
+void 
+vulkan_iface::ImmediateSubmit(std::function<void(VkCommandBuffer cmd)> && function)
+{
+	VK_CHECK(vkResetFences(Device.LogicalDevice, 1, &ImmFence));
+	VK_CHECK(vkResetCommandBuffer(ImmCommandBuffer, 0));
+
+	VkCommandBuffer cmd = ImmCommandBuffer;
+
+	VkCommandBufferBeginInfo cmdBeginInfo = CommandBufferBeginInfo(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+
+	VK_CHECK(vkBeginCommandBuffer(cmd, &cmdBeginInfo));
+
+	function(cmd);
+
+	VK_CHECK(vkEndCommandBuffer(cmd));
+
+	VkCommandBufferSubmitInfo cmdinfo = CommandBufferSubmitInfo(cmd);
+	VkSubmitInfo2 submit = SubmitInfo(&cmdinfo, nullptr, nullptr);
+
+	// submit command buffer to the queue and execute it.
+	//  _renderFence will now block until the graphic commands finish execution
+	VK_CHECK(vkQueueSubmit2(Device.GraphicsQueue, 1, &submit, ImmFence));
+
+	VK_CHECK(vkWaitForFences(Device.LogicalDevice, 1, &ImmFence, true, 9999999999));
+}
+
+// ------------------------------------------------------------------
+
+void
+vulkan_iface::UploadMesh( vector<U32>& indices, vector<vertex2d>& vertices )
+{
+	const U64 vertexBufferSize = vertices.GetLength() * sizeof(vertex2d);
+	const U64 indexBufferSize  = indices.GetLength()  * sizeof(U32);
+
+	gpu_mesh_buffer NewSurface;
+
+	NewSurface.VertexBuffer = AllocateBuffer(
+		vertexBufferSize,  
+		VK_BUFFER_USAGE_STORAGE_BUFFER_BIT 
+		| VK_BUFFER_USAGE_TRANSFER_DST_BIT 
+		| VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, 
+		VMA_MEMORY_USAGE_GPU_ONLY
+	);
+
+	VkBufferDeviceAddressInfo deviceAdressInfo{ 
+		.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,
+		.buffer = NewSurface.VertexBuffer.Buffer 
+	};
+
+	NewSurface.VertexBufferAddress = vkGetBufferDeviceAddress(
+		Device.LogicalDevice, 
+		&deviceAdressInfo
+	);
+
+	NewSurface.IndexBuffer = AllocateBuffer(
+		indexBufferSize, 
+		VK_BUFFER_USAGE_INDEX_BUFFER_BIT 
+		| VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+		VMA_MEMORY_USAGE_GPU_ONLY
+	);
+
+	vk_buffer staging = AllocateBuffer(
+		vertexBufferSize + indexBufferSize, 
+		VK_BUFFER_USAGE_TRANSFER_SRC_BIT, 
+		VMA_MEMORY_USAGE_CPU_ONLY
+	);
+
+	void* data = staging.Allocation->GetMappedData();
+
+	// copy vertex buffer
+	memcpy(data, vertices.GetData(), vertexBufferSize);
+	// copy index buffer
+	memcpy((char*)data + vertexBufferSize, indices.GetData(), indexBufferSize);
+
+	ImmediateSubmit([&](VkCommandBuffer cmd) {
+		VkBufferCopy vertexCopy{ 0 };
+		vertexCopy.dstOffset = 0;
+		vertexCopy.srcOffset = 0;
+		vertexCopy.size = vertexBufferSize;
+
+		vkCmdCopyBuffer(cmd, staging.Buffer, NewSurface.VertexBuffer.Buffer, 1, &vertexCopy);
+
+		VkBufferCopy indexCopy{ 0 };
+		indexCopy.dstOffset = 0;
+		indexCopy.srcOffset = vertexBufferSize;
+		indexCopy.size = indexBufferSize;
+
+		vkCmdCopyBuffer(cmd, staging.Buffer, NewSurface.IndexBuffer.Buffer, 1, &indexCopy);
+	});
+
+	DestroyBuffer(staging);
 }
 
 // ------------------------------------------------------------------
@@ -627,6 +765,54 @@ void vulkan_iface::InitPipelines()
 // ------------------------------------------------------------------ 
 
 void
+vulkan_iface::AddPipeline(vk_pipeline_builder& builder, const char* vert_path, const char* frag_path)
+{
+	VkShaderModule triangleFragShader;
+	if (!LoadShaderModule("./samples/vulkan_sample/ColoredTriangle.frag.spv", Device.LogicalDevice, &triangleFragShader)) {
+		printf("[ERROR] when building the triangle fragment shader module\n");
+	}
+	else {
+		printf("[INFO] Triangle fragment shader succesfully loaded\n");
+	}
+
+	VkShaderModule triangleVertexShader;
+	if (!LoadShaderModule("./samples/vulkan_sample/ColoredTriangle.vert.spv", Device.LogicalDevice, &triangleVertexShader)) {
+		printf("[ERROR] when building the triangle vertex shader module\n");
+	}
+	else {
+		printf("[INFO] Triangle vertex shader succesfully loaded\n");
+	}
+
+	VkPipelineLayout PipelineLayout;
+	VkPipelineLayoutCreateInfo pipeline_layout_info = PipelineLayoutCreateInfo();
+	VK_CHECK(vkCreatePipelineLayout(Device.LogicalDevice, &pipeline_layout_info, nullptr, &PipelineLayout));
+
+	vk_image* DrawImage = &TextureImage[0];
+
+	//use the triangle layout we created
+	builder.PipelineLayout = PipelineLayout;
+	//connecting the vertex and pixel shaders to the pipeline
+	builder.SetShaders(triangleVertexShader, triangleFragShader);
+	//connect the image format we will draw into, from draw image
+	builder.SetColorAttachmentFormat(DrawImage->Format);
+
+	VkPipeline B_Pipeline = builder.BuildPipeline(Device.LogicalDevice);
+
+	Pipelines.PushBack( { PipelineLayout, B_Pipeline } );
+
+	//clean structures
+	vkDestroyShaderModule(Device.LogicalDevice, triangleFragShader, nullptr);
+	vkDestroyShaderModule(Device.LogicalDevice, triangleVertexShader, nullptr);
+
+	MainDeletionQueue->PushBack([&]() {
+		vkDestroyPipelineLayout(Device.LogicalDevice, TrianglePipelineLayout, nullptr);
+		vkDestroyPipeline(Device.LogicalDevice, TrianglePipeline, nullptr);
+	});
+}
+
+// ------------------------------------------------------------------ 
+
+void
 vulkan_iface::InitTrianglePipeline()
 {
 	VkShaderModule triangleFragShader;
@@ -854,6 +1040,7 @@ vulkan_iface::vulkan_iface( const char* window_name = "Base" ) {
 	VkPhysicalDeviceFeatures2 deviceFeatures = {};
 	deviceFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
 	deviceFeatures.features.samplerAnisotropy = VK_TRUE;
+	deviceFeatures.features.fillModeNonSolid = VK_TRUE;
 	deviceFeatures.pNext = &features12;
 
 	VkDeviceCreateInfo create_info{};
@@ -906,6 +1093,10 @@ vulkan_iface::vulkan_iface( const char* window_name = "Base" ) {
 	
 	InitDescriptors();
 
+	// Support to 16 Pipelines as for now
+	//
+	Pipelines.Init(RenderArena, 16);
+
 	InitPipelines();
 
 	InitTrianglePipeline();
@@ -913,6 +1104,38 @@ vulkan_iface::vulkan_iface( const char* window_name = "Base" ) {
 
 // -------------------- PRIVATE CLASS FUNCTIONS ---------------------
 //
+
+vk_buffer
+vulkan_iface::AllocateBuffer(size_t AllocSize, VkBufferUsageFlags Usage, VmaMemoryUsage MemoryUsage)
+{
+	// allocate buffer
+	VkBufferCreateInfo bufferInfo = {.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
+	bufferInfo.pNext = nullptr;
+	bufferInfo.size = AllocSize;
+
+	bufferInfo.usage = Usage;
+
+	VmaAllocationCreateInfo vmaallocInfo = {};
+	vmaallocInfo.usage = MemoryUsage;
+	vmaallocInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
+	vk_buffer newBuffer;
+
+	// allocate the buffer
+	VK_CHECK(vmaCreateBuffer(GPUAllocator, &bufferInfo, &vmaallocInfo, &newBuffer.Buffer, &newBuffer.Allocation,
+							 &newBuffer.AllocationInfo));
+
+	return newBuffer;
+}
+
+// ------------------------------------------------------------------ 
+
+void
+vulkan_iface::DestroyBuffer(const vk_buffer& buffer)
+{
+	vmaDestroyBuffer(GPUAllocator, buffer.Buffer, buffer.Allocation);
+}
+
+// ------------------------------------------------------------------ 
 
 VkRenderingAttachmentInfo
 vulkan_iface::AttachmentInfo(VkImageView View, VkClearValue* Clear, VkImageLayout Layout)
