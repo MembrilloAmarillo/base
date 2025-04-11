@@ -16,11 +16,11 @@ vector<T>::vector() :
 // ------------------------------------------------------------------
 
 template <typename T>
-vector<T>::vector( Arena* pArenaData, U32 Size ) : 
-	ArenaData(ArenaData), 
-	Size(Size), 
+vector<T>::vector( Arena* pArenaData, U32 Size ) :
+	ArenaData(ArenaData),
+	Size(Size),
 	IdxStart(0),
-	IdxTail(0), 
+	IdxTail(0),
 	N_Elements(0)
 {
 	if (pArenaData == nullptr) {
@@ -37,7 +37,7 @@ vector<T>::vector( Arena* pArenaData, U32 Size ) :
 
 // ------------------------------------------------------------------
 
-template <typename T> 
+template <typename T>
 void vector<T>::Init( Arena* pArenaData, U32 Size)
 {
 	if (ArenaData == nullptr) {
@@ -57,8 +57,8 @@ void vector<T>::Init( Arena* pArenaData, U32 Size)
 
 // ------------------------------------------------------------------
 
-template <typename T> 
-void vector<T>::Resize( U32 Size)
+template <typename T>
+void vector<T>::Resize( U64 Size)
 {
 	T* offset = Data + Size - 1;
 	offset = ArenaData->Push<T>(Size);
@@ -132,7 +132,7 @@ void vector<T>::PopFront() {
 
 // ------------------------------------------------------------------
 
-// TODO: I have to know how to erase this 
+// TODO: I have to know how to erase this
 //
 template<typename T>
 vector<T>::~vector() {

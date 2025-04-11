@@ -4,7 +4,7 @@
 // TODO: CommitSize is not supported for now, just allocating as is
 void memory_impl::Init( U64 CommitSize, U64 ReserveSize ) {
 	Data = mmap(0, ReserveSize, PROT_NONE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
-        
+
 	this->CommitSize  = 0;
 	this->ReserveSize = ReserveSize;
 }
@@ -23,11 +23,11 @@ void memory_impl::Release() {
 void* memory_impl::Commit( U64 size ) {
     if( Data ) {
         //VirtualAlloc(Data + CommitSize, size, MEM_COMMIT, PAGE_READWRITE);
-        mprotect((u8*)Data + CommitSize, size, PROT_READ|PROT_WRITE);
+        mprotect((U8*)Data + CommitSize, size, PROT_READ|PROT_WRITE);
         U64 PreNewCommitSize = CommitSize;
         CommitSize += size;
-        
-        return (u8*)Data + PreNewCommitSize;
+
+        return (U8*)Data + PreNewCommitSize;
     }
     return NULL;
 }
@@ -36,17 +36,17 @@ void* memory_impl::Commit( U64 size ) {
 //
 void memory_impl::Decommit( U64 size ) {
     if( Data ) {
-        
-        if( CommitSize < size ) { 
+
+        if( CommitSize < size ) {
             size = CommitSize;
-            CommitSize = 0; 
+            CommitSize = 0;
         }
         else {
-            CommitSize -= size; 
+            CommitSize -= size;
         }
-        
+
         //VirtualFree(Data + CommitSize, size, MEM_DECOMMIT);
-        madvise((u8*)Data + CommitSize, size, MADV_DONTNEED);
-        mprotect((u8*)Data + CommitSize, size, PROT_NONE);
+        madvise((U8*)Data + CommitSize, size, MADV_DONTNEED);
+        mprotect((U8*)Data + CommitSize, size, PROT_NONE);
     }
 }

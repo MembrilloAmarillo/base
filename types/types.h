@@ -12,7 +12,7 @@
 #define local_persist static
 #define global        static
 
-#define U8  char
+#define U8  unsigned char
 #define U16 uint16_t
 #define U32 uint32_t
 #define U64 uint64_t
@@ -44,7 +44,7 @@ global U32 GetThreadID(void)
 	#else
 	#error Unsupported architecture
 	#endif
-    
+
     return ThreadID;
 }
 
