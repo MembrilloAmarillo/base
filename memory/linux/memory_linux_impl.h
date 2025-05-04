@@ -5,6 +5,8 @@
 
 #include <sys/mman.h>
 
+#include <unistd.h>
+
 #include "../../types/types.h"
 
 
@@ -27,7 +29,7 @@ class memory_impl {
 	U64 GetCommitSize()   { return CommitSize; }
 	U64 GetReservedSize() { return ReserveSize; }
 
-    private:
+    protected:
     void* Data;
     U64 CommitSize;
     U64 ReserveSize;

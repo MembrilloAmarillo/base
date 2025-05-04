@@ -9,6 +9,8 @@
 #include <cstdlib>
 #include <fstream>
 #include <functional>
+#include <cmath>
+#include <cstdint>
 
 #include <vulkan/vulkan.h>
 #include <vulkan/vulkan_core.h>
@@ -34,6 +36,8 @@ do {                                                                   \
 } while (0)
 
 #define MAX_FRAMES_IN_FLIGHT 2
+
+#define U32_MAX UINT32_MAX
 
 class window {
 public:
@@ -513,8 +517,8 @@ class vulkan_iface {
 
 	// -------- Destruction queue -----------------------------------
 	//
-	vector<std::function<void()>> *FrameDeletionQueue[MAX_FRAMES_IN_FLIGHT];
-	vector<std::function<void()>> *MainDeletionQueue;
+	vector<std::function<void()>> FrameDeletionQueue[MAX_FRAMES_IN_FLIGHT];
+	vector<std::function<void()>> MainDeletionQueue;
 
 	// -------- Private Functions -----------------------------------
 	//

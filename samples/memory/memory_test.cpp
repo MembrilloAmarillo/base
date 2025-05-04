@@ -12,18 +12,20 @@
 
 int main() {
     Arena* MainArena = (Arena*)malloc(sizeof(Arena));
-    MainArena->Init(0, 2 << 30 );
+    MainArena->Init(0, 1 << 30 );
+
+    printf("Reserved size: %ld\n", MainArena->GetReservedSize());
     
     U8* a = MainArena->Push<U8>( 256000 );
-    printf("New Push: %lld\n", MainArena->current_offset);
+    printf("New Push: %ld\n", MainArena->current_offset);
     U8*  b = MainArena->Push<U8> ( 2048 );
-    printf("New Push: %lld\n", MainArena->current_offset);
+    printf("New Push: %ld\n", MainArena->current_offset);
     MainArena->Pop<U8>( 2048 );
-    printf("New Push: %lld\n", MainArena->current_offset);
+    printf("New Push: %ld\n", MainArena->current_offset);
     MainArena->Pop<U8>( 256001 );
-    printf("New Push: %lld\n", MainArena->current_offset);
+    printf("New Push: %ld\n", MainArena->current_offset);
     b = MainArena->Push<U8> ( 2048 );
-    printf("New Push: %lld\n", MainArena->current_offset);
+    printf("New Push: %ld\n", MainArena->current_offset);
     
     return 0;
 }

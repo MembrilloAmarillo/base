@@ -502,7 +502,6 @@ void vulkan_iface::CreateImageViews()
 
 void vulkan_iface::CreateSwapchain()
 {
-	U32 U32_MAX = (1 << 30) - 1;
 	swapchain_support_details swap_chain_support = QuerySwapChainSupport( Device.PhysicalDevice );
  
 	U32 imageCount = swap_chain_support.Capabilities.minImageCount + 1;
@@ -663,7 +662,7 @@ void vulkan_iface::CreateSwapchain()
 
 	VK_CHECK(vkCreateImageView(Device.LogicalDevice, &ImgVwCreateInfo, nullptr, &DrawImage->ImageView));
 
-	MainDeletionQueue->PushBack([ = ]() {
+	MainDeletionQueue.PushBack([ = ]() {
 		vkDestroyImageView(Device.LogicalDevice, DrawImage->ImageView, nullptr);
 		vmaDestroyImage(GPUAllocator, DrawImage->Image, DrawImage->Alloc);
 	});
@@ -707,7 +706,7 @@ vulkan_iface::InitDescriptors()
 
 	vkUpdateDescriptorSets(Device.LogicalDevice, 1, &drawImageWrite, 0, nullptr);
 
-	MainDeletionQueue->PushBack([&]() {
+	MainDeletionQueue.PushBack([&]() {
 		GlobalDescriptorAllocator.DestroyPool(Device.LogicalDevice);
 		vkDestroyDescriptorSetLayout(Device.LogicalDevice, DrawImageDescriptorLayout, nullptr);
 	});
@@ -749,7 +748,7 @@ void vulkan_iface::InitBackgroundPipelines()
 	
 	vkDestroyShaderModule(Device.LogicalDevice, computeDrawShader, nullptr);
 
-	MainDeletionQueue->PushBack([&]() {
+	MainDeletionQueue.PushBack([&]() {
 		vkDestroyPipelineLayout(Device.LogicalDevice, BackgroundComputePipelineLayout, nullptr);
 		vkDestroyPipeline(Device.LogicalDevice, BackgroundComputePipeline, nullptr);
 	});
@@ -804,7 +803,7 @@ vulkan_iface::AddPipeline(vk_pipeline_builder& builder, const char* vert_path, c
 	vkDestroyShaderModule(Device.LogicalDevice, triangleFragShader, nullptr);
 	vkDestroyShaderModule(Device.LogicalDevice, triangleVertexShader, nullptr);
 
-	MainDeletionQueue->PushBack([&]() {
+	MainDeletionQueue.PushBack([&]() {
 		vkDestroyPipelineLayout(Device.LogicalDevice, TrianglePipelineLayout, nullptr);
 		vkDestroyPipeline(Device.LogicalDevice, TrianglePipeline, nullptr);
 	});
@@ -869,7 +868,7 @@ vulkan_iface::InitTrianglePipeline()
 	vkDestroyShaderModule(Device.LogicalDevice, triangleFragShader, nullptr);
 	vkDestroyShaderModule(Device.LogicalDevice, triangleVertexShader, nullptr);
 
-	MainDeletionQueue->PushBack([&]() {
+	MainDeletionQueue.PushBack([&]() {
 		vkDestroyPipelineLayout(Device.LogicalDevice, TrianglePipelineLayout, nullptr);
 		vkDestroyPipeline(Device.LogicalDevice, TrianglePipeline, nullptr);
 	});
@@ -885,10 +884,14 @@ vulkan_iface::vulkan_iface( const char* window_name = "Base" ) {
 	RenderArena->Init(64 << 10, 1 << 30);
 
 	TempArena = (Arena*)malloc(sizeof(Arena));
-	TempArena->Init(64 << 10, 256 << 20);
+	TempArena->Init(64 << 10, 1 << 30);
 
-	MainDeletionQueue = RenderArena->Push<vector<std::function<void()>>>(256);
-	MainDeletionQueue->Init(RenderArena, (U32)256);
+	//MainDeletionQueue = RenderArena->Push<vector<std::function<void()>>>(2);
+	//*MainDeletionQueue = vector<std::function<void()>>();
+	printf("[INFO] Reserved render arena: %ld\n", RenderArena->GetReservedSize());
+	printf("[INFO] Reserved temp arena  : %ld\n", TempArena->GetReservedSize());
+	MainDeletionQueue.Init(RenderArena, (U32)256);
+	printf("[INFO] Max Deletion Queue size: %d\n", MainDeletionQueue.GetCapacity());
 
 	// -------------- Window creaation ------------------------------
 	//
@@ -913,7 +916,7 @@ vulkan_iface::vulkan_iface( const char* window_name = "Base" ) {
 
 	// ---------- Check validation layers ---------------------------
 	//
-	#ifdef DEBUG 
+	#ifndef NDEBUG
 	if (!CheckValidationLayerSupport()) {
 		fprintf(stderr, "[ERROR] Validation layers could not be found!!\n");
 		exit(1);
@@ -945,7 +948,7 @@ vulkan_iface::vulkan_iface( const char* window_name = "Base" ) {
 	createInfo.ppEnabledLayerNames = VALIDATION_LAYERS;
  
 	// Set for the debug info the validation layers we want to use
-	#ifdef DEBUG
+	#ifndef NDEBUG
 	PopulateDebugMessengerCreateInfo(debugCreateInfo);
 	createInfo.pNext = (VkDebugUtilsMessengerCreateInfoEXT*) &debugCreateInfo;
 	#else
@@ -999,6 +1002,10 @@ vulkan_iface::vulkan_iface( const char* window_name = "Base" ) {
 
 	for( U32 i = 0; i < DeviceCount; ++i )
 	{
+		VkPhysicalDeviceProperties properties;
+		vkGetPhysicalDeviceProperties(Devices[i], &properties);
+		printf("Device Name: %s\n", properties.deviceName);
+
 		if( IsSuitableDevice( Devices[i] ) )
 		{
 			Device.PhysicalDevice = Devices[i];
@@ -1081,7 +1088,7 @@ vulkan_iface::vulkan_iface( const char* window_name = "Base" ) {
 		exit(1);
 	}
 
-	MainDeletionQueue->PushBack([ & ]() { vmaDestroyAllocator(GPUAllocator); });
+	MainDeletionQueue.PushBack([ & ]() { vmaDestroyAllocator(GPUAllocator); });
 
 	CreateSwapchain();
 
@@ -1207,14 +1214,14 @@ vulkan_iface::LoadShaderModule(const char* FilePath, VkDevice Device, VkShaderMo
     // spirv expects the buffer to be on U32, so make sure to reserve a int
     // vector big enough for the entire file
     vector<U32> buffer(TempArena, fileSize / sizeof(U32));
-
+	//std::vector<U32> buffer(fileSize / sizeof(U32));
 
     // put file cursor at beginning
     file.seekg(0);
 
     // load the entire file into the buffer
     file.read((char*)buffer.GetData(), fileSize);
-	buffer.BufferSetLength(fileSize / sizeof(U32));
+	buffer.SetLength(fileSize / sizeof(U32));
 
     // now that the file is loaded into the buffer, we can close it
     file.close();
@@ -1393,6 +1400,7 @@ vulkan_iface::CheckDeviceExtensionSupport( VkPhysicalDevice Device )
 	vkEnumerateDeviceExtensionProperties(Device, nullptr, &extensionCount, nullptr);
  
 	VkExtensionProperties* available_extensions = TempArena->Push<VkExtensionProperties>(extensionCount);
+	//std::vector<VkExtensionProperties> available_extensions(extensionCount);
 	vkEnumerateDeviceExtensionProperties(Device, nullptr, &extensionCount, available_extensions );
  
 	U32 TotalExtensions = extensionCount;
@@ -1433,6 +1441,7 @@ vulkan_iface::FindQueueFamilies( VkPhysicalDevice& device )
 	vkGetPhysicalDeviceQueueFamilyProperties( device, &queue_family_count, nullptr );
  
 	VkQueueFamilyProperties* queue_families = TempArena->Push<VkQueueFamilyProperties>( queue_family_count );
+	//std::vector<VkQueueFamilyProperties> queue_families(queue_family_count);
 	vkGetPhysicalDeviceQueueFamilyProperties( device, &queue_family_count, queue_families );
  
 	size_t i;
@@ -1466,7 +1475,6 @@ vulkan_iface::FindQueueFamilies( VkPhysicalDevice& device )
 bool
 vulkan_iface::IsSuitableDevice(VkPhysicalDevice& device) 
 {
-	U32 U32_MAX = (1 << 30) - 1;
 	queue_family_indices indices = FindQueueFamilies( device );
  
 	bool extensions_supported = CheckDeviceExtensionSupport( device );
@@ -1701,8 +1709,7 @@ vk_pipeline_builder::BuildPipeline(VkDevice Device)
 	{
 		printf("[ERROR] Failed to create pipeline");
         return VK_NULL_HANDLE;
-    } 
-	else 
+    } else
 	{
         return newPipeline;
     }

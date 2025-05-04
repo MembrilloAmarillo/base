@@ -17,7 +17,7 @@ vector<T>::vector() :
 
 template <typename T>
 vector<T>::vector( Arena* pArenaData, U32 Size ) :
-	ArenaData(ArenaData),
+	ArenaData(pArenaData),
 	Size(Size),
 	IdxStart(0),
 	IdxTail(0),
@@ -40,8 +40,8 @@ vector<T>::vector( Arena* pArenaData, U32 Size ) :
 template <typename T>
 void vector<T>::Init( Arena* pArenaData, U32 Size)
 {
-	if (ArenaData == nullptr) {
-		if (pArenaData == nullptr) {
+	if (!ArenaData) {
+		if (!pArenaData) {
 			ArenaData = (Arena*)malloc(sizeof(Arena));
 			ArenaData->Init(0, Size);
 		}

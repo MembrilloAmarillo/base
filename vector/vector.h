@@ -27,7 +27,7 @@ public:
 	[[nodiscard]] U32 GetLength()   const { return N_Elements; }
 	[[nodiscard]] U32 GetCapacity() const { return Size; }
 
-	void BufferSetLength(U32 len) { N_Elements = len; }
+	void SetLength(U32 len) { N_Elements = len; }
 
 	inline void Clear() { N_Elements = 0; }
 

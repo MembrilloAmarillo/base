@@ -1,0 +1,6 @@
+/home/polaris/devel/base/build/CMakeFiles/memorySample.dir
+/home/polaris/devel/base/build/CMakeFiles/vectorSample.dir
+/home/polaris/devel/base/build/CMakeFiles/vulkanSample.dir
+/home/polaris/devel/base/build/CMakeFiles/build_sample_shaders.dir
+/home/polaris/devel/base/build/CMakeFiles/edit_cache.dir
+/home/polaris/devel/base/build/CMakeFiles/rebuild_cache.dir

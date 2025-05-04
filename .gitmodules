@@ -1,0 +1,27 @@
+[submodule "third_party/freetype"]
+    path = third_party/freetype
+    url = https://github.com/freetype/freetype.git
+
+[submodule "third_party/imgui"]
+    path = third_party/imgui
+    url = https://github.com/ocornut/imgui.git
+
+[submodule "third_party/raygui"]
+    path = third_party/raygui
+    url = https://github.com/raysan5/raygui.git
+
+[submodule "third_party/raylib"]
+    path = third_party/raylib
+    url = https://github.com/raysan5/raylib.git
+
+[submodule "third_party/stb"]
+    path = third_party/stb
+    url = https://github.com/nothings/stb.git
+
+[submodule "third_party/vk-bootstrap"]
+    path = third_party/vk-bootstrap
+    url = https://github.com/charles-lunarg/vk-bootstrap.git
+
+[submodule "third_party/xxHash"]
+    path = third_party/xxHash
+    url = https://github.com/Cyan4973/xxHash.git

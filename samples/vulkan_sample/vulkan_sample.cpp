@@ -8,7 +8,7 @@
 #include <Windows.h>
 #endif
 
-#include "../../render/vulkan_impl.cpp"
+#include "render/vulkan_impl.cpp"
 
 #include "../../math/math.cpp"
 

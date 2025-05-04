@@ -1,0 +1,20 @@
+[
+{
+  "directory": "/home/polaris/devel/base/build",
+  "command": "/usr/bin/c++  -I/home/polaris/devel/base -I/home/polaris/devel/base/memory -g -o CMakeFiles/memorySample.dir/samples/memory/memory_test.cpp.o -c /home/polaris/devel/base/samples/memory/memory_test.cpp",
+  "file": "/home/polaris/devel/base/samples/memory/memory_test.cpp",
+  "output": "CMakeFiles/memorySample.dir/samples/memory/memory_test.cpp.o"
+},
+{
+  "directory": "/home/polaris/devel/base/build",
+  "command": "/usr/bin/c++  -I/home/polaris/devel/base -I/home/polaris/devel/base/memory -I/home/polaris/devel/base/vector -g -o CMakeFiles/vectorSample.dir/samples/sample_vector/sample_vector.cpp.o -c /home/polaris/devel/base/samples/sample_vector/sample_vector.cpp",
+  "file": "/home/polaris/devel/base/samples/sample_vector/sample_vector.cpp",
+  "output": "CMakeFiles/vectorSample.dir/samples/sample_vector/sample_vector.cpp.o"
+},
+{
+  "directory": "/home/polaris/devel/base/build",
+  "command": "/usr/bin/c++  -I/home/polaris/devel/base -I/home/polaris/devel/base/render -I/home/polaris/devel/base/memory -I/home/polaris/devel/base/vector -I/home/polaris/devel/VulkanSDK/x86_64/include -g -o CMakeFiles/vulkanSample.dir/samples/vulkan_sample/vulkan_sample.cpp.o -c /home/polaris/devel/base/samples/vulkan_sample/vulkan_sample.cpp",
+  "file": "/home/polaris/devel/base/samples/vulkan_sample/vulkan_sample.cpp",
+  "output": "CMakeFiles/vulkanSample.dir/samples/vulkan_sample/vulkan_sample.cpp.o"
+}
+]
