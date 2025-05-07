@@ -42,6 +42,16 @@ int main() {
 
 	while (!glfwWindowShouldClose(vIface.Window.Window)) {
 		glfwPollEvents(); // Process window events (key press, mouse move, close button, etc.)
+		// imgui new frame
+		ImGui_ImplVulkan_NewFrame();
+		ImGui_ImplGlfw_NewFrame();
+		ImGui::NewFrame();
+
+		//some imgui UI to test
+		ImGui::ShowDemoWindow();
+
+		//make imgui calculate internal draw structures
+		ImGui::Render();
 
 		// Render your Vulkan frame here
 		vIface.BeginDrawing();

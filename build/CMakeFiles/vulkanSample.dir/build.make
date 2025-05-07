@@ -98,6 +98,7 @@ vulkanSample: CMakeFiles/vulkanSample.dir/build.make
 vulkanSample: CMakeFiles/vulkanSample.dir/compiler_depend.ts
 vulkanSample: /home/polaris/devel/VulkanSDK/x86_64/lib/libvulkan.so
 vulkanSample: /usr/lib/x86_64-linux-gnu/libglfw.so.3.4
+vulkanSample: libimgui.a
 vulkanSample: CMakeFiles/vulkanSample.dir/link.txt
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/home/polaris/devel/base/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_2) "Linking CXX executable vulkanSample"
 	$(CMAKE_COMMAND) -E cmake_link_script CMakeFiles/vulkanSample.dir/link.txt --verbose=$(VERBOSE)

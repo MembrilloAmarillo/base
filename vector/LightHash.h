@@ -11,7 +11,7 @@
 global U64 NextPowerOfTwo(U64 x);
 //#define COUNT_COLLISIONS
 
-template <typename key_type, value_type>
+template <typename key_type, typename value_type>
 struct Table {
 
 	U64 Count       { 0 };

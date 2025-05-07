@@ -4,7 +4,7 @@
 # compile CXX with /usr/bin/c++
 CXX_DEFINES = 
 
-CXX_INCLUDES = -I/home/polaris/devel/base -I/home/polaris/devel/base/render -I/home/polaris/devel/base/memory -I/home/polaris/devel/base/vector -I/home/polaris/devel/VulkanSDK/x86_64/include
+CXX_INCLUDES = -I/home/polaris/devel/base -I/home/polaris/devel/base/render -I/home/polaris/devel/base/memory -I/home/polaris/devel/base/vector -I/home/polaris/devel/base/third_party -I/home/polaris/devel/base/third_party/imgui -I/home/polaris/devel/base/third_party/imgui/backends -I/home/polaris/devel/VulkanSDK/x86_64/include
 
 CXX_FLAGS = -g
 

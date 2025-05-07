@@ -1,6 +1,9 @@
 cmake_minimum_required(VERSION 3.16)
 project(BaseProject LANGUAGES CXX)
 
+
+add_subdirectory(${CMAKE_SOURCE_DIR}/third_party/pugixml)
+
 add_executable(memorySample samples/memory/memory_test.cpp)
 target_include_directories(memorySample
     PRIVATE
@@ -16,10 +19,26 @@ target_include_directories(vectorSample
         ${CMAKE_SOURCE_DIR}/vector/
 )
 
+set(IMGUI_DIR ${CMAKE_SOURCE_DIR}/third_party/imgui)
+set(IMGUI_SOURCES
+    ${IMGUI_DIR}/imgui.cpp
+    ${IMGUI_DIR}/imgui_draw.cpp
+    ${IMGUI_DIR}/imgui_tables.cpp
+    ${IMGUI_DIR}/imgui_widgets.cpp
+    ${IMGUI_DIR}/imgui_demo.cpp	
+    ${IMGUI_DIR}/backends/imgui_impl_vulkan.cpp
+    ${IMGUI_DIR}/backends/imgui_impl_glfw.cpp
+)
+
+add_library(imgui STATIC ${IMGUI_SOURCES})
+target_include_directories(imgui PUBLIC
+    ${IMGUI_DIR}
+    ${IMGUI_DIR}/backends
+)
+
 find_package(Vulkan REQUIRED)
 find_package(glfw3 3.3 REQUIRED)
 message(STATUS "Vulkan include dirs: ${Vulkan_INCLUDE_DIRS}")
-message(STATUS "Glfw include dirs: ${glfw_INCLUDE_DIRS}")
 add_executable(vulkanSample samples/vulkan_sample/vulkan_sample.cpp)
 target_include_directories(vulkanSample
     PRIVATE
@@ -27,12 +46,15 @@ target_include_directories(vulkanSample
         ${CMAKE_SOURCE_DIR}/render/
         ${CMAKE_SOURCE_DIR}/memory/
         ${CMAKE_SOURCE_DIR}/vector/
+	${CMAKE_SOURCE_DIR}/third_party/
+	${IMGUI_DIR}
+    	${IMGUI_DIR}/backends	
         ${Vulkan_INCLUDE_DIRS}
         ${glfw3_INCLUDE_DIRS}
 )
 target_link_libraries(vulkanSample PRIVATE ${Vulkan_LIBRARIES})
 target_link_libraries(vulkanSample PRIVATE glfw)
-
+target_link_libraries(vulkanSample PRIVATE imgui)
 
 # List your shader files
 set(SAMPLE_SHADER_SRC

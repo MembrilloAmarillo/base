@@ -37,6 +37,10 @@ CMakeFiles/vulkanSample.dir/samples/vulkan_sample/vulkan_sample.cpp.o
  /home/polaris/devel/base/memory/memory.cpp
  /home/polaris/devel/base/vector/vector.cpp
  /home/polaris/devel/base/vector/vector.h
+ /home/polaris/devel/base/third_party/imgui/backends/imgui_impl_glfw.h
+ /home/polaris/devel/base/third_party/imgui/backends/imgui_impl_vulkan.h
+ /home/polaris/devel/base/third_party/imgui/imconfig.h
+ /home/polaris/devel/base/third_party/imgui/imgui.h
  /usr/include/GL/gl.h
  /usr/include/GL/glext.h
  /usr/include/GLFW/glfw3.h
@@ -385,6 +389,7 @@ CMakeFiles/vulkanSample.dir/samples/vulkan_sample/vulkan_sample.cpp.o
  /usr/lib/gcc/x86_64-linux-gnu/14/include/emmintrin.h
  /usr/lib/gcc/x86_64-linux-gnu/14/include/enqcmdintrin.h
  /usr/lib/gcc/x86_64-linux-gnu/14/include/f16cintrin.h
+ /usr/lib/gcc/x86_64-linux-gnu/14/include/float.h
  /usr/lib/gcc/x86_64-linux-gnu/14/include/fmaintrin.h
  /usr/lib/gcc/x86_64-linux-gnu/14/include/fxsrintrin.h
  /usr/lib/gcc/x86_64-linux-gnu/14/include/gfniintrin.h
@@ -458,4 +463,5 @@ vulkanSample
  /usr/lib/x86_64-linux-gnu/libc_nonshared.a
  /usr/lib/x86_64-linux-gnu/libglfw.so.3.4
  /home/polaris/devel/base/build/CMakeFiles/vulkanSample.dir/samples/vulkan_sample/vulkan_sample.cpp.o
+ /home/polaris/devel/base/build/libimgui.a
 

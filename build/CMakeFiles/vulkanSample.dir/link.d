@@ -5,6 +5,7 @@ vulkanSample: \
   CMakeFiles/vulkanSample.dir/samples/vulkan_sample/vulkan_sample.cpp.o \
   /home/polaris/devel/VulkanSDK/x86_64/lib/libvulkan.so \
   /usr/lib/x86_64-linux-gnu/libglfw.so.3.4 \
+  libimgui.a \
   /usr/lib/gcc/x86_64-linux-gnu/14/libstdc++.so \
   /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/libm.so \
   /usr/lib/gcc/x86_64-linux-gnu/14/../../../x86_64-linux-gnu/libm.so \
@@ -46,6 +47,8 @@ CMakeFiles/vulkanSample.dir/samples/vulkan_sample/vulkan_sample.cpp.o:
 /home/polaris/devel/VulkanSDK/x86_64/lib/libvulkan.so:
 
 /usr/lib/x86_64-linux-gnu/libglfw.so.3.4:
+
+libimgui.a:
 
 /usr/lib/gcc/x86_64-linux-gnu/14/libstdc++.so:
 

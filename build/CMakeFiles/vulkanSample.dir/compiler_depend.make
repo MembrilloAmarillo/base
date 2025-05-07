@@ -36,6 +36,10 @@ CMakeFiles/vulkanSample.dir/samples/vulkan_sample/vulkan_sample.cpp.o: /home/pol
   /home/polaris/devel/base/memory/memory.cpp \
   /home/polaris/devel/base/vector/vector.cpp \
   /home/polaris/devel/base/vector/vector.h \
+  /home/polaris/devel/base/third_party/imgui/backends/imgui_impl_glfw.h \
+  /home/polaris/devel/base/third_party/imgui/backends/imgui_impl_vulkan.h \
+  /home/polaris/devel/base/third_party/imgui/imconfig.h \
+  /home/polaris/devel/base/third_party/imgui/imgui.h \
   /usr/include/GL/gl.h \
   /usr/include/GL/glext.h \
   /usr/include/GLFW/glfw3.h \
@@ -384,6 +388,7 @@ CMakeFiles/vulkanSample.dir/samples/vulkan_sample/vulkan_sample.cpp.o: /home/pol
   /usr/lib/gcc/x86_64-linux-gnu/14/include/emmintrin.h \
   /usr/lib/gcc/x86_64-linux-gnu/14/include/enqcmdintrin.h \
   /usr/lib/gcc/x86_64-linux-gnu/14/include/f16cintrin.h \
+  /usr/lib/gcc/x86_64-linux-gnu/14/include/float.h \
   /usr/lib/gcc/x86_64-linux-gnu/14/include/fmaintrin.h \
   /usr/lib/gcc/x86_64-linux-gnu/14/include/fxsrintrin.h \
   /usr/lib/gcc/x86_64-linux-gnu/14/include/gfniintrin.h \
@@ -455,7 +460,8 @@ vulkanSample: /home/polaris/devel/VulkanSDK/x86_64/lib/libvulkan.so \
   /usr/lib/gcc/x86_64-linux-gnu/14/libstdc++.so \
   /usr/lib/x86_64-linux-gnu/libc_nonshared.a \
   /usr/lib/x86_64-linux-gnu/libglfw.so.3.4 \
-  CMakeFiles/vulkanSample.dir/samples/vulkan_sample/vulkan_sample.cpp.o
+  CMakeFiles/vulkanSample.dir/samples/vulkan_sample/vulkan_sample.cpp.o \
+  libimgui.a
 
 
 /usr/lib/x86_64-linux-gnu/libglfw.so.3.4:
@@ -704,13 +710,9 @@ vulkanSample: /home/polaris/devel/VulkanSDK/x86_64/lib/libvulkan.so \
 
 /usr/include/x86_64-linux-gnu/bits/stdint-intn.h:
 
-/usr/include/c++/14/bits/version.h:
+/usr/include/x86_64-linux-gnu/bits/time.h:
 
-/usr/lib/gcc/x86_64-linux-gnu/14/include/stddef.h:
-
-/usr/include/x86_64-linux-gnu/bits/unistd_ext.h:
-
-/usr/include/c++/14/bits/vector.tcc:
+/usr/include/x86_64-linux-gnu/bits/select.h:
 
 /usr/include/c++/14/bits/uses_allocator_args.h:
 
@@ -721,14 +723,6 @@ vulkanSample: /home/polaris/devel/VulkanSDK/x86_64/lib/libvulkan.so \
 /usr/lib/gcc/x86_64-linux-gnu/14/include/amxcomplexintrin.h:
 
 /usr/include/c++/14/debug/assertions.h:
-
-/usr/lib/gcc/x86_64-linux-gnu/14/include/enqcmdintrin.h:
-
-/usr/include/x86_64-linux-gnu/bits/types/struct_timespec.h:
-
-/usr/include/x86_64-linux-gnu/bits/stdint-uintn.h:
-
-/usr/include/c++/14/bits/uniform_int_dist.h:
 
 /usr/include/c++/14/vector:
 
@@ -749,8 +743,6 @@ vulkanSample: /home/polaris/devel/VulkanSDK/x86_64/lib/libvulkan.so \
 /usr/include/c++/14/functional:
 
 /usr/include/c++/14/bits/stl_algobase.h:
-
-/usr/include/c++/14/bits/stl_iterator.h:
 
 /usr/include/asm-generic/errno-base.h:
 
@@ -775,10 +767,6 @@ vulkanSample: /home/polaris/devel/VulkanSDK/x86_64/lib/libvulkan.so \
 /usr/lib/gcc/x86_64-linux-gnu/14/include/wmmintrin.h:
 
 /usr/include/c++/14/bits/range_access.h:
-
-/home/polaris/devel/VulkanSDK/x86_64/include/vk_video/vulkan_video_codec_h265std_decode.h:
-
-/usr/include/c++/14/tr1/beta_function.tcc:
 
 /usr/include/c++/14/bits/nested_exception.h:
 
@@ -805,10 +793,6 @@ vulkanSample: /home/polaris/devel/VulkanSDK/x86_64/lib/libvulkan.so \
 /usr/include/c++/14/bits/stl_algo.h:
 
 /usr/include/c++/14/cmath:
-
-/usr/include/x86_64-linux-gnu/bits/time.h:
-
-/usr/include/x86_64-linux-gnu/bits/select.h:
 
 /usr/include/c++/14/bits/ios_base.h:
 
@@ -868,25 +852,25 @@ vulkanSample: /home/polaris/devel/VulkanSDK/x86_64/lib/libvulkan.so \
 
 /usr/include/stdint.h:
 
-/home/polaris/devel/VulkanSDK/x86_64/include/vk_video/vulkan_video_codec_av1std_decode.h:
+/usr/lib/gcc/x86_64-linux-gnu/14/include/amxint8intrin.h:
 
-/usr/include/c++/14/new:
+/usr/include/c++/14/bits/functexcept.h:
 
-/usr/include/c++/14/bits/stl_tempbuf.h:
+/usr/include/pthread.h:
 
-/usr/include/linux/stddef.h:
+/usr/include/c++/14/bits/cpp_type_traits.h:
 
-/usr/include/c++/14/bits/stl_pair.h:
+/usr/include/c++/14/bits/stl_iterator_base_types.h:
 
-/usr/include/c++/14/bits/ostream_insert.h:
+/home/polaris/devel/base/third_party/imgui/backends/imgui_impl_vulkan.h:
 
-/usr/include/c++/14/bits/std_function.h:
-
-/usr/include/c++/14/bits/enable_special_members.h:
+/home/polaris/devel/base/memory/linux/memory_linux_impl.cpp:
 
 /usr/lib/gcc/x86_64-linux-gnu/14/libstdc++.so:
 
 /usr/include/c++/14/algorithm:
+
+/usr/lib/gcc/x86_64-linux-gnu/14/include/float.h:
 
 /usr/include/c++/14/istream:
 
@@ -896,31 +880,9 @@ vulkanSample: /home/polaris/devel/VulkanSDK/x86_64/lib/libvulkan.so \
 
 /home/polaris/devel/VulkanSDK/x86_64/include/vk_video/vulkan_video_codecs_common.h:
 
-/usr/include/c++/14/bits/locale_classes.tcc:
-
-/usr/include/linux/posix_types.h:
-
-/usr/include/GL/glext.h:
-
-/home/polaris/devel/base/memory/memory.h:
-
 /usr/include/c++/14/bits/streambuf_iterator.h:
 
 /home/polaris/devel/base/vector/vector.cpp:
-
-/usr/lib/gcc/x86_64-linux-gnu/14/include/amxint8intrin.h:
-
-/usr/include/c++/14/bits/functexcept.h:
-
-/usr/include/pthread.h:
-
-/usr/include/c++/14/bits/ostream.tcc:
-
-/usr/include/c++/14/ext/aligned_buffer.h:
-
-/usr/include/c++/14/bits/concept_check.h:
-
-/usr/include/c++/14/bits/cpp_type_traits.h:
 
 /usr/include/x86_64-linux-gnu/bits/types/timer_t.h:
 
@@ -933,6 +895,10 @@ vulkanSample: /home/polaris/devel/VulkanSDK/x86_64/lib/libvulkan.so \
 /usr/lib/gcc/x86_64-linux-gnu/14/include/avx512fp16intrin.h:
 
 /usr/include/stdc-predef.h:
+
+/lib/x86_64-linux-gnu/libdl.so.2:
+
+/home/polaris/devel/VulkanSDK/x86_64/include/vulkan/vulkan_core.h:
 
 /usr/include/c++/14/bits/stl_vector.h:
 
@@ -960,17 +926,45 @@ vulkanSample: /home/polaris/devel/VulkanSDK/x86_64/lib/libvulkan.so \
 
 /usr/include/c++/14/cassert:
 
+/home/polaris/devel/VulkanSDK/x86_64/include/vk_video/vulkan_video_codec_av1std_decode.h:
+
+/usr/include/c++/14/bits/ostream.tcc:
+
+/usr/include/c++/14/bits/concept_check.h:
+
+/usr/include/c++/14/ext/aligned_buffer.h:
+
+/usr/include/c++/14/new:
+
+/usr/include/c++/14/bits/stl_tempbuf.h:
+
+/usr/include/linux/stddef.h:
+
+/usr/include/c++/14/bits/locale_classes.tcc:
+
+/usr/include/linux/posix_types.h:
+
+/home/polaris/devel/base/memory/memory.h:
+
+/home/polaris/devel/base/third_party/imgui/backends/imgui_impl_glfw.h:
+
+/usr/include/GL/glext.h:
+
+/usr/include/c++/14/bits/stl_pair.h:
+
+/usr/include/c++/14/bits/ostream_insert.h:
+
 /usr/include/c++/14/bits/unordered_map.h:
+
+/home/polaris/devel/VulkanSDK/x86_64/include/vk_video/vulkan_video_codec_h265std_decode.h:
+
+/usr/include/c++/14/tr1/beta_function.tcc:
 
 /home/polaris/devel/VulkanSDK/x86_64/include/vma/vk_mem_alloc.h:
 
 /usr/lib/x86_64-linux-gnu/libgcc_s.so.1:
 
 /usr/include/linux/close_range.h:
-
-/usr/include/c++/14/bits/stl_iterator_base_types.h:
-
-/home/polaris/devel/base/memory/linux/memory_linux_impl.cpp:
 
 /usr/include/c++/14/bits/stl_construct.h:
 
@@ -994,21 +988,11 @@ vulkanSample: /home/polaris/devel/VulkanSDK/x86_64/lib/libvulkan.so \
 
 /usr/include/c++/14/backward/binders.h:
 
-/lib/x86_64-linux-gnu/libdl.so.2:
-
-/home/polaris/devel/VulkanSDK/x86_64/include/vulkan/vulkan_core.h:
-
 /usr/lib/gcc/x86_64-linux-gnu/14/include/avxvnniintrin.h:
 
 /usr/lib/gcc/x86_64-linux-gnu/14/include/avx512bwintrin.h:
 
 /home/polaris/devel/base/render/vulkan_impl.cpp:
-
-/usr/include/c++/14/bits/memory_resource.h:
-
-/home/polaris/devel/base/render/vulkan_impl.h:
-
-/usr/include/c++/14/string:
 
 /usr/include/c++/14/bits/atomic_lockfree_defines.h:
 
@@ -1021,6 +1005,48 @@ vulkanSample: /home/polaris/devel/VulkanSDK/x86_64/lib/libvulkan.so \
 /usr/include/c++/14/bits/ptr_traits.h:
 
 /usr/include/alloca.h:
+
+/usr/include/c++/14/bits/stl_iterator.h:
+
+/home/polaris/devel/base/third_party/imgui/imconfig.h:
+
+/usr/include/c++/14/bits/hashtable_policy.h:
+
+/usr/include/x86_64-linux-gnu/bits/confname.h:
+
+/usr/include/c++/14/bits/algorithmfwd.h:
+
+/usr/include/c++/14/bits/istream.tcc:
+
+/usr/include/c++/14/bits/codecvt.h:
+
+/usr/lib/gcc/x86_64-linux-gnu/14/include/enqcmdintrin.h:
+
+/usr/include/x86_64-linux-gnu/bits/types/struct_timespec.h:
+
+/usr/include/x86_64-linux-gnu/bits/stdint-uintn.h:
+
+/usr/include/c++/14/bits/uniform_int_dist.h:
+
+/home/polaris/devel/base/third_party/imgui/imgui.h:
+
+/usr/include/c++/14/tr1/exp_integral.tcc:
+
+/usr/lib/x86_64-linux-gnu/Scrt1.o:
+
+/home/polaris/devel/base/types/types.h:
+
+/usr/include/c++/14/typeinfo:
+
+/usr/include/c++/14/bits/memory_resource.h:
+
+/home/polaris/devel/base/render/vulkan_impl.h:
+
+/usr/include/c++/14/string:
+
+/usr/include/c++/14/bits/std_function.h:
+
+/usr/include/c++/14/bits/enable_special_members.h:
 
 /usr/lib/gcc/x86_64-linux-gnu/14/include/mwaitxintrin.h:
 
@@ -1057,12 +1083,6 @@ vulkanSample: /home/polaris/devel/VulkanSDK/x86_64/lib/libvulkan.so \
 /usr/lib/gcc/x86_64-linux-gnu/14/include/gfniintrin.h:
 
 /usr/include/c++/14/cstddef:
-
-/usr/include/c++/14/bits/algorithmfwd.h:
-
-/usr/include/c++/14/bits/istream.tcc:
-
-/usr/include/c++/14/bits/codecvt.h:
 
 /usr/include/c++/14/bits/string_view.tcc:
 
@@ -1134,6 +1154,14 @@ vulkanSample: /home/polaris/devel/VulkanSDK/x86_64/lib/libvulkan.so \
 
 /usr/include/c++/14/tr1/riemann_zeta.tcc:
 
+/usr/lib/gcc/x86_64-linux-gnu/14/include/stddef.h:
+
+/usr/include/x86_64-linux-gnu/bits/unistd_ext.h:
+
+/usr/include/c++/14/bits/vector.tcc:
+
+/usr/include/c++/14/bits/version.h:
+
 /usr/include/x86_64-linux-gnu/c++/14/bits/c++config.h:
 
 /usr/include/c++/14/cerrno:
@@ -1190,6 +1218,12 @@ vulkanSample: /home/polaris/devel/VulkanSDK/x86_64/lib/libvulkan.so \
 
 /usr/include/c++/14/fstream:
 
+/usr/include/x86_64-linux-gnu/bits/pthreadtypes.h:
+
+/usr/include/c++/14/bits/postypes.h:
+
+/usr/include/c++/14/initializer_list:
+
 /lib/x86_64-linux-gnu/libm.so.6:
 
 /usr/lib/gcc/x86_64-linux-gnu/14/include/fxsrintrin.h:
@@ -1215,14 +1249,6 @@ vulkanSample: /home/polaris/devel/VulkanSDK/x86_64/lib/libvulkan.so \
 /usr/include/c++/14/bits/move.h:
 
 /usr/include/c++/14/tr1/ell_integral.tcc:
-
-/usr/include/c++/14/tr1/exp_integral.tcc:
-
-/usr/lib/x86_64-linux-gnu/Scrt1.o:
-
-/home/polaris/devel/base/types/types.h:
-
-/usr/include/c++/14/typeinfo:
 
 /usr/lib/gcc/x86_64-linux-gnu/14/include/xsaveintrin.h:
 
@@ -1268,6 +1294,8 @@ vulkanSample: /home/polaris/devel/VulkanSDK/x86_64/lib/libvulkan.so \
 
 /usr/include/linux/types.h:
 
+libimgui.a:
+
 /usr/include/locale.h:
 
 /usr/include/x86_64-linux-gnu/asm/bitsperlong.h:
@@ -1286,6 +1314,12 @@ vulkanSample: /home/polaris/devel/VulkanSDK/x86_64/lib/libvulkan.so \
 
 /usr/include/sched.h:
 
+/usr/include/x86_64-linux-gnu/bits/setjmp.h:
+
+/usr/include/x86_64-linux-gnu/bits/getopt_posix.h:
+
+/usr/include/time.h:
+
 /usr/include/unistd.h:
 
 /usr/include/x86_64-linux-gnu/bits/mman_ext.h:
@@ -1299,10 +1333,6 @@ vulkanSample: /home/polaris/devel/VulkanSDK/x86_64/lib/libvulkan.so \
 /usr/include/x86_64-linux-gnu/asm/types.h:
 
 /usr/include/x86_64-linux-gnu/bits/atomic_wide_counter.h:
-
-/usr/include/c++/14/bits/hashtable_policy.h:
-
-/usr/include/x86_64-linux-gnu/bits/confname.h:
 
 /usr/lib/gcc/x86_64-linux-gnu/14/include/movdirintrin.h:
 
@@ -1337,15 +1367,3 @@ CMakeFiles/vulkanSample.dir/samples/vulkan_sample/vulkan_sample.cpp.o:
 /usr/include/c++/14/bits/streambuf.tcc:
 
 /usr/include/x86_64-linux-gnu/bits/posix_opt.h:
-
-/usr/include/c++/14/bits/postypes.h:
-
-/usr/include/c++/14/initializer_list:
-
-/usr/include/x86_64-linux-gnu/bits/pthreadtypes.h:
-
-/usr/include/x86_64-linux-gnu/bits/getopt_posix.h:
-
-/usr/include/time.h:
-
-/usr/include/x86_64-linux-gnu/bits/setjmp.h:

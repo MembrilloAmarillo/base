@@ -34,7 +34,7 @@ public:
         current_offset += total;
         return ptr;
     }
-
+    
     template<typename T>
     void Pop(U64 count) {
         size_t total = sizeof(T) * count;

@@ -16,7 +16,7 @@ U64 NextPowerOfTwo(U64 x)
 
 // ------------------------------------------------------------------
 
-template <typename key_type, value_type>
+template <typename key_type, typename value_type>
 void Table<key_type, value_type>::Init(Arena* arena, U64 size)
 {
 	AllocArena = arena; 
@@ -26,7 +26,7 @@ void Table<key_type, value_type>::Init(Arena* arena, U64 size)
 
 // ------------------------------------------------------------------
 
-template<typename key_type, value_type>
+template<typename key_type, typename value_type>
 void Table<key_type, value_type>::Resize(U64 Size)
 {
 	Entries.Resize(U64 Size);
@@ -34,7 +34,7 @@ void Table<key_type, value_type>::Resize(U64 Size)
 
 // ------------------------------------------------------------------
 
-template<typename key_type, value_type>
+template<typename key_type, typename value_type>
 void Table<key_type, value_type>::Deinit()
 {
 	Entries.Clear();
@@ -43,7 +43,7 @@ void Table<key_type, value_type>::Deinit()
 
 // ------------------------------------------------------------------
 
-template<typename key_type, value_type>
+template<typename key_type, typename value_type>
 void Table<key_type, value_type>::Reset()
 {
 	Count       = 0;
@@ -55,7 +55,7 @@ void Table<key_type, value_type>::Reset()
 
 // ------------------------------------------------------------------
 
-template<typename key_type, value_type>
+template<typename key_type, typename value_type>
 void Table<key_type, value_type>::EnsureSpace( U64 Items )
 {
 	if ((SlotsFilled + Items) * 100 >= Allocated * LoadFactorPercent)
@@ -66,7 +66,7 @@ void Table<key_type, value_type>::EnsureSpace( U64 Items )
 
 // ------------------------------------------------------------------
 
-template<typename key_type, value_type>
+template<typename key_type, typename value_type>
 void Table<key_type, value_type>::Expand()
 {
 	vector<Entry> OldEntries = Entries;
