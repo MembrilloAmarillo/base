@@ -237,6 +237,27 @@ vulkan_iface::CommandBufferBeginInfo(VkCommandBufferUsageFlags flags) {
 
 // ------------------------------------------------------------------
 
+vk_buffer vulkan_iface::CreateBuffer(size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage)
+{
+    VkBufferCreateInfo bufferInfo = {.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
+	bufferInfo.pNext = nullptr;
+	bufferInfo.size = allocSize;
+
+	bufferInfo.usage = usage;
+
+	VmaAllocationCreateInfo vmaallocInfo = {};
+	vmaallocInfo.usage = memoryUsage;
+	vmaallocInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
+	vk_buffer newBuffer;
+
+	// allocate the buffer
+	VK_CHECK(vmaCreateBuffer(this->GPUAllocator, &bufferInfo, &vmaallocInfo, &newBuffer.Buffer, &newBuffer.Allocation,
+		&newBuffer.AllocationInfo));
+
+	return newBuffer;
+}
+// ------------------------------------------------------------------
+
 void vulkan_iface::ImmediateSubmit(
     std::function<void(VkCommandBuffer cmd)> &&function) {
   VK_CHECK(vkResetFences(Device.LogicalDevice, 1, &ImmFence));
@@ -392,7 +413,7 @@ void vulkan_iface::BeginDrawing() {
                   VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 
   DrawImgui(cmd, Swapchain.ImageViews[swapchainImageIndex]);
-  
+
   TransitionImage(cmd, Swapchain.Images[swapchainImageIndex],
                   VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
                   VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
@@ -826,7 +847,7 @@ void vulkan_iface::AddPipeline(vk_pipeline_builder &builder,
 // ------------------------------------------------------------------
 
 void vulkan_iface::DrawImgui(VkCommandBuffer cmd, VkImageView targetImageView) {
-    VkRenderingAttachmentInfo colorAttachment = AttachmentInfo(targetImageView, nullptr, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL); 
+    VkRenderingAttachmentInfo colorAttachment = AttachmentInfo(targetImageView, nullptr, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
     VkRenderingInfo renderInfo = RenderingInfo(Swapchain.Extent, &colorAttachment, nullptr);
 
     vkCmdBeginRendering(cmd, &renderInfo);
@@ -835,7 +856,7 @@ void vulkan_iface::DrawImgui(VkCommandBuffer cmd, VkImageView targetImageView) {
 
     vkCmdEndRendering(cmd);
 }
- 
+
 // ------------------------------------------------------------------
 
 void vulkan_iface::InitImgui() {
@@ -870,7 +891,7 @@ void vulkan_iface::InitImgui() {
   // this initializes the core structures of imgui
   ImGui::CreateContext();
 
-  // this initializes imgui for GLFW 
+  // this initializes imgui for GLFW
   ImGui_ImplGlfw_InitForVulkan(Window.Window, true);
   // this initializes imgui for Vulkan
   ImGui_ImplVulkan_InitInfo init_info = {};
@@ -887,7 +908,7 @@ void vulkan_iface::InitImgui() {
   init_info.PipelineRenderingCreateInfo = {.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO};
   init_info.PipelineRenderingCreateInfo.colorAttachmentCount = 1;
   init_info.PipelineRenderingCreateInfo.pColorAttachmentFormats = &Swapchain.Format;
-	
+
 
   init_info.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
 
