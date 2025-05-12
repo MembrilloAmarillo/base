@@ -207,11 +207,16 @@ class vk_descriptor_allocator {
 
 class vk_semaphore {
     public:
-    VkSemaphore ImageAvailable[MAX_FRAMES_IN_FLIGHT];
-    VkSemaphore RenderFinished[MAX_FRAMES_IN_FLIGHT];
-    VkSemaphore ComputeFinished[MAX_FRAMES_IN_FLIGHT];
-    VkFence InFlight[MAX_FRAMES_IN_FLIGHT];
-    VkFence ComputerInFlight[MAX_FRAMES_IN_FLIGHT];
+    //VkSemaphore ImageAvailable[MAX_FRAMES_IN_FLIGHT];
+    //VkSemaphore RenderFinished[MAX_FRAMES_IN_FLIGHT];
+    //VkSemaphore ComputeFinished[MAX_FRAMES_IN_FLIGHT];
+    //VkFence InFlight[MAX_FRAMES_IN_FLIGHT];
+    //VkFence ComputerInFlight[MAX_FRAMES_IN_FLIGHT];
+    vector<VkSemaphore> ImageAvailable;
+    vector<VkSemaphore> RenderFinished;
+    vector<VkSemaphore> ComputeFinished;
+    vector<VkFence>     InFlight;
+    vector<VkFence>     ComputeInFlight;
 };
 
 class vertex3d {
@@ -500,7 +505,7 @@ class vulkan_iface {
 
     // ----- For frames ---------------------------------------------
     //
-    U32 CurrentFrame{0};
+    U64 CurrentFrame{0};
     F64 LastTimeFrame{0.0f};
     bool FramebufferResized{false};
     F64 LastTime{0.0f};

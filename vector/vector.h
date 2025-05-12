@@ -1,9 +1,11 @@
-#ifndef _VECTOR_H_ 
-#define _VECTOR_H_ 
+#ifndef _VECTOR_H_
+#define _VECTOR_H_
 
 #include <cassert>
 
-#include "../memory/memory.h" 
+#include <cstdio>
+
+#include "../memory/memory.h"
 #include "../types/types.h"
 
 template <typename T>
@@ -21,7 +23,7 @@ public:
 	void PopBack();
 	void PopFront();
 
-	[[nodiscard]] T& At(U32 idx) { if (idx < N_Elements) { return Data[idx]; } else { assert(idx < N_Elements); } }
+	[[nodiscard]] T& At(U32 idx) { if (idx <= N_Elements && idx < Size) { if (idx == N_Elements) N_Elements++; IdxTail = (IdxTail + 1) % Size; return Data[idx]; } else { fprintf(stderr, "Idx: %d\n", idx); assert(idx <= N_Elements); } }
 	[[nodiscard]] T* GetData() { return Data; };
 
 	[[nodiscard]] U32 GetLength()   const { return N_Elements; }
@@ -40,4 +42,4 @@ private:
 	U32 Size;
 };
 
-#endif 
+#endif

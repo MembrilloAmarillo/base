@@ -100,14 +100,25 @@ void vulkan_iface::InitSyncStructures() {
       FenceCreateInfo(VK_FENCE_CREATE_SIGNALED_BIT);
   VkSemaphoreCreateInfo semaphoreCreateInfo = SemaphoreCreateInfo();
 
+  Semaphores.ImageAvailable.Init(RenderArena,  MAX_FRAMES_IN_FLIGHT);
+  Semaphores.RenderFinished.Init(RenderArena,  MAX_FRAMES_IN_FLIGHT);
+  Semaphores.ComputeFinished.Init(RenderArena, MAX_FRAMES_IN_FLIGHT);
+  Semaphores.InFlight.Init(RenderArena,        MAX_FRAMES_IN_FLIGHT);
+  Semaphores.ComputeInFlight.Init(RenderArena, MAX_FRAMES_IN_FLIGHT);
+
   for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
     VK_CHECK(vkCreateFence(Device.LogicalDevice, &fenceCreateInfo, nullptr,
-                           &Semaphores.InFlight[i]));
+                           &Semaphores.InFlight.At(i)));
 
     VK_CHECK(vkCreateSemaphore(Device.LogicalDevice, &semaphoreCreateInfo,
-                               nullptr, &Semaphores.ImageAvailable[i]));
+                               nullptr, &Semaphores.ImageAvailable.At(i)));
     VK_CHECK(vkCreateSemaphore(Device.LogicalDevice, &semaphoreCreateInfo,
-                               nullptr, &Semaphores.RenderFinished[i]));
+                               nullptr, &Semaphores.RenderFinished.At(i)));
+    VK_CHECK(vkCreateFence(Device.LogicalDevice, &fenceCreateInfo, nullptr,
+                           &Semaphores.ComputeInFlight.At(i)));
+
+    VK_CHECK(vkCreateSemaphore(Device.LogicalDevice, &semaphoreCreateInfo,
+                               nullptr, &Semaphores.ComputeFinished.At(i)));
   }
 }
 
@@ -347,16 +358,17 @@ void vulkan_iface::UploadMesh(vector<U32> &indices,
 // ------------------------------------------------------------------
 
 void vulkan_iface::BeginDrawing() {
-  U32 FrameIdx = CurrentFrame % MAX_FRAMES_IN_FLIGHT;
+  U32 FrameIdx = CurrentFrame;
   // wait until the gpu has finished rendering the last frame. Timeout of 1
   // second
   VK_CHECK(vkWaitForFences(Device.LogicalDevice, 1,
-                           &Semaphores.InFlight[FrameIdx], true, 1000000000));
-
+                           &Semaphores.InFlight.At(FrameIdx), true, 1000000000));
+  VK_CHECK(
+      vkResetFences(Device.LogicalDevice, 1, &Semaphores.InFlight.At(FrameIdx)));
   uint32_t swapchainImageIndex;
   VkResult result = vkAcquireNextImageKHR(
       Device.LogicalDevice, Swapchain.Swapchain, 1000000000,
-      Semaphores.ImageAvailable[FrameIdx], nullptr, &swapchainImageIndex);
+      Semaphores.ImageAvailable.At(FrameIdx), nullptr, &swapchainImageIndex);
 
   if (result == VK_ERROR_OUT_OF_DATE_KHR) {
     // recreate_swapchain(vi)
@@ -377,8 +389,8 @@ void vulkan_iface::BeginDrawing() {
   // naming it cmd for shorter writing
   VkCommandBuffer cmd = CommandBuffers[FrameIdx];
 
-  VK_CHECK(
-      vkResetFences(Device.LogicalDevice, 1, &Semaphores.InFlight[FrameIdx]));
+  //VK_CHECK(
+  //    vkResetFences(Device.LogicalDevice, 1, &Semaphores.InFlight.At(FrameIdx)));
 
   // now that we are sure that the commands finished executing, we can safely
   // reset the command buffer to begin recording again.
@@ -426,15 +438,15 @@ void vulkan_iface::BeginDrawing() {
 
   VkSemaphoreSubmitInfo waitInfo =
       SemaphoreSubmitInfo(VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR,
-                          Semaphores.ImageAvailable[FrameIdx]);
+                          Semaphores.ImageAvailable.At(FrameIdx));
   VkSemaphoreSubmitInfo signalInfo =
       SemaphoreSubmitInfo(VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT,
-                          Semaphores.RenderFinished[FrameIdx]);
+                          Semaphores.RenderFinished.At(FrameIdx));
 
   VkSubmitInfo2 submit = SubmitInfo(&cmdinfo, &signalInfo, &waitInfo);
 
   VK_CHECK(vkQueueSubmit2(Device.GraphicsQueue, 1, &submit,
-                          Semaphores.InFlight[FrameIdx]));
+                          Semaphores.InFlight.At(FrameIdx)));
 
   // prepare present
   //  this will put the image we just rendered to into the visible window.
@@ -447,7 +459,7 @@ void vulkan_iface::BeginDrawing() {
   presentInfo.pSwapchains = &Swapchain.Swapchain;
   presentInfo.swapchainCount = 1;
 
-  presentInfo.pWaitSemaphores = &Semaphores.RenderFinished[FrameIdx];
+  presentInfo.pWaitSemaphores = &Semaphores.RenderFinished.At(FrameIdx);
   presentInfo.waitSemaphoreCount = 1;
 
   presentInfo.pImageIndices = &swapchainImageIndex;
@@ -458,13 +470,14 @@ void vulkan_iface::BeginDrawing() {
       FramebufferResized) {
     FramebufferResized = false;
     printf("[TODO] We have to recreate swapchain!!\n");
+    return;
   } else if (result != VK_SUCCESS) {
     printf("[ERROR] Failed to present swapchain image");
     exit(1);
   }
 
   // increase the number of frames drawn
-  CurrentFrame++;
+  CurrentFrame = (CurrentFrame+1) % MAX_FRAMES_IN_FLIGHT;
 }
 
 // ------------------------------------------------------------------
