@@ -25,3 +25,9 @@
 [submodule "third_party/xxHash"]
     path = third_party/xxHash
     url = https://github.com/Cyan4973/xxHash.git
+[submodule "third_party/spall-web"]
+	path = third_party/spall-web
+	url = git@github.com:colrdavidson/spall-web.git
+[submodule "third_party/tracy"]
+	path = third_party/tracy
+	url = git@github.com:wolfpld/tracy.git

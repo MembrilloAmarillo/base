@@ -31,7 +31,7 @@ public:
 
 	void SetLength(U32 len) { N_Elements = len; }
 
-	inline void Clear() { N_Elements = 0; }
+	inline void Clear() { N_Elements = 0; IdxStart = IdxTail = 0; }
 
 private:
 	Arena* ArenaData;

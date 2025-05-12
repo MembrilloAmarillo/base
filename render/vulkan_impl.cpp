@@ -1,4 +1,6 @@
 #include "vulkan_impl.h"
+#include <GLFW/glfw3.h>
+#include <vulkan/vulkan_core.h>
 
 // ----------------------------- DEBUG ------------------------------
 //
@@ -175,7 +177,10 @@ void vulkan_iface::DrawGeometry(VkCommandBuffer cmd) {
   VkRenderingAttachmentInfo colorAttachment = AttachmentInfo(
       DrawImage->ImageView, nullptr, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 
-  VkExtent2D DrawExtent = {DrawImage->Width, DrawImage->Height};
+  VkExtent2D DrawExtent;
+  DrawExtent.height = Min(Swapchain.Extent.height, DrawImage->Height) * 1.0f;
+  DrawExtent.width  = Min(Swapchain.Extent.width, DrawImage->Width) * 1.0f;
+
   VkRenderingInfo renderInfo =
       RenderingInfo(DrawExtent, &colorAttachment, nullptr);
   vkCmdBeginRendering(cmd, &renderInfo);
@@ -345,9 +350,8 @@ void vulkan_iface::BeginDrawing() {
       Device.LogicalDevice, Swapchain.Swapchain, 1000000000,
       Semaphores.ImageAvailable.At(FrameIdx), nullptr, &swapchainImageIndex);
 
-  if (result == VK_ERROR_OUT_OF_DATE_KHR) {
-    // recreate_swapchain(vi)
-    printf("[TODO] We have to recreate swapchain!!\n");
+  if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
+    if (result == VK_ERROR_OUT_OF_DATE_KHR) { ResizeSwapchain(); }
     return;
   } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
     printf("[ERROR] Could not acquire next image");
@@ -441,10 +445,9 @@ void vulkan_iface::BeginDrawing() {
 
   result = vkQueuePresentKHR(Device.PresentationQueue, &presentInfo);
 
-  if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR ||
-      FramebufferResized) {
+  if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
     FramebufferResized = false;
-    printf("[TODO] We have to recreate swapchain!!\n");
+    if (result == VK_ERROR_OUT_OF_DATE_KHR) { ResizeSwapchain(); }
     return;
   } else if (result != VK_SUCCESS) {
     printf("[ERROR] Failed to present swapchain image");
@@ -453,6 +456,8 @@ void vulkan_iface::BeginDrawing() {
 
   // increase the number of frames drawn
   CurrentFrame = (CurrentFrame+1) % MAX_FRAMES_IN_FLIGHT;
+
+  TempArena->Reset();
 }
 
 // ------------------------------------------------------------------
@@ -534,6 +539,9 @@ void vulkan_iface::CreateImageViews() {
       fprintf(stderr, "[ERROR] Could not create image view\n");
       exit(1);
     }
+    SwapchainDeletionQueue.PushBack([=]() {
+      vkDestroyImageView(Device.LogicalDevice, Swapchain.ImageViews[i], nullptr);
+    });
   }
 }
 
@@ -651,7 +659,8 @@ void vulkan_iface::CreateSwapchain() {
   if (N_TextureImages == 0) {
     TextureImage = RenderArena->Push<vk_image>(1);
     N_TextureImages += 1;
-  }
+  } 
+
   vk_image *DrawImage = &TextureImage[0];
 
   DrawImage->Format = VK_FORMAT_R16G16B16A16_SFLOAT;
@@ -681,7 +690,7 @@ void vulkan_iface::CreateSwapchain() {
   VK_CHECK(vkCreateImageView(Device.LogicalDevice, &ImgVwCreateInfo, nullptr,
                              &DrawImage->ImageView));
 
-  MainDeletionQueue.PushBack([=]() {
+  SwapchainDeletionQueue.PushBack([=]() {
     vkDestroyImageView(Device.LogicalDevice, DrawImage->ImageView, nullptr);
     vmaDestroyImage(GPUAllocator, DrawImage->Image, DrawImage->Alloc);
   });
@@ -726,7 +735,7 @@ void vulkan_iface::InitDescriptors() {
 
   vkUpdateDescriptorSets(Device.LogicalDevice, 1, &drawImageWrite, 0, nullptr);
 
-  MainDeletionQueue.PushBack([&]() {
+  SwapchainDeletionQueue.PushBack([&]() {
     GlobalDescriptorAllocator.DestroyPool(Device.LogicalDevice);
     vkDestroyDescriptorSetLayout(Device.LogicalDevice,
                                  DrawImageDescriptorLayout, nullptr);
@@ -994,8 +1003,9 @@ vulkan_iface::vulkan_iface(const char *window_name = "Base") {
   printf("[INFO] Reserved render arena: %ld\n", RenderArena->GetReservedSize());
   printf("[INFO] Reserved temp arena  : %ld\n", TempArena->GetReservedSize());
   MainDeletionQueue.Init(RenderArena, (U32)256);
+  SwapchainDeletionQueue.Init(RenderArena, (U32)256);
   printf("[INFO] Max Deletion Queue size: %d\n",
-         MainDeletionQueue.GetCapacity());
+      MainDeletionQueue.GetCapacity());
 
   // -------------- Window creaation ------------------------------
   //
@@ -1302,6 +1312,58 @@ VkPipelineLayoutCreateInfo vulkan_iface::PipelineLayoutCreateInfo() {
 
 // ------------------------------------------------------------------
 
+void vulkan_iface::DestroySwapchain()
+{
+    vkDestroySwapchainKHR(Device.LogicalDevice, Swapchain.Swapchain, nullptr);
+
+
+	// destroy swapchain resources
+	for (int i = 0; i < Swapchain.N_ImageViews; i++) {
+		vkDestroyImageView(Device.LogicalDevice, Swapchain.ImageViews[i], nullptr);
+	}
+
+	vk_image* DrawImage = &TextureImage[0];
+	vkDestroyImageView(Device.LogicalDevice, DrawImage->ImageView, nullptr);
+  vmaDestroyImage(GPUAllocator, DrawImage->Image, DrawImage->Alloc);
+  
+  GlobalDescriptorAllocator.DestroyPool(Device.LogicalDevice);
+  vkDestroyDescriptorSetLayout(Device.LogicalDevice,
+                             DrawImageDescriptorLayout, nullptr);
+
+    /*
+    for( int i = 0; i < SwapchainDeletionQueue.GetLength(); i += 1) {
+        std::function<void()> func = SwapchainDeletionQueue.At(i);
+        func();
+    }
+    */
+
+    SwapchainDeletionQueue.Clear();
+}
+
+// ------------------------------------------------------------------
+
+void vulkan_iface::ResizeSwapchain()
+{
+  vkDeviceWaitIdle(Device.LogicalDevice);
+
+  DestroySwapchain();
+
+  int w, h;
+  glfwGetFramebufferSize(Window.Window, &w, &h);
+  Window.Width = w;
+  Window.Height = h;
+
+  CreateSwapchain();
+
+  CreateImageViews();
+
+  InitDescriptors();
+
+  FramebufferResized = false;
+}
+
+// ------------------------------------------------------------------
+
 bool vulkan_iface::LoadShaderModule(const char *FilePath, VkDevice Device,
                                     VkShaderModule *OutShaderModule) {
   // open the file. With cursor at the end
@@ -1397,11 +1459,16 @@ void vulkan_iface::DrawBackground(VkCommandBuffer cmd) {
   clearRange.baseArrayLayer = 0;
   clearRange.layerCount = VK_REMAINING_ARRAY_LAYERS;
 
-  VkExtent2D Extent = {DrawImage->Width, DrawImage->Height};
+  VkExtent2D DrawExtent;
+  DrawExtent.height = Min(Swapchain.Extent.height, DrawImage->Height) * 1.0f;
+  DrawExtent.width  = Min(Swapchain.Extent.width, DrawImage->Width) * 1.0f;
+
+
+  VkExtent2D Extent = DrawExtent;
 
   // clear image
-  // vkCmdClearColorImage(cmd, DrawImage->Image, VK_IMAGE_LAYOUT_GENERAL,
-  // &clearValue, 1, &clearRange);
+  //vkCmdClearColorImage(cmd, DrawImage->Image, VK_IMAGE_LAYOUT_GENERAL,
+  //&clearValue, 1, &clearRange);
 
   // bind the gradient drawing compute pipeline
   vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE,

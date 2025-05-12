@@ -8,6 +8,8 @@
 #include <Windows.h>
 #endif
 
+#include "tracy/public/tracy/Tracy.hpp"
+
 #include "render/vulkan_impl.cpp"
 
 #include "../../math/math.cpp"
@@ -51,6 +53,20 @@ int main() {
 		//some imgui UI to test
 		ImGui::ShowDemoWindow();
 
+		ImGui::Begin("Stats", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
+
+        // 2) Grab the ImGui IO struct and read Framerate
+        ImGuiIO& io = ImGui::GetIO();
+        float fps         = io.Framerate;               // frames per second
+        float ms_per_frame = 1000.0f / (fps > 0.0f ? fps : 1.0f);
+
+        // 3) Display them
+        ImGui::Text("FPS:          %.1f", fps);
+        ImGui::Text("Frame Time:  %.3f ms", ms_per_frame);
+
+        // 4) End the window
+        ImGui::End();
+
 		//make imgui calculate internal draw structures
 		ImGui::Render();
 
@@ -58,5 +74,6 @@ int main() {
 		vIface.BeginDrawing();
 		glfwSwapBuffers(vIface.Window.Window);
 	}
+
 	return 0;
 }

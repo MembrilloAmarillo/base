@@ -34,7 +34,7 @@ public:
         current_offset += total;
         return ptr;
     }
-    
+
     template<typename T>
     void Pop(U64 count) {
         size_t total = sizeof(T) * count;
@@ -47,6 +47,11 @@ public:
 
     void FreeAll() {
         this->memory_impl::Release();
+        current_offset = 0;
+    }
+
+    void Reset() {
+        this->memory_impl::Decommit(this->memory_impl::GetCommitSize());
         current_offset = 0;
     }
 

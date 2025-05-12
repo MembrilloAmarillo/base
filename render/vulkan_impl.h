@@ -558,6 +558,7 @@ class vulkan_iface {
     //
     vector<std::function<void()>> FrameDeletionQueue[MAX_FRAMES_IN_FLIGHT];
     vector<std::function<void()>> MainDeletionQueue;
+    vector<std::function<void()>> SwapchainDeletionQueue;
 
     // -------- Private Functions -----------------------------------
     //
@@ -603,6 +604,18 @@ class vulkan_iface {
     * cmd: The command buffer used to draw the background
     */
     void DrawBackground(VkCommandBuffer cmd);
+
+    /*
+    Params:
+    * None
+    */
+    void DestroySwapchain();
+
+    /*
+    Params:
+    * None
+    */
+    void ResizeSwapchain();
 
     bool LoadShaderModule(const char *FilePath, VkDevice Device,
         VkShaderModule *OutShaderModule);
