@@ -101,7 +101,7 @@ void vulkan_iface::InitSyncStructures() {
   VkSemaphoreCreateInfo semaphoreCreateInfo = SemaphoreCreateInfo();
 
   Semaphores.ImageAvailable.Init(RenderArena,  MAX_FRAMES_IN_FLIGHT);
-  Semaphores.RenderFinished.Init(RenderArena,  MAX_FRAMES_IN_FLIGHT);
+  Semaphores.RenderFinished.Init(RenderArena,  Swapchain.N_Images);
   Semaphores.ComputeFinished.Init(RenderArena, MAX_FRAMES_IN_FLIGHT);
   Semaphores.InFlight.Init(RenderArena,        MAX_FRAMES_IN_FLIGHT);
   Semaphores.ComputeInFlight.Init(RenderArena, MAX_FRAMES_IN_FLIGHT);
@@ -112,13 +112,15 @@ void vulkan_iface::InitSyncStructures() {
 
     VK_CHECK(vkCreateSemaphore(Device.LogicalDevice, &semaphoreCreateInfo,
                                nullptr, &Semaphores.ImageAvailable.At(i)));
-    VK_CHECK(vkCreateSemaphore(Device.LogicalDevice, &semaphoreCreateInfo,
-                               nullptr, &Semaphores.RenderFinished.At(i)));
+
     VK_CHECK(vkCreateFence(Device.LogicalDevice, &fenceCreateInfo, nullptr,
                            &Semaphores.ComputeInFlight.At(i)));
 
     VK_CHECK(vkCreateSemaphore(Device.LogicalDevice, &semaphoreCreateInfo,
                                nullptr, &Semaphores.ComputeFinished.At(i)));
+  }
+  for (int i = 0; i < Swapchain.N_Images; i++) {
+      VK_CHECK(vkCreateSemaphore(Device.LogicalDevice, &semaphoreCreateInfo, nullptr, &Semaphores.RenderFinished.At(i)));
   }
 }
 
@@ -177,31 +179,6 @@ void vulkan_iface::DrawGeometry(VkCommandBuffer cmd) {
   VkRenderingInfo renderInfo =
       RenderingInfo(DrawExtent, &colorAttachment, nullptr);
   vkCmdBeginRendering(cmd, &renderInfo);
-#if 0
-	vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, TrianglePipeline);
-
-	//set dynamic viewport and scissor
-	VkViewport viewport = {};
-	viewport.x = 0;
-	viewport.y = 0;
-	viewport.width = DrawExtent.width;
-	viewport.height = DrawExtent.height;
-	viewport.minDepth = 0.f;
-	viewport.maxDepth = 1.f;
-
-	vkCmdSetViewport(cmd, 0, 1, &viewport);
-
-	VkRect2D scissor = {};
-	scissor.offset.x = 0;
-	scissor.offset.y = 0;
-	scissor.extent.width = DrawExtent.width;
-	scissor.extent.height = DrawExtent.height;
-
-	vkCmdSetScissor(cmd, 0, 1, &scissor);
-
-	//launch a draw command to draw 3 vertices
-	vkCmdDraw(cmd, 3, 1, 0, 0);
-#endif
 
   for (U32 i = 0; i < Pipelines.GetLength(); i += 1) {
     VkPipeline Pipe = Pipelines.At(i).Pipeline;
@@ -361,10 +338,8 @@ void vulkan_iface::BeginDrawing() {
   U32 FrameIdx = CurrentFrame;
   // wait until the gpu has finished rendering the last frame. Timeout of 1
   // second
-  VK_CHECK(vkWaitForFences(Device.LogicalDevice, 1,
-                           &Semaphores.InFlight.At(FrameIdx), true, 1000000000));
-  VK_CHECK(
-      vkResetFences(Device.LogicalDevice, 1, &Semaphores.InFlight.At(FrameIdx)));
+  VK_CHECK(vkWaitForFences(Device.LogicalDevice, 1, &Semaphores.InFlight.At(FrameIdx), true, 1000000000));
+  VK_CHECK(vkResetFences(Device.LogicalDevice, 1, &Semaphores.InFlight.At(FrameIdx)));
   uint32_t swapchainImageIndex;
   VkResult result = vkAcquireNextImageKHR(
       Device.LogicalDevice, Swapchain.Swapchain, 1000000000,
@@ -441,7 +416,7 @@ void vulkan_iface::BeginDrawing() {
                           Semaphores.ImageAvailable.At(FrameIdx));
   VkSemaphoreSubmitInfo signalInfo =
       SemaphoreSubmitInfo(VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT,
-                          Semaphores.RenderFinished.At(FrameIdx));
+                          Semaphores.RenderFinished.At(swapchainImageIndex));
 
   VkSubmitInfo2 submit = SubmitInfo(&cmdinfo, &signalInfo, &waitInfo);
 
@@ -459,7 +434,7 @@ void vulkan_iface::BeginDrawing() {
   presentInfo.pSwapchains = &Swapchain.Swapchain;
   presentInfo.swapchainCount = 1;
 
-  presentInfo.pWaitSemaphores = &Semaphores.RenderFinished.At(FrameIdx);
+  presentInfo.pWaitSemaphores = &Semaphores.RenderFinished.At(swapchainImageIndex);
   presentInfo.waitSemaphoreCount = 1;
 
   presentInfo.pImageIndices = &swapchainImageIndex;

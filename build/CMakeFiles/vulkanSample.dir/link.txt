@@ -1,0 +1,1 @@
+/usr/bin/c++ -Wl,--dependency-file=CMakeFiles/vulkanSample.dir/link.d CMakeFiles/vulkanSample.dir/samples/vulkan_sample/vulkan_sample.cpp.o -o vulkanSample  -Wl,-rpath,/home/polaris/devel/VulkanSDK/x86_64/lib /home/polaris/devel/VulkanSDK/x86_64/lib/libvulkan.so /usr/lib/libglfw.so.3.4 libimgui.a

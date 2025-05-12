@@ -1,0 +1,1 @@
+/usr/bin/c++ -Wl,--dependency-file=CMakeFiles/memorySample.dir/link.d CMakeFiles/memorySample.dir/samples/memory/memory_test.cpp.o -o memorySample

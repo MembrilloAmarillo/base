@@ -1,0 +1,1 @@
+/usr/bin/c++ -Wl,--dependency-file=CMakeFiles/vectorSample.dir/link.d CMakeFiles/vectorSample.dir/samples/sample_vector/sample_vector.cpp.o -o vectorSample
