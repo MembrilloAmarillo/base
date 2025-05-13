@@ -42,6 +42,7 @@ add_subdirectory (third_party/tracy)
 
 find_package(Vulkan REQUIRED)
 find_package(glfw3 3.3 REQUIRED)
+set(Vulkan_INCLUDE_DIR ${VULKAN_SDK}/include)
 message(STATUS "Vulkan include dirs: ${Vulkan_INCLUDE_DIRS}")
 add_executable(vulkanSample samples/vulkan_sample/vulkan_sample.cpp)
 target_include_directories(vulkanSample

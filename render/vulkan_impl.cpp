@@ -178,8 +178,8 @@ void vulkan_iface::DrawGeometry(VkCommandBuffer cmd) {
       DrawImage->ImageView, nullptr, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 
   VkExtent2D DrawExtent;
-  DrawExtent.height = Min(Swapchain.Extent.height, DrawImage->Height) * 1.0f;
-  DrawExtent.width  = Min(Swapchain.Extent.width, DrawImage->Width) * 1.0f;
+  DrawExtent.height = DrawImage->Height;//Min(Swapchain.Extent.height, DrawImage->Height) * 1.0f;
+  DrawExtent.width  = DrawImage->Width;//Min(Swapchain.Extent.width, DrawImage->Width) * 1.0f;
 
   VkRenderingInfo renderInfo =
       RenderingInfo(DrawExtent, &colorAttachment, nullptr);
@@ -344,18 +344,21 @@ void vulkan_iface::BeginDrawing() {
   // wait until the gpu has finished rendering the last frame. Timeout of 1
   // second
   VK_CHECK(vkWaitForFences(Device.LogicalDevice, 1, &Semaphores.InFlight.At(FrameIdx), true, 1000000000));
-  VK_CHECK(vkResetFences(Device.LogicalDevice, 1, &Semaphores.InFlight.At(FrameIdx)));
+  
   uint32_t swapchainImageIndex;
   VkResult result = vkAcquireNextImageKHR(
       Device.LogicalDevice, Swapchain.Swapchain, 1000000000,
       Semaphores.ImageAvailable.At(FrameIdx), nullptr, &swapchainImageIndex);
 
-  if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
-    if (result == VK_ERROR_OUT_OF_DATE_KHR) { ResizeSwapchain(); }
+  if ( (result == VK_ERROR_OUT_OF_DATE_KHR) || (result == VK_SUBOPTIMAL_KHR)) {
+    if (result == VK_ERROR_OUT_OF_DATE_KHR)
+    { 
+      ResizeSwapchain(); 
+    }
     return;
   } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
     printf("[ERROR] Could not acquire next image");
-    exit(1);
+    VK_CHECK(result);
   }
 
   VkCommandBufferBeginInfo cmdBeginInfo = {};
@@ -367,9 +370,7 @@ void vulkan_iface::BeginDrawing() {
 
   // naming it cmd for shorter writing
   VkCommandBuffer cmd = CommandBuffers[FrameIdx];
-
-  //VK_CHECK(
-  //    vkResetFences(Device.LogicalDevice, 1, &Semaphores.InFlight.At(FrameIdx)));
+  VK_CHECK(vkResetFences(Device.LogicalDevice, 1, &Semaphores.InFlight.At(FrameIdx)));
 
   // now that we are sure that the commands finished executing, we can safely
   // reset the command buffer to begin recording again.
@@ -445,15 +446,17 @@ void vulkan_iface::BeginDrawing() {
 
   result = vkQueuePresentKHR(Device.PresentationQueue, &presentInfo);
 
-  if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
+  if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || FramebufferResized) {
     FramebufferResized = false;
-    if (result == VK_ERROR_OUT_OF_DATE_KHR) { ResizeSwapchain(); }
-    return;
+    ResizeSwapchain();
+    if (result == VK_ERROR_OUT_OF_DATE_KHR) {
+			return;
+		}
   } else if (result != VK_SUCCESS) {
     printf("[ERROR] Failed to present swapchain image");
-    exit(1);
+    VK_CHECK(result);
   }
-
+  //VK_CHECK(vkQueueWaitIdle(Device.PresentationQueue));
   // increase the number of frames drawn
   CurrentFrame = (CurrentFrame+1) % MAX_FRAMES_IN_FLIGHT;
 
@@ -988,7 +991,7 @@ void vulkan_iface::InitTrianglePipeline() {
 
 // ------------------------------------------------------------------
 
-vulkan_iface::vulkan_iface(const char *window_name = "Base") {
+vulkan_iface::vulkan_iface(const char *window_name) {
 
   // -------------- Arena creation --------------------------------
   //
@@ -1314,7 +1317,7 @@ VkPipelineLayoutCreateInfo vulkan_iface::PipelineLayoutCreateInfo() {
 
 void vulkan_iface::DestroySwapchain()
 {
-    vkDestroySwapchainKHR(Device.LogicalDevice, Swapchain.Swapchain, nullptr);
+  vkDestroySwapchainKHR(Device.LogicalDevice, Swapchain.Swapchain, nullptr);
 
 
 	// destroy swapchain resources
@@ -1344,6 +1347,7 @@ void vulkan_iface::DestroySwapchain()
 
 void vulkan_iface::ResizeSwapchain()
 {
+  fprintf(stdout, "[INFO] Resizing swapchain\n");
   vkDeviceWaitIdle(Device.LogicalDevice);
 
   DestroySwapchain();
@@ -1460,8 +1464,8 @@ void vulkan_iface::DrawBackground(VkCommandBuffer cmd) {
   clearRange.layerCount = VK_REMAINING_ARRAY_LAYERS;
 
   VkExtent2D DrawExtent;
-  DrawExtent.height = Min(Swapchain.Extent.height, DrawImage->Height) * 1.0f;
-  DrawExtent.width  = Min(Swapchain.Extent.width, DrawImage->Width) * 1.0f;
+  DrawExtent.height = DrawImage->Height;//Min(Swapchain.Extent.height, DrawImage->Height) * 1.0f;
+  DrawExtent.width  = DrawImage->Width;//Min(Swapchain.Extent.width, DrawImage->Width) * 1.0f;
 
 
   VkExtent2D Extent = DrawExtent;

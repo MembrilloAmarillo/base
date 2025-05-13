@@ -516,6 +516,7 @@ class vulkan_iface {
 
     // ----- Main Functions -----------------------------------------
     //
+    vulkan_iface() = delete;
     vulkan_iface(const char *window_name);
 
     ~vulkan_iface() {}
