@@ -1,9 +1,9 @@
 @echo off
 
-set cl_libs=/LIBPATH:C:\devel\glfw\lib-vc2022\ /LIBPATH:C:\devel\VulkanSDK\Lib\ /LIBPATH:C:\VulkanSDK\Lib\
-
 mkdir build
 pushd build
+
+set cl_libs=/LIBPATH:C:\devel\glfw\lib-vc2022\ /LIBPATH:C:\devel\VulkanSDK\Lib\ /LIBPATH:C:\VulkanSDK\Lib\ /LIBPATH:..\third_party\imgui
 
 IF "%1" == "directWriteD2D1Sample" (
 	cl /Zii ..\samples\directWriteD2D1\samples.cpp /Fe:directWriteD2D1Sample.exe
@@ -16,7 +16,8 @@ IF "%1" == "directWriteD2D1Sample" (
 	glslc ..\samples\vulkan_sample\ColoredTriangle.vert -o ..\samples\vulkan_sample\ColoredTriangle.vert.spv
 	glslc ..\samples\vulkan_sample\ColoredTriangle.frag -o ..\samples\vulkan_sample\ColoredTriangle.frag.spv
 
-	cl /Zii /MD /DDEBUG /std:c++20 ..\samples\vulkan_sample\vulkan_sample.cpp /I C:\devel\glfw\include\ /I C:\devel\VulkanSDK\Include\ /I C:\VulkanSDK\Include\ /link %cl_libs% /Fe:vulkan_sample.exe
+	set imgui_src=..\third_party\imgui\imgui.cpp ..\third_party\imgui\imgui_draw.cpp ..\third_party\imgui\imgui_demo.cpp ..\third_party\imgui\imgui_widgets.cpp ..\third_party\imgui\backends\imgui_impl_vulkan.cpp
+	cl /Zii /MD /DDEBUG /std:c++20 ..\samples\vulkan_sample\vulkan_sample.cpp /I C:\devel\glfw\include\ /I C:\devel\VulkanSDK\Include\ /I C:\VulkanSDK\Include\ /I.. /I..\third_party /I..\third_party\imgui /link %cl_libs% /Fe:vulkan_sample.exe
 )
 
 popd

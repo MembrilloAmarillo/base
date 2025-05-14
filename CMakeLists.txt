@@ -1,7 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 project(BaseProject LANGUAGES CXX)
 
-
 add_subdirectory(${CMAKE_SOURCE_DIR}/third_party/pugixml)
 
 add_executable(memorySample samples/memory/memory_test.cpp)

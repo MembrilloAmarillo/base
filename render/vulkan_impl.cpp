@@ -66,6 +66,14 @@ global void FramebufferResizeCallback(GLFWwindow *window, int width,
   app->FramebufferResized = true;
 }
 
+// ------------------------------------------------------------------
+
+global void WindowCloseCallback(GLFWwindow *window) {
+  vulkan_iface *app =
+      reinterpret_cast<vulkan_iface *>(glfwGetWindowUserPointer(window));
+  app->Window.Close = true;
+}
+
 // -------------------------- CLASS FUNCTIONS -----------------------
 //
 
@@ -121,6 +129,7 @@ void vulkan_iface::InitSyncStructures() {
     VK_CHECK(vkCreateSemaphore(Device.LogicalDevice, &semaphoreCreateInfo,
                                nullptr, &Semaphores.ComputeFinished.At(i)));
   }
+
   for (int i = 0; i < Swapchain.N_Images; i++) {
       VK_CHECK(vkCreateSemaphore(Device.LogicalDevice, &semaphoreCreateInfo, nullptr, &Semaphores.RenderFinished.At(i)));
   }
@@ -171,18 +180,15 @@ void vulkan_iface::TransitionImage(VkCommandBuffer cmd, VkImage image,
 
 // ------------------------------------------------------------------
 
-void vulkan_iface::DrawGeometry(VkCommandBuffer cmd) {
-  vk_image *DrawImage = &TextureImage[0];
+void vulkan_iface::DrawGeometry(VkCommandBuffer cmd, VkImageView ImageView, VkExtent2D Extent) {
   // begin a render pass  connected to our draw image
   VkRenderingAttachmentInfo colorAttachment = AttachmentInfo(
-      DrawImage->ImageView, nullptr, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+      ImageView, nullptr, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 
-  VkExtent2D DrawExtent;
-  DrawExtent.height = DrawImage->Height;//Min(Swapchain.Extent.height, DrawImage->Height) * 1.0f;
-  DrawExtent.width  = DrawImage->Width;//Min(Swapchain.Extent.width, DrawImage->Width) * 1.0f;
+  VkExtent2D DrawExtent = Extent;
 
-  VkRenderingInfo renderInfo =
-      RenderingInfo(DrawExtent, &colorAttachment, nullptr);
+  VkRenderingInfo renderInfo = RenderingInfo(DrawExtent, &colorAttachment, nullptr);
+
   vkCmdBeginRendering(cmd, &renderInfo);
 
   for (U32 i = 0; i < Pipelines.GetLength(); i += 1) {
@@ -344,19 +350,21 @@ void vulkan_iface::BeginDrawing() {
   // wait until the gpu has finished rendering the last frame. Timeout of 1
   // second
   VK_CHECK(vkWaitForFences(Device.LogicalDevice, 1, &Semaphores.InFlight.At(FrameIdx), true, 1000000000));
+  VK_CHECK(vkResetFences(Device.LogicalDevice, 1, &Semaphores.InFlight.At(FrameIdx)));
   
   uint32_t swapchainImageIndex;
   VkResult result = vkAcquireNextImageKHR(
-      Device.LogicalDevice, Swapchain.Swapchain, 1000000000,
+      Device.LogicalDevice, Swapchain.Swapchain, 1000000000000,
       Semaphores.ImageAvailable.At(FrameIdx), nullptr, &swapchainImageIndex);
 
   if ( (result == VK_ERROR_OUT_OF_DATE_KHR) || (result == VK_SUBOPTIMAL_KHR)) {
     if (result == VK_ERROR_OUT_OF_DATE_KHR)
     { 
       ResizeSwapchain(); 
+      return;
     }
-    return;
-  } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
+    //return;
+  } else if (result != VK_SUCCESS) {
     printf("[ERROR] Could not acquire next image");
     VK_CHECK(result);
   }
@@ -370,8 +378,7 @@ void vulkan_iface::BeginDrawing() {
 
   // naming it cmd for shorter writing
   VkCommandBuffer cmd = CommandBuffers[FrameIdx];
-  VK_CHECK(vkResetFences(Device.LogicalDevice, 1, &Semaphores.InFlight.At(FrameIdx)));
-
+  
   // now that we are sure that the commands finished executing, we can safely
   // reset the command buffer to begin recording again.
   VK_CHECK(vkResetCommandBuffer(cmd, 0));
@@ -385,13 +392,9 @@ void vulkan_iface::BeginDrawing() {
 
   DrawBackground(cmd);
 
-  TransitionImage(cmd, DrawImage->Image, VK_IMAGE_LAYOUT_GENERAL,
-                  VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-
-  DrawGeometry(cmd);
 
   TransitionImage(cmd, DrawImage->Image,
-                  VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                  VK_IMAGE_LAYOUT_GENERAL,
                   VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
   TransitionImage(cmd, Swapchain.Images[swapchainImageIndex],
                   VK_IMAGE_LAYOUT_UNDEFINED,
@@ -400,9 +403,12 @@ void vulkan_iface::BeginDrawing() {
   VkExtent2D DrawExtent = {DrawImage->Width, DrawImage->Height};
   CopyImageToImage(cmd, DrawImage->Image, Swapchain.Images[swapchainImageIndex],
                    DrawExtent, Swapchain.Extent);
+
   TransitionImage(cmd, Swapchain.Images[swapchainImageIndex],
                   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                   VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+
+  DrawGeometry(cmd, Swapchain.ImageViews[swapchainImageIndex], Swapchain.Extent);
 
   DrawImgui(cmd, Swapchain.ImageViews[swapchainImageIndex]);
 
@@ -419,6 +425,7 @@ void vulkan_iface::BeginDrawing() {
   VkSemaphoreSubmitInfo waitInfo =
       SemaphoreSubmitInfo(VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR,
                           Semaphores.ImageAvailable.At(FrameIdx));
+
   VkSemaphoreSubmitInfo signalInfo =
       SemaphoreSubmitInfo(VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT,
                           Semaphores.RenderFinished.At(swapchainImageIndex));
@@ -429,17 +436,18 @@ void vulkan_iface::BeginDrawing() {
                           Semaphores.InFlight.At(FrameIdx)));
 
   // prepare present
-  //  this will put the image we just rendered to into the visible window.
-  //  we want to wait on the _renderSemaphore for that,
-  //  as its necessary that drawing commands have finished before the image is
-  //  displayed to the user
+  // this will put the image we just rendered to into the visible window.
+  // we want to wait on the _renderSemaphore for that,
+  // as its necessary that drawing commands have finished before the image is
+  // displayed to the user
+  //
   VkPresentInfoKHR presentInfo = {};
   presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
   presentInfo.pNext = nullptr;
   presentInfo.pSwapchains = &Swapchain.Swapchain;
   presentInfo.swapchainCount = 1;
-
-  presentInfo.pWaitSemaphores = &Semaphores.RenderFinished.At(swapchainImageIndex);
+  
+  presentInfo.pWaitSemaphores    = &Semaphores.RenderFinished.At(swapchainImageIndex);
   presentInfo.waitSemaphoreCount = 1;
 
   presentInfo.pImageIndices = &swapchainImageIndex;
@@ -450,13 +458,12 @@ void vulkan_iface::BeginDrawing() {
     FramebufferResized = false;
     ResizeSwapchain();
     if (result == VK_ERROR_OUT_OF_DATE_KHR) {
-			return;
-		}
+      return;
+    }
   } else if (result != VK_SUCCESS) {
     printf("[ERROR] Failed to present swapchain image");
     VK_CHECK(result);
   }
-  //VK_CHECK(vkQueueWaitIdle(Device.PresentationQueue));
   // increase the number of frames drawn
   CurrentFrame = (CurrentFrame+1) % MAX_FRAMES_IN_FLIGHT;
 
@@ -579,13 +586,20 @@ void vulkan_iface::CreateSwapchain() {
 #ifndef ENABLE_VSYNC
 
   for (U32 i = 0; i < swap_chain_support.PresentModeCount; ++i) {
+    if (swap_chain_support.PresentModes[i] == VK_PRESENT_MODE_IMMEDIATE_KHR) {
+      present_mode = VK_PRESENT_MODE_IMMEDIATE_KHR;
+      found_mailbox = true;
+      break;
+    }
+  }
+#else 
+  for (U32 i = 0; i < swap_chain_support.PresentModeCount; ++i) {
     if (swap_chain_support.PresentModes[i] == VK_PRESENT_MODE_MAILBOX_KHR) {
       present_mode = VK_PRESENT_MODE_MAILBOX_KHR;
       found_mailbox = true;
       break;
     }
   }
-
 #endif
 
   if (!found_mailbox) {
@@ -666,7 +680,7 @@ void vulkan_iface::CreateSwapchain() {
 
   vk_image *DrawImage = &TextureImage[0];
 
-  DrawImage->Format = VK_FORMAT_R16G16B16A16_SFLOAT;
+  DrawImage->Format = VK_FORMAT_R16G16B16A16_SFLOAT;    
   DrawImage->Width = Window.Width;
   DrawImage->Height = Window.Height;
 
@@ -827,7 +841,7 @@ void vulkan_iface::AddPipeline(vk_pipeline_builder &builder,
   // connecting the vertex and pixel shaders to the pipeline
   builder.SetShaders(triangleVertexShader, triangleFragShader);
   // connect the image format we will draw into, from draw image
-  builder.SetColorAttachmentFormat(DrawImage->Format);
+  builder.SetColorAttachmentFormat(/*DrawImage->Format*/ Swapchain.Format);
 
   VkPipeline B_Pipeline = builder.BuildPipeline(Device.LogicalDevice);
 
@@ -1026,6 +1040,7 @@ vulkan_iface::vulkan_iface(const char *window_name) {
   glfwSetWindowUserPointer(Window.Window, this);
   glfwSetFramebufferSizeCallback(Window.Window, FramebufferResizeCallback);
   glfwSetInputMode(Window.Window, GLFW_STICKY_MOUSE_BUTTONS, GLFW_TRUE);
+  glfwSetWindowCloseCallback(Window.Window, WindowCloseCallback);
   // glfwSetMouseButtonCallback( Window.Window, MouseButtonCallback );
   // glfwSetCharCallback( Window.Window, CharacterCallback);
   // glfwSetKeyCallback( Window.Window, KeyCallback);

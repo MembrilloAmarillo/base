@@ -53,6 +53,7 @@ class window {
     VkSurfaceKHR Surface;
     Vec2 ScalingFactor;
     bool FocusedWindow;
+    bool Close {false};
 };
 
 struct queue_family_indices {
@@ -541,7 +542,7 @@ class vulkan_iface {
 
     void InitTrianglePipeline();
 
-    void DrawGeometry(VkCommandBuffer cmd);
+    void DrawGeometry(VkCommandBuffer cmd, VkImageView ImageView, VkExtent2D);
 
     void BeginDrawing();
 

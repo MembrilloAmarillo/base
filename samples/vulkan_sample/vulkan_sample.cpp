@@ -8,9 +8,17 @@
 #include <Windows.h>
 #endif
 
-#include "tracy/public/tracy/Tracy.hpp"
+#define IMGUI_DEFINE_MATH_OPERATORS
 
 #include "render/vulkan_impl.cpp"
+
+#include "imgui/imgui.cpp"
+#include "imgui/imgui_draw.cpp"
+#include "imgui/imgui_demo.cpp"
+#include "imgui/imgui_widgets.cpp"
+#include "imgui/imgui_tables.cpp"
+#include "imgui/backends/imgui_impl_vulkan.cpp"
+#include "imgui/backends/imgui_impl_glfw.cpp"
 
 #include "../../math/math.cpp"
 
@@ -43,7 +51,7 @@ int main() {
 		"./samples/vulkan_sample/ColoredTriangle.frag.comp"
 	);
 
-	while (!glfwWindowShouldClose(vIface.Window.Window)) {
+	while (!vIface.Window.Close) {
 		glfwPollEvents(); // Process window events (key press, mouse move, close button, etc.)
 		// imgui new frame
 		ImGui_ImplVulkan_NewFrame();
@@ -51,7 +59,7 @@ int main() {
 		ImGui::NewFrame();
 
 		//some imgui UI to test
-		ImGui::ShowDemoWindow();
+		//ImGui::ShowDemoWindow();
 
 		ImGui::Begin("Stats", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
 
@@ -72,7 +80,7 @@ int main() {
 
 		// Render your Vulkan frame here
 		vIface.BeginDrawing();
-		glfwSwapBuffers(vIface.Window.Window);
+		//glfwSwapBuffers(vIface.Window.Window);
 	}
 
 	return 0;
