@@ -35,12 +35,12 @@ target_include_directories(imgui PUBLIC
     ${IMGUI_DIR}/backends
 )
 
-option(TRACY_ENABLE " " ON)
-option(TRACY_ON_DEMAND " " ON)
-add_subdirectory (third_party/tracy)
+# option(TRACY_ENABLE " " ON)
+# option(TRACY_ON_DEMAND " " ON)
+# add_subdirectory (third_party/tracy)
 
 find_package(Vulkan REQUIRED)
-find_package(glfw3 3.3 REQUIRED)
+find_package(SDL2 REQUIRED)
 set(Vulkan_INCLUDE_DIR ${VULKAN_SDK}/include)
 message(STATUS "Vulkan include dirs: ${Vulkan_INCLUDE_DIRS}")
 add_executable(vulkanSample samples/vulkan_sample/vulkan_sample.cpp)
@@ -51,15 +51,16 @@ target_include_directories(vulkanSample
         ${CMAKE_SOURCE_DIR}/memory/
         ${CMAKE_SOURCE_DIR}/vector/
 	${CMAKE_SOURCE_DIR}/third_party/
+    ${SDL2_INCLUDE_DIRS}
 	${IMGUI_DIR}
     	${IMGUI_DIR}/backends
         ${Vulkan_INCLUDE_DIRS}
         ${glfw3_INCLUDE_DIRS}
 )
 target_link_libraries(vulkanSample PRIVATE ${Vulkan_LIBRARIES})
-target_link_libraries(vulkanSample PRIVATE glfw)
-target_link_libraries(vulkanSample PRIVATE imgui)
-target_link_libraries(vulkanSample PRIVATE Tracy::TracyClient)
+target_link_libraries(vulkanSample PRIVATE ${SDL2_LIBRARIES})
+# target_link_libraries(vulkanSample PRIVATE imgui)
+# target_link_libraries(vulkanSample PRIVATE Tracy::TracyClient)
 
 # List your shader files
 set(SAMPLE_SHADER_SRC

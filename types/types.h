@@ -24,6 +24,9 @@
 #define F32 float
 #define F64 double
 
+#define U32_MAX UINT32_MAX
+#define U64_MAX UINT64_MAX
+
 global U32 IsPow2(U32 Value)
 {
     U32 Result = ((Value & ~(Value - 1)) == Value);
