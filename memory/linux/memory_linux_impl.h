@@ -13,14 +13,8 @@
 // class that implements memory operations over the OS
 // we do not want constructors of any kind
 //
-class memory_impl {
-    public:
-    
-    memory_impl()                  = delete;
-    memory_impl( memory_impl &m )  = delete;
-    memory_impl( memory_impl &&m ) = delete;
-    ~memory_impl()                 = delete;
-    
+struct memory_impl {
+
     void Init( U64 CommitSize, U64 ReserveSize );
     void Release();
     void* Commit( U64 size );
@@ -29,7 +23,6 @@ class memory_impl {
 	U64 GetCommitSize()   { return CommitSize; }
 	U64 GetReservedSize() { return ReserveSize; }
 
-    protected:
     void* Data;
     U64 CommitSize;
     U64 ReserveSize;

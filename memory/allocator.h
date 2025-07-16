@@ -44,7 +44,9 @@ void ArenaFreeAll(Arena *a);
 
 #define ArenaAlloc(arena, size) ArenaAllocAlign(arena, size, DEFAULT_ALIGNMENT)
 
-#endif // ALLOCATOR_IMPL
+#endif // 
+
+#ifdef ALLOCATOR_IMPL
 
 uintptr_t AlignForward(uintptr_t ptr, size_t align) {
 	uintptr_t p, a, modulo;
@@ -151,5 +153,4 @@ void ArenaFreeAll(Arena *a) {
 	a->prev_offset = 0;
 }
 
-#ifdef ALLOCATOR_IMPL
 #endif // ALLOCATOR_IMPL

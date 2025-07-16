@@ -12,10 +12,10 @@ template <typename T>
 class vector {
 public:
 	vector();
-	vector( Arena* ArenaData, U32 Size );
+	vector( Buddy_Allocator* buddy_allocator, U32 Size );
 	~vector();
 
-	void Init(Arena* ArenaData, U32 Size);
+	void Init(Buddy_Allocator* buddy_allocator, U32 Size);
 	void Resize(U64 Size);
 
 	void PushBack( T value );
@@ -34,7 +34,7 @@ public:
 	inline void Clear() { N_Elements = 0; IdxStart = IdxTail = 0; }
 
 private:
-	Arena* ArenaData;
+	Buddy_Allocator* BuddyAllocator;
 	T*  Data;
 	U32 IdxStart;
 	U32 IdxTail;

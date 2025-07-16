@@ -4,7 +4,7 @@
 
 template <typename T>
 vector<T>::vector() :
-	ArenaData( nullptr ),
+	BuddyAllocator( nullptr ),
 	Data( nullptr ),
 	IdxStart( 0 ),
 	IdxTail( 0 ),
@@ -16,22 +16,24 @@ vector<T>::vector() :
 // ------------------------------------------------------------------
 
 template <typename T>
-vector<T>::vector( Arena* pArenaData, U32 Size ) :
-	ArenaData(pArenaData),
+vector<T>::vector( Buddy_Allocator* buddy_allocator, U32 Size ) :
+	BuddyAllocator(buddy_allocator),
 	Size(Size),
 	IdxStart(0),
 	IdxTail(0),
 	N_Elements(0)
 {
-	if (pArenaData == nullptr) {
-		ArenaData = (Arena*)malloc(sizeof(Arena));
-		ArenaData->Init(0, Size);
+	if (buddy_allocator == nullptr) {
+		BuddyAllocator = (Buddy_Allocator*)malloc(sizeof(Pool));
+		//ArenaData->Init(0, Size);
+		buddy_allocator_init(BuddyAllocator, backing_buffer, buff_len, Size, DEFAULT_ALIGNMENT);
 	}
 	else {
-		ArenaData = pArenaData;
+		BuddyAllocator = buddy_allocator;
 	}
 
-	Data = ArenaData->Push<T>(Size);
+	//Data = ArenaData->Push<T>(Size);
+	Data = buddy_allocator_alloc(BuddyAllocator, Size);
 }
 
 
