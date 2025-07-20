@@ -9,8 +9,4 @@
 #endif
 #endif
 
-#include "allocator.h"
-#include "buddy_allocator.h"
-#include "pool_allocator.h"
-
 #endif //MEMORY_H
