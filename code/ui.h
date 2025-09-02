@@ -2,11 +2,17 @@
 #define _UI_H_
 
 #include "types.h"
+#include "memory.h"
+#include "allocator.h"
+#include "vk_render.h"
+#include "vector.h"
+
+#include "third-party/microui.h"
 
 typedef struct UI_Graphics UI_Graphics;
 struct UI_Graphics {
     vulkan_base* base;
-    allocated_buffer ui_buffer[MAX_FRAMES_IN_FLIGHT];   
+    allocated_buffer ui_buffer[MAX_FRAMES_IN_FLIGHT];
     allocated_buffer ui_buffer_idx[MAX_FRAMES_IN_FLIGHT];
     allocated_buffer ui_vertex_staging[MAX_FRAMES_IN_FLIGHT];
 
@@ -26,7 +32,7 @@ struct UI_Graphics {
     vk_pipeline           BG_RenderPipeline;
     VkDescriptorSet       BG_RenderDescriptorSet;
     VkDescriptorSetLayout BG_RenderDescriptorLayout;
-    
+
     // Compute pipeline to draw grid
     //
     vk_pipeline           BG_Pipeline;
@@ -48,11 +54,11 @@ internal mu_Context* UI_Init(Stack_Allocator* allocator, const char* path);
 internal void UI_Begin(mu_Context* UI_Context);
 internal void UI_End(UI_Graphics* gfx, mu_Context* UI_Context, Stack_Allocator* Allocator);
 
-#endif 
+#endif
 
 #ifdef UI_IMPL
 
-internal void 
+internal void
 UI_CreateComputeBG_DescriptorSet( UI_Graphics* gfx ) {
 // Create storage image for background texture
     gfx->BG_TextureImage = CreateImageDefault(
@@ -72,37 +78,37 @@ UI_CreateComputeBG_DescriptorSet( UI_Graphics* gfx ) {
     InitDescriptorSet(&builder, 1, &gfx->base->Allocator);
     AddBindingDescriptorSet(&builder, 0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
 
-    gfx->BG_DescriptorLayout = BuildDescriptorSet(&builder, 
-        gfx->base->Device, 
+    gfx->BG_DescriptorLayout = BuildDescriptorSet(&builder,
+        gfx->base->Device,
         VK_SHADER_STAGE_COMPUTE_BIT,
         NULL,
         0);
 
     gfx->BG_DescriptorSet = DescriptorSetAllocate(
-        &gfx->base->GlobalDescriptorAllocator, 
-        gfx->base->Device, 
+        &gfx->base->GlobalDescriptorAllocator,
+        gfx->base->Device,
         &gfx->BG_DescriptorLayout);
 
     descriptor_writer writer = DescriptorWriterInit(1, &gfx->base->TempAllocator);
 
-    WriteImage(&writer, 0, 
-        gfx->BG_TextureImage.ImageView, 
-        VK_NULL_HANDLE, 
-        VK_IMAGE_LAYOUT_GENERAL, 
+    WriteImage(&writer, 0,
+        gfx->BG_TextureImage.ImageView,
+        VK_NULL_HANDLE,
+        VK_IMAGE_LAYOUT_GENERAL,
         VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
 
-    UpdateDescriptorSet(&writer, 
-        gfx->base->Device, 
+    UpdateDescriptorSet(&writer,
+        gfx->base->Device,
         gfx->BG_DescriptorSet);
 }
 
 ///////////////////////////////////////////////////////////////////////
 // Create compute pipeline for grid
-internal void 
+internal void
 UI_CreateComputePipeline( UI_Graphics* gfx ) {
-    
+
     UI_CreateComputeBG_DescriptorSet(gfx);
-    
+
     // Create pipeline layout for compute pipeline
     VkPipelineLayoutCreateInfo computeLayout = {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
@@ -148,7 +154,7 @@ UI_CreateComputePipeline( UI_Graphics* gfx ) {
 
 ///////////////////////////////////////////////////////////////////////
 // Create graphic pipeline for ui rendering
-internal void 
+internal void
 UI_CreateUI_Pipeline( UI_Graphics* gfx, FontCache* UI_Font ) {
     pipeline_builder p_Build = InitPipelineBuilder(2, &gfx->base->Allocator);
     SetInputTopology(&p_Build, VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
@@ -190,11 +196,11 @@ UI_CreateUI_Pipeline( UI_Graphics* gfx, FontCache* UI_Font ) {
         SetVertexInputBindingDescription(&p_Build, &binding_description, 1);
 
         gfx->UI_TextureImage = CreateImageData(
-            gfx->base, 
-            UI_Font->BitmapArray, 
-            (VkExtent3D){UI_Font->BitmapWidth, UI_Font->BitmapHeight, 1}, 
-            VK_FORMAT_R8_UNORM, 
-            VK_IMAGE_USAGE_SAMPLED_BIT, 
+            gfx->base,
+            UI_Font->BitmapArray,
+            (VkExtent3D){UI_Font->BitmapWidth, UI_Font->BitmapHeight, 1},
+            VK_FORMAT_R8_UNORM,
+            VK_IMAGE_USAGE_SAMPLED_BIT,
             false
         );
     }
@@ -203,57 +209,57 @@ UI_CreateUI_Pipeline( UI_Graphics* gfx, FontCache* UI_Font ) {
     sampler.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
     sampler.magFilter = VK_FILTER_LINEAR;
     sampler.minFilter = VK_FILTER_LINEAR;
-    
+
     vkCreateSampler(gfx->base->Device, &sampler, 0, &gfx->UI_TextureImage.Sampler);
     vk_descriptor_set builder = {0};
     InitDescriptorSet(&builder, 1, &gfx->base->Allocator);
     AddBindingDescriptorSet(
-        &builder, 
-        0, 
+        &builder,
+        0,
         VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
     );
     gfx->UI_DescriptorLayout = BuildDescriptorSet(
-                                    &builder, 
-                                    gfx->base->Device, 
-                                    VK_SHADER_STAGE_FRAGMENT_BIT, 
-                                    0, 
+                                    &builder,
+                                    gfx->base->Device,
+                                    VK_SHADER_STAGE_FRAGMENT_BIT,
+                                    0,
                                     0
                                 );
-    
+
     pool_size_ratio sizes[1];
     sizes[0] = (pool_size_ratio){VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 8};
     InitDescriptorPool(gfx->base, &gfx->UI_DescriptorPool, gfx->base->Device, 24, sizes, 1);
 
     gfx->UI_DescriptorSet = DescriptorSetAllocate(&gfx->UI_DescriptorPool, gfx->base->Device, &gfx->UI_DescriptorLayout);
-    
+
     descriptor_writer writer = DescriptorWriterInit(1, &gfx->base->TempAllocator);
     WriteImage(
-        &writer, 0, 
-        gfx->UI_TextureImage.ImageView, 
-        gfx->UI_TextureImage.Sampler, 
-        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 
+        &writer, 0,
+        gfx->UI_TextureImage.ImageView,
+        gfx->UI_TextureImage.Sampler,
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
         VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
     );
     UpdateDescriptorSet(&writer, gfx->base->Device, gfx->UI_DescriptorSet);
 
     SetDescriptorLayout(&p_Build, &gfx->UI_DescriptorLayout);
     gfx->UI_Pipeline = AddPipeline(
-        gfx->base, 
-        &p_Build, 
-        "./data/ui_render.vert.spv", 
+        gfx->base,
+        &p_Build,
+        "./data/ui_render.vert.spv",
         "./data/ui_render.frag.spv"
     );
 }
 
-internal void 
-UI_CreateRenderDescriptorSet( UI_Graphics* gfx ) 
+internal void
+UI_CreateRenderDescriptorSet( UI_Graphics* gfx )
 {
     vk_descriptor_set builder;
     InitDescriptorSet(&builder, 1, &gfx->base->Allocator);
     AddBindingDescriptorSet(&builder, 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
     gfx->BG_RenderDescriptorLayout = BuildDescriptorSet(&builder, gfx->base->Device, VK_SHADER_STAGE_FRAGMENT_BIT, NULL, 0);
     gfx->BG_RenderDescriptorSet = DescriptorSetAllocate(&gfx->base->GlobalDescriptorAllocator, gfx->base->Device, &gfx->BG_RenderDescriptorLayout);
-    
+
     VkSamplerCreateInfo sampler = {0};
     sampler.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
     sampler.magFilter = VK_FILTER_LINEAR;
@@ -276,7 +282,7 @@ UI_CreateRenderDescriptorSet( UI_Graphics* gfx )
 ///////////////////////////////////////////////////////////////////////
 // Initialize the pipeline for rendering the computed texture
 //
-internal void 
+internal void
 UI_CreateRenderComputePipeline( UI_Graphics* gfx ) {
 
     pipeline_builder p_Build = InitPipelineBuilder(2, &gfx->base->Allocator);
@@ -289,7 +295,7 @@ UI_CreateRenderComputePipeline( UI_Graphics* gfx ) {
 
     UI_CreateRenderDescriptorSet(gfx);
     SetDescriptorLayout(&p_Build, &gfx->UI_DescriptorLayout);
-    
+
     gfx->BG_RenderPipeline = AddPipeline(gfx->base, &p_Build, "./data/ColoredTriangle.vert.spv", "./data/ColoredTriangle.frag.spv");
 }
 
@@ -306,14 +312,14 @@ UI_ExternalRecreateSwapchain( UI_Graphics* gfx )
 	UI_CreateRenderDescriptorSet( gfx );
 }
 
-internal UI_Graphics 
+internal UI_Graphics
 UI_GraphicsInit(vulkan_base* VkBase, FontCache* Font) {
     UI_Graphics gfx = {0};
     gfx.base = VkBase;
 
     gfx.ui_buffer[0] = CreateBuffer(gfx.base->GPUAllocator, 24 << 20, (VkBufferUsageFlags)(VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT), VMA_MEMORY_USAGE_GPU_ONLY);
     gfx.ui_buffer[1] = CreateBuffer(gfx.base->GPUAllocator, 24 << 20, (VkBufferUsageFlags)(VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT), VMA_MEMORY_USAGE_GPU_ONLY);
-    
+
     gfx.ui_buffer_idx[0] = CreateBuffer(gfx.base->GPUAllocator, 24 << 20, (VkBufferUsageFlags)(VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT), VMA_MEMORY_USAGE_GPU_ONLY);
     gfx.ui_buffer_idx[1] = CreateBuffer(gfx.base->GPUAllocator, 24 << 20, (VkBufferUsageFlags)(VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT), VMA_MEMORY_USAGE_GPU_ONLY);
 
@@ -337,34 +343,34 @@ int MuF_TextHeight(mu_Font fc) {
     return F_TextHeight((FontCache*)fc);
 }
 
-internal mu_Context* 
+internal mu_Context*
 UI_Init(Stack_Allocator* allocator, const char* path) {
     mu_Context* UI_Context = stack_push(allocator, mu_Context, 1);
     mu_Style* theme_style = stack_push(allocator, mu_Style, 1);
     mu_Style style = {
         .font = 0,
         .size = { 68, 10 },
-        .padding = 5, 
-        .spacing = 4, 
+        .padding = 5,
+        .spacing = 4,
         .indent = 24,
-        .title_height = 24, 
-        .scrollbar_size = 12, 
+        .title_height = 24,
+        .scrollbar_size = 12,
         .thumb_size = 8,
         .colors = {
             {240, 236, 218, 255}, /* MU_COLOR_TEXT */
-            {31, 49, 74, 255}, /* MU_COLOR_BORDER */
-            {21, 39, 64, 255}, /* MU_COLOR_WINDOWBG */
-            {18, 30, 56, 255}, /* MU_COLOR_TITLEBG */
-            {240, 206, 178, 255}, /* MU_COLOR_TITLETEXT */
-            {19, 76, 101, 255}, /* MU_COLOR_PANELBG */
-            {72, 127, 134, 255}, /* MU_COLOR_BUTTON */
-            {19, 76, 101, 255}, /* MU_COLOR_BUTTONHOVER */
-            {19, 76, 101, 255}, /* MU_COLOR_BUTTONFOCUS */
-            {21, 39, 64, 255}, /* MU_COLOR_BASE */
-            {42, 117, 154, 255}, /* MU_COLOR_BASEHOVER */
+            {123, 101, 117, 255}, /* MU_COLOR_BORDER */
+            {20, 26, 27, 255}, /* MU_COLOR_WINDOWBG */
+            {152, 30, 56, 255}, /* MU_COLOR_TITLEBG */
+            {255, 110, 110, 255}, /* MU_COLOR_TITLETEXT */
+            {0, 75, 78, 255}, /* MU_COLOR_PANELBG */
+            {0, 75, 78, 255}, /* MU_COLOR_BUTTON */
+            {182, 47, 50, 255}, /* MU_COLOR_BUTTONHOVER */
+            {182, 76, 101, 255}, /* MU_COLOR_BUTTONFOCUS */
+            {0, 55, 64, 255}, /* MU_COLOR_BASE */
+            {42, 117, 85, 255}, /* MU_COLOR_BASEHOVER */
             {72, 127, 134, 255}, /* MU_COLOR_BASEFOCUS */
-            {21, 39, 64, 255}, /* MU_COLOR_SCROLLBASE */
-            {72, 127, 134, 255}  /* MU_COLOR_SCROLLTHUMB */
+            {42, 39, 72, 255}, /* MU_COLOR_SCROLLBASE */
+            {221, 89, 47, 255}  /* MU_COLOR_SCROLLTHUMB */
         },
     };
     memcpy(theme_style, &style, sizeof(mu_Style));
@@ -384,23 +390,52 @@ UI_Init(Stack_Allocator* allocator, const char* path) {
 
     return UI_Context;
 }
-internal void 
+internal void
 UI_Begin(mu_Context* UI_Context) {
     mu_begin(UI_Context);
 }
-internal void 
+internal void
 UI_End(UI_Graphics* gfx, mu_Context* UI_Context, Stack_Allocator* Allocator) {
+
+
+    F64 window_width  = gfx->base->Swapchain.Extent.width;
+    F64 window_height = gfx->base->Swapchain.Extent.height;
+
+    mu_Rect debug_rect = mu_rect(80, 80, (window_width / 2) - 40, (window_height / 2) - 40);
+    if(mu_begin_window(UI_Context, "UI Debug", debug_rect))
+    {
+        static vec4 colors[MU_COLOR_MAX];
+        static bool init_custom_color = false;
+        if( !init_custom_color ) {
+            for( u32 i = 0; i < ArrayCount(UI_Context->style->colors); i += 1 ) {
+                colors[i].r = UI_Context->style->colors[i].r;
+                colors[i].g = UI_Context->style->colors[i].g;
+                colors[i].b = UI_Context->style->colors[i].b;
+            }
+            init_custom_color = true;
+        }
+        if (mu_header_ex(UI_Context, "Background Color", MU_OPT_EXPANDED)) {
+            mu_Container* cnt = mu_get_current_container(UI_Context);
+            mu_layout_row(UI_Context, 3, (const int[]){cnt->rect.w/3, cnt->rect.w/3, cnt->rect.w/3}, 40);
+            for( u32 i = 0; i < ArrayCount(UI_Context->style->colors); i += 1 ) {
+                mu_slider(UI_Context, &colors[i].r, 0, 255);
+                mu_slider(UI_Context, &colors[i].g, 0, 255);
+                mu_slider(UI_Context, &colors[i].b, 0, 255);
+                UI_Context->style->colors[i].r = colors[i].r;
+                UI_Context->style->colors[i].g = colors[i].g;
+                UI_Context->style->colors[i].b = colors[i].b;
+            }
+        }
+        mu_end_window(UI_Context);
+    }
     mu_end(UI_Context);
 
     void* V_Buffer = stack_push(Allocator, v_2d, kibibyte(256));
     gfx->ui_rects   = VectorNew(V_Buffer, 0, kibibyte(256), v_2d);
     void* I_Buffer = stack_push(Allocator, u32, kibibyte(256));
     gfx->ui_indxs   = VectorNew(I_Buffer, 0, kibibyte(256), u32);
-    
-    mu_Command* cmd = 0;
 
-    F64 window_width  = gfx->base->Swapchain.Extent.width;
-    F64 window_height = gfx->base->Swapchain.Extent.height;
+    mu_Command* cmd = 0;
     while (mu_next_command(UI_Context, &cmd)) {
         switch (cmd->type) {
             case MU_COMMAND_RECT: {
@@ -408,11 +443,11 @@ UI_End(UI_Graphics* gfx, mu_Context* UI_Context, Stack_Allocator* Allocator) {
                 u32 idx[6] = {
                     BaseVertexIdx + 0, BaseVertexIdx + 1, BaseVertexIdx + 2, BaseVertexIdx + 2, BaseVertexIdx + 3, BaseVertexIdx + 0
                 };
-                f32 x_start = (((f32)cmd->rect.rect.x / (f32)window_width  ) * 2.0f) - 1.0f; 
-                f32 y_start = (((f32)cmd->rect.rect.y / (f32)window_height ) * 2.0f) - 1.0f; 
-                f32 x_end   = ((((f32)cmd->rect.rect.x + (f32)cmd->rect.rect.w) / (f32)window_width  ) * 2.0f) - 1.0f; 
-                f32 y_end   = ((((f32)cmd->rect.rect.y + (f32)cmd->rect.rect.h) / (f32)window_height ) * 2.0f) - 1.0f; 
-                
+                f32 x_start = (((f32)cmd->rect.rect.x / (f32)window_width  ) * 2.0f) - 1.0f;
+                f32 y_start = (((f32)cmd->rect.rect.y / (f32)window_height ) * 2.0f) - 1.0f;
+                f32 x_end   = ((((f32)cmd->rect.rect.x + (f32)cmd->rect.rect.w) / (f32)window_width  ) * 2.0f) - 1.0f;
+                f32 y_end   = ((((f32)cmd->rect.rect.y + (f32)cmd->rect.rect.h) / (f32)window_height ) * 2.0f) - 1.0f;
+
                 v_2d v1 = {
                     .Position = {x_start, y_start},
                     .UV       = {-1, -1},
@@ -452,9 +487,9 @@ UI_End(UI_Graphics* gfx, mu_Context* UI_Context, Stack_Allocator* Allocator) {
                 }
             } break;
             case MU_COMMAND_TEXT: {
-                vec4 Color = {(f32)cmd->text.color.r / 255.0, (f32)cmd->text.color.g / 255.0, (f32)cmd->text.color.b / 255.0, (f32)cmd->text.color.a / 255.0}; 
-                f32 x_start = (((f32)cmd->text.pos.x / (f32)window_width ) * 2.0f) - 1.0f; 
-                f32 y_start = (((f32)cmd->text.pos.y / (f32)window_height) * 2.0f) - 1.0f; 
+                vec4 Color = {(f32)cmd->text.color.r / 255.0, (f32)cmd->text.color.g / 255.0, (f32)cmd->text.color.b / 255.0, (f32)cmd->text.color.a / 255.0};
+                f32 x_start = (((f32)cmd->text.pos.x / (f32)window_width ) * 2.0f) - 1.0f;
+                f32 y_start = (((f32)cmd->text.pos.y / (f32)window_height) * 2.0f) - 1.0f;
                 f32 txt_offset = 0;
                 // Use unsigned char pointer to avoid signedness issues
                 unsigned char *p = (unsigned char *)cmd->text.str;
