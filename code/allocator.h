@@ -1,6 +1,12 @@
 #ifndef _ALLOCATOR_H_
 #define _ALLOCATOR_H_
 
+/**
+ * @author Ginger Bill
+ * @note This code has been presented on https://www.gingerbill.org/article/2019/02/15/memory-allocation-strategies-003/
+ * And I have just ported it in here
+ * All credits to him
+ */
 
 #if !defined(__cplusplus)
 	#if (defined(_MSC_VER) && _MSC_VER < 1800) || (!defined(_MSC_VER) && !defined(__STDC_VERSION__))
