@@ -1,0 +1,23 @@
+#version 460
+
+layout (local_size_x = 32, local_size_y = 32) in;
+layout(rgba32f, set = 0, binding = 0) uniform image2D image;
+
+void main() 
+{
+    ivec2 texelCoord = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 size = imageSize(image);
+
+    if(texelCoord.x < size.x && texelCoord.y < size.y)
+    {
+        vec4 color = vec4(30.0 / 255.0, 30.0 / 255.0, 30.0 / 255.0, 1.0);
+
+        // Create grid lines every 16 pixels
+        if((texelCoord.x % 32) != 0 && (texelCoord.y % 32) != 0)
+        {
+            color.rgb = vec3(12.0 / 255.0);
+        }
+    
+        imageStore(image, texelCoord, color);
+    }
+}

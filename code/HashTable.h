@@ -1,0 +1,71 @@
+#ifndef _HASH_TABLE_H_
+#define _HASH_TABLE_H_
+
+typedef struct entry entry;
+
+struct entry {
+    U64 HashId;
+    char* Id;
+    void* Value;
+};
+
+typedef struct hash_table hash_table;
+struct hash_table {
+    U64 Count;
+    U64 Allocated;
+    U64 SlotsFilled;
+    U64 MinSize;
+
+    U64 LoadFactorPercent;
+
+    void* BackingBuffer;
+
+    // TODO(s.p): Maybe do it dynamic
+    //
+    entry Entries[256];
+
+    bool CustomFunction;
+
+    U32 (*HashFunction)(const U8* key, U64 length);
+};
+
+/**
+ * @brief Inits the hash table values
+ * @param Table         hash_table pointer to the struct
+ * @param BackingBuffer pointer to a buffer used for backing memory
+ * @param HashFunction  pointer to a custom hash function
+ */
+void  HashTableInit( hash_table *Table, void* BackingBuffer, U32 (*HashFunction)(const U8* key, U64 length) );
+/**
+ * @brief Adds a pointer to a value into the table
+ * @param Table hash_table pointer to the struct
+ * @param Id    char* with the Id relative to the value being added
+ * @param Value void* pointer to the value
+ * @return entry* to the entry added, if already existed, pointer to that entry
+ */
+entry* HashTableAdd( hash_table *Table, char* Id, void* Value );
+/**
+ * @brief Sets a pointer to a value into an already existing entry
+ * @param Table hash_table pointer to the struct
+ * @param Id    char* with the Id
+ * @param Value void* pointer to the value
+ */
+void* HashTableSet( hash_table *Table, char* Id, void* Value );
+
+/**
+ * @brief Indicates if an entry already exists
+ * @param Table     hash_table pointer to the struct
+ * @param Id        char* with the Id
+ * @return bool true if exists, if not, false
+ */
+bool HashTableContains( hash_table *Table, char* Id );
+
+/**
+ * @brief Returns the value of an entry, if exists
+ * @param Table     hash_table pointer to the struct
+ * @param Id        char* with the Id
+ * @return entry*    Non-null if exists, if not, NULL
+ */
+entry* HashTableFindPointer( hash_table *Table, char* Id );
+
+#endif
