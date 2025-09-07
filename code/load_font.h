@@ -52,7 +52,7 @@ internal int F_TextWidth(FontCache* fc, const char* str, int str_len);
 internal int F_TextHeight(FontCache* fc);
 
 /** \brief Saves a single-channel bitmap as a grayscale PPM image
- *  
+ *
  *  \param filename Output filename
  *  \param bitmap Source bitmap data (single channel, 0-255)
  *  \param width Bitmap width
@@ -64,7 +64,7 @@ internal void SaveBitmapAsPPM(const char* filename, const u8* bitmap, int width,
 
 #ifdef LOAD_FONT_IMPL
 
-internal FontCache 
+internal FontCache
 F_BuildFont(f32 FontSize, u32 Width, u32 Height, u8* BitmapArray, const char* path) {
     FontCache fc = {
         .FontSize = FontSize,
@@ -102,7 +102,7 @@ F_BuildFont(f32 FontSize, u32 Width, u32 Height, u8* BitmapArray, const char* pa
     codepoint[0] = 32;
     for( u32 i = 0; i < 95; i += 1 ) {
         codepoint[i+1] = i + 32;
-    } 
+    }
 
     stbtt_packedchar* char_data_range = (stbtt_packedchar*)malloc(96 * sizeof(stbtt_packedchar));
 #if 0
@@ -112,11 +112,11 @@ F_BuildFont(f32 FontSize, u32 Width, u32 Height, u8* BitmapArray, const char* pa
     range.array_of_unicode_codepoints      = codepoint;
     range.num_chars                        = 96;
     range.chardata_for_range               = char_data_range;
-#else 
+#else
     stbtt_pack_range range = {0};
     range.font_size  = FontSize;
     range.first_unicode_codepoint_in_range = 32; // printable ASCII start
-    range.num_chars  = 95; // 32..126 inclusive -> 126-32+1 = 95
+    range.num_chars  = 96; // 32..126 inclusive -> 126-32+1 = 95
     range.chardata_for_range = char_data_range;
     range.array_of_unicode_codepoints = NULL;
 #endif
@@ -135,7 +135,7 @@ F_BuildFont(f32 FontSize, u32 Width, u32 Height, u8* BitmapArray, const char* pa
         fc.glyph[i].height   = (f32)q.y1 - (f32)q.y0;
 		fc.glyph[i].advance = q.xadvance;
     }
-    
+
     int table_len   = stbtt_GetKerningTableLength(&info);
     fc.kerning_size = (u32)table_len;
     fc.kerning      = malloc(sizeof(f_kerning) * table_len);
@@ -160,7 +160,7 @@ F_BuildFont(f32 FontSize, u32 Width, u32 Height, u8* BitmapArray, const char* pa
     return fc;
 }
 
-internal u32 
+internal u32
 F_GetKerningFromCodepoint(FontCache* fc, u32 g1, u32 g2) {
     for( u32 i = 0; i < fc->kerning_size; i += 1 ) {
 		if( fc->kerning[i].first == g1 && fc->kerning[i].second == g2) {
@@ -190,7 +190,7 @@ internal f32 F_GetPosYInBitmapFromIdx(FontCache* fc, ssize_t idx) {
     return fc->glyph[idx].y;
 }
 
-internal 
+internal
 int F_TextWidth(FontCache* fc, const char* str, int str_len) {
     if (!fc || !str) return 0;
     if (str_len < 0) str_len = (int)strlen(str);
@@ -202,7 +202,7 @@ int F_TextWidth(FontCache* fc, const char* str, int str_len) {
             // skip non-printable / unsupported
             continue;
         }
-        int g_idx = (int)ch - 32;            // map 32..126 -> 0..94
+        int g_idx = (int)ch - 32;
         f_Glyph glyph = fc->glyph[g_idx];
         // Use advance (xadvance) to advance pen, not bitmap width
         width += (int)glyph.advance;
