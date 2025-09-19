@@ -21,97 +21,125 @@ main( int argc, char *argv[] )
     Arena* main_arena = ArenaAllocDefault();
     Temp   arena_temp = TempBegin( main_arena );
 
+    Stack_Allocator Allocator;
+    Stack_Allocator TempAllocator;
+    u8* Buffer     = PushArray(main_arena, u8, mebibyte(256));
+    u8* TempBuffer = PushArray(main_arena, u8, mebibyte(256));
+    stack_init(&Allocator, Buffer, mebibyte(256));
+    stack_init(&TempAllocator, TempBuffer, mebibyte(256));
+
     vulkan_base VkBase = VulkanInit();
 
-    mu_Context* UI_Context = UI_Init(&VkBase.Allocator, "./data/RobotoMono.ttf");
+    ui_context* UI_Context = PushArray(main_arena, ui_context, 1);
 
-    UI_Graphics gfx = UI_GraphicsInit(&VkBase, (FontCache*)UI_Context->style->font);
+    // @todo: Change how to add fonts this is highly inconvenient
+    //
+    u8* BitmapArray = stack_push(&Allocator, u8, 2100 * 1200);
+    FontCache DefaultFont = F_BuildFont(22, 2100, 60, BitmapArray, "./data/RobotoMono.ttf");
+    FontCache TitleFont   = F_BuildFont(26, 2100, 60, BitmapArray + (2100*60), "./data/TinosNerdFontPropo.ttf");
+    TitleFont.BitmapOffset = (vec2){0, 60};
+
+    UI_Graphics gfx = UI_GraphicsInit(&VkBase, BitmapArray, 2100, 1200);
+
+    UI_Init(UI_Context, &gfx, &Allocator, &TempAllocator);
+
+    rgba bd  = RgbaNew(72,  127, 134, 255);
+    rgba bg  = RgbaNew(240, 236, 218, 255);
+    rgba fg  = RgbaNew(21,   39,  64, 255);
+    rgba bg2 = RgbaNew(19,  76, 101, 255);
+
+    object_theme DefaultTheme = {
+        .Border              = RgbaToNorm(bd),
+        .PanelBackground     = RgbaToNorm(bg),
+        .WindowBackground    = RgbaToNorm(bg),
+        .WindowForeground    = RgbaToNorm(fg),
+        .LabelForeground     = RgbaToNorm(fg),
+        .ButtonForeground    = RgbaToNorm(bg),
+        .ButtonBackground    = RgbaToNorm(bg2),
+        .ButtonHoverBackground = RgbaToNorm(bd),
+        .ButtonPressBackground = RgbaToNorm(bg),
+        .TextInputForeground = RgbaToNorm(fg),
+        .TextInputBackground = RgbaToNorm(bg),
+        .TextInputCursor     = RgbaToNorm(fg),
+        .WindowRadius        = 0,
+        .ButtonRadius        = 0,
+        .InputTextRadius     = 0,
+        .Font = &DefaultFont
+    };
+
+    UI_Context->DefaultTheme = DefaultTheme;
 
     XEvent ev;
     bool running = true;
+    struct timespec ts2, ts1;
+
+    double posix_dur = 0;
     while( running ) {
+        clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &ts1);
         u32 window_width  = gfx.base->Swapchain.Extent.width;
         u32 window_height = gfx.base->Swapchain.Extent.height;
 
-        UI_Input Input = UI_HandleEvents(&gfx, UI_Context);
-        if( (Input & StopUI) == StopUI ) {
+        UI_Begin(UI_Context);
+
+        ui_input Input = UI_LastEvent(UI_Context);
+        if( Input == StopUI ) {
+            fprintf(stderr, "[INFO] Finished Application\n");
             running = false;
             break;
         }
 
-        {
-            UI_Begin(UI_Context);
+        UI_SetNextTheme(UI_Context, DefaultTheme);
+        UI_PushNextFont(UI_Context, &TitleFont);
+        UI_WindowBegin(UI_Context, (rect_2d){ {20, 20}, {400, 400} }, "Window Title", 0);
+         UI_PopTheme(UI_Context);
+         if( UI_Button(UI_Context, "Hello Button 1")  & LeftClickPress  ) {
+         }
+         UI_Label(UI_Context, "This is my new label");
+         if( UI_Button(UI_Context, "Hello Button 2") & LeftClickPress ) {
+         }
+         UI_TextBox(UI_Context, "Input Text");
+         u8 buf[126] = {0};
+         sprintf(buf, "Refresh Rate (ms): %.2f", posix_dur);
+         UI_LabelWithKey(UI_Context, "Refresh Rate", buf);
+        UI_WindowEnd(UI_Context);
 
-            mu_Rect rect = mu_rect(40, 40, 200, 200);
-            mu_begin_window_ex(UI_Context, "Window", rect, MU_OPT_NOCLOSE);
-            mu_Container* window_cnt = mu_get_current_container(UI_Context);
-            mu_layout_row(UI_Context, 1, (const int[]){-1}, 0);
-            if(mu_header(UI_Context, "Command Sender") == MU_RES_ACTIVE ) {
-                mu_layout_row(UI_Context, 4, (const int[]){window_width / 4, window_height / 3, 200, -1}, 0);
-                mu_Rect CurrentRect = mu_layout_next(UI_Context);
-                CurrentRect.w = window_cnt->content_size.x;
-                mu_draw_rect(UI_Context, CurrentRect, (mu_Color){72, 147, 104, 255});
-                mu_layout_set_next(UI_Context, CurrentRect, false);
+        UI_End(UI_Context);
 
-                mu_label(UI_Context, "File Transfer List");
-                static char RemotePath[256];
-                if( mu_textbox(UI_Context, RemotePath, sizeof(RemotePath)) & MU_RES_SUBMIT ) {
-                    mu_set_focus(UI_Context, UI_Context->last_id);
-                }
+        bool do_resize = PrepareFrame(gfx.base);
+        if( do_resize ) {
+            UI_ExternalRecreateSwapchain(&gfx);
+        } else {
+            gfx.UniformData.ScreenWidth   = gfx.base->Swapchain.Extent.width;
+           	gfx.UniformData.ScreenHeight  = gfx.base->Swapchain.Extent.height;
+           	gfx.UniformData.TextureWidth  = gfx.UI_TextureImage.Width;
+           	gfx.UniformData.TextureHeight = gfx.UI_TextureImage.Height;
+            VkMappedMemoryRange flushRange = {0};
+            flushRange.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
+            // Get the VkDeviceMemory from your buffer's allocation info
+            flushRange.memory = gfx.UniformBuffer.Info.deviceMemory;
+            flushRange.offset = 0;
+            flushRange.size = VK_WHOLE_SIZE; // Or sizeof(ui_uniform)
+            vkFlushMappedMemoryRanges(gfx.base->Device, 1, &flushRange);
+           	memcpy(
+           		gfx.UniformBuffer.Info.pMappedData,
+           		&gfx.UniformData,
+           		sizeof(ui_uniform)
+           	);
+            VkCommandBuffer cmd = BeginRender(gfx.base);
 
-                mu_label(UI_Context, "Command ACK");
-                mu_label(UI_Context, "Waiting...");
+            UI_Render(&gfx, cmd);
 
-                mu_layout_row(UI_Context, 5, (const int[]){window_width / 4, window_height / 3, window_height / 3, 200, -1}, 0);
-                CurrentRect = mu_layout_next(UI_Context);
-                CurrentRect.w = window_cnt->content_size.x;
-                mu_draw_rect(UI_Context, CurrentRect, (mu_Color){72, 147, 104, 255});
-                mu_layout_set_next(UI_Context, CurrentRect, false);
-                mu_label(UI_Context, "File Transfer Download");
-                static bool download_remote_submit = false;
-                static bool download_local_submit  = false;
-                static char DownloadRemotePath[256];
-                static char DownloadLocalPath[256];
-                if( mu_textbox(UI_Context, DownloadRemotePath, sizeof(DownloadRemotePath)) & MU_RES_SUBMIT ) {
-                    mu_set_focus(UI_Context, UI_Context->last_id);
-                    download_remote_submit = true;
-                }
-                if( mu_textbox(UI_Context, DownloadLocalPath, sizeof(DownloadLocalPath)) & MU_RES_SUBMIT ) {
-                    mu_set_focus(UI_Context, UI_Context->last_id);
-                    download_local_submit = true;
-                }
-                if( download_remote_submit && download_local_submit ) {
-                    download_remote_submit = download_local_submit = false;
-                }
-                mu_label(UI_Context, "Command ACK");
-                mu_label(UI_Context, "Waiting...");
+            do_resize = EndRender(gfx.base, cmd);
 
-                mu_layout_row(UI_Context, 4, (const int[]){window_width / 4, window_height / 3, 200, -1}, 0);
-                CurrentRect = mu_layout_next(UI_Context);
-                CurrentRect.w = window_cnt->content_size.x;
-                mu_draw_rect(UI_Context, CurrentRect, (mu_Color){72, 147, 104, 255});
-                mu_layout_set_next(UI_Context, CurrentRect, false);
-                mu_label(UI_Context, "Download OBC HK");
-                if( mu_button(UI_Context, "Download Now") & MU_RES_SUBMIT ) {
-                    mu_set_focus(UI_Context, UI_Context->last_id);
-                }
-                mu_label(UI_Context, "Command ACK");
-                mu_label(UI_Context, "Waiting...");
+            if( do_resize ) {
+                UI_ExternalRecreateSwapchain(&gfx);
             }
-            if (mu_button(UI_Context, "Telemetry Watch") == MU_RES_SUBMIT ) {
-
-            }
-            if( mu_button(UI_Context, "Database") == MU_RES_SUBMIT ) {
-            }
-
-            mu_end_window(UI_Context);
-
-            UI_End(&gfx, UI_Context, &gfx.base->TempAllocator);
         }
 
-        UI_Render(&gfx);
-
+        stack_free_all(UI_Context->TempAllocator);
         stack_free_all(&gfx.base->TempAllocator);
+        clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &ts2);
+        posix_dur = 1000.0 * ts2.tv_sec + 1e-6 * ts2.tv_nsec - (1000.0 * ts1.tv_sec + 1e-6 * ts1.tv_nsec);
     }
 
     XCloseDisplay(VkBase.Window.Dpy);

@@ -11,6 +11,7 @@
 #include <string.h>
 #include <math.h>
 #include <errno.h>
+#include <time.h>
 
 #include "../types.h"
 #include "../memory.h"
@@ -24,7 +25,9 @@
 #include "../third-party/microui.h"
 #include "../load_font.h"
 #include "../vk_render.h"
-#include "../ui.h"
+#include "../new_ui.h"
+#include "../ui_render.h"
+#include "../HashTable.h"
 
 #define MEMORY_IMPL
 #include "../memory.h"
@@ -59,5 +62,11 @@
 #define VK_RENDER_IMPL
 #include "../vk_render.h"
 
-#define UI_IMPL
-#include "../ui.h"
+#include "../HashTable.h"
+#include "../HashTable.c"
+
+#define SP_UI_IMPL
+#include "../new_ui.h"
+
+#define UI_RENDER_IMPL
+#include "../ui_render.h"

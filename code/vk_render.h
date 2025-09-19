@@ -15,16 +15,13 @@
 
 #include "types.h"
 
-#define HexToRGBA(val) ((rgba){.r = (val & 0xff000000) >> 24, .g = (val & 0x00ff0000) >> 16, .b = (val & 0x0000ff00) >> 8, .a = val & 0x000000ff})
-#define HexToU8_Vec4(val) {(val & 0xff000000) >> 24, (val & 0x00ff0000) >> 16, (val & 0x0000ff00) >> 8, val & 0x000000ff}
-
 /* ----------------------------------------------------------------------------- */
 
 const char* VALIDATION_LAYERS[] = { "VK_LAYER_KHRONOS_validation" };
 const char* DEVICE_EXTENSIONS[] = {
-    "VK_KHR_swapchain", 
+    "VK_KHR_swapchain",
 	"VK_KHR_dynamic_rendering",
-  	"VK_EXT_descriptor_indexing",		
+    "VK_EXT_descriptor_indexing",
     VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME
 };
 
@@ -33,14 +30,14 @@ const char* DEVICE_EXTENSIONS[] = {
 /* ---------- helper macros -------------------------------------------------- */
 
 #define VK_CHECK(expr)                                                         \
-    do {                                                                       \
-        VkResult _res = (expr);                                                \
-        if (_res != VK_SUCCESS) {                                              \
-            fprintf(stderr, "[ERROR] %s:%d VK_CHECK failed (%d)\n",            \
-                    __FILE__, __LINE__, _res);                                 \
-            exit(EXIT_FAILURE);                                                \
-        }                                                                      \
-    } while (0)
+do {                                                                       \
+VkResult _res = (expr);                                                \
+if (_res != VK_SUCCESS) {                                              \
+fprintf(stderr, "[ERROR] %s:%d VK_CHECK failed (%d)\n",            \
+__FILE__, __LINE__, _res);                                 \
+exit(EXIT_FAILURE);                                                \
+}                                                                      \
+} while (0)
 
 static inline uint32_t clamp_u32(uint32_t val, uint32_t min, uint32_t max) {
     if (val < min) return min;
@@ -69,7 +66,8 @@ typedef enum {
     PIPELINE_TYPE_COUNT,
 } PipelineType;
 
-typedef struct {
+typedef struct pipeline_builder pipeline_builder;
+struct pipeline_builder {
     Stack_Allocator* Allocator;
     void*  ss_buffer;
     void*  pc_buffer;
@@ -84,11 +82,12 @@ typedef struct {
     VkPipelineLayout PipelineLayout;
     VkFormat ColorAttachmentFormat;
     VkDescriptorSetLayout* DescriptorLayout;
+    u32 DescriptorLayoutCount;
     VkVertexInputAttributeDescription* AttributeDescriptions;
     size_t AttributeDescriptionCount;
     VkVertexInputBindingDescription* BindingDescriptions;
     size_t BindingDescriptionCount;
-} pipeline_builder;
+};
 
 typedef struct {
     VkPipeline Pipeline;
@@ -147,7 +146,7 @@ struct vk_descriptor_set {
 
     void*                  BackBuffer;
     Stack_Allocator*       Allocator;
-}; 
+};
 
 typedef struct descriptor_allocator_growable descriptor_allocator_growable;
 struct descriptor_allocator_growable {
@@ -161,7 +160,7 @@ struct descriptor_allocator_growable {
     Stack_Allocator*       Allocator;
 
     i32 SetsPerPool;
-}; 
+};
 
 typedef struct descriptor_writer descriptor_writer;
 struct descriptor_writer {
@@ -187,8 +186,10 @@ struct v_3d {
 
 typedef struct v_2d v_2d;
 struct v_2d {
-    vec2 Position;
+    vec2 LeftCorner;
+    vec2 Size;
     vec2 UV;
+    vec2 UVSize;
     vec4 Color;
 };
 
@@ -237,7 +238,7 @@ typedef struct vulkan_base vulkan_base;
 struct vulkan_base{
     api_window           Window;
     VkInstance           Instance;
-    
+
     VkDescriptorPool     GlobalDescriptorAllocator;
 
     /////////////////////////////////////////////
@@ -252,7 +253,7 @@ struct vulkan_base{
     /////////////////////////////////////////////
     // Sempahores and fences
     gpu_sync Semaphores;
-    
+
     /////////////////////////////////////////////
 	// Immediate submite
     VkFence         ImmFence;
@@ -285,10 +286,10 @@ struct vulkan_base{
 };
 
 /** \brief Creates a new window with specified dimensions
- *  
+ *
  *  Initializes and returns a window handle with the requested width and height.
  *  The window is configured for Vulkan rendering and appropriate event handling.
- *  
+ *
  *  \param w Width of the window in pixels
  *  \param h Height of the window in pixels
  *  \return Handle to the created window
@@ -296,65 +297,65 @@ struct vulkan_base{
 internal api_window CreateWindow(F64 w, F64 h);
 
 /** \brief Initializes the Vulkan subsystem
- *  
+ *
  *  Sets up all required Vulkan components including instance, physical device,
  *  logical device, and essential resources. Must be called before any other
  *  Vulkan operations.
- *  
+ *
  *  \return Initialized vulkan_base structure containing all Vulkan resources
  */
 internal vulkan_base VulkanInit();
 
 /** \brief Creates a Vulkan swapchain for rendering
- *  
+ *
  *  Creates and configures a swapchain appropriate for the current surface,
  *  ensuring proper image count, format, and presentation mode.
- *  
+ *
  *  \param base Pointer to the vulkan_base structure containing device and surface
  */
 internal void CreateSwapchain(vulkan_base* base);
 
 /** \brief Creates image views for swapchain images
- *  
+ *
  *  Creates VkImageView objects for each image in the swapchain, allowing them
  *  to be used as framebuffers and render targets.
- *  
+ *
  *  \param base Pointer to the vulkan_base structure containing swapchain images
  */
 internal void CreateImageViews(vulkan_base* base);
 
 /** \brief Initializes command pools and command buffers
- *  
+ *
  *  Creates primary command pools and allocates command buffers for each frame
  *  in flight. Sets up appropriate command buffer usage patterns.
- *  
+ *
  *  \param base Pointer to the vulkan_base structure
  */
 internal void InitCommands(vulkan_base* base);
 
 /** \brief Initializes synchronization primitives
- *  
+ *
  *  Creates fences and semaphores needed for frame pacing and GPU-CPU synchronization.
  *  Configures appropriate signaling and waiting patterns.
- *  
+ *
  *  \param base Pointer to the vulkan_base structure
  */
 internal void InitSyncStructures(vulkan_base* base);
 
 /** \brief Initializes descriptor sets and layouts
- *  
+ *
  *  Creates descriptor set layouts and allocates descriptor sets from the pool.
  *  Configures bindings according to the application's requirements.
- *  
+ *
  *  \param base Pointer to the vulkan_base structure
  */
 internal void InitDescriptors(vulkan_base* base);
 
 /** \brief Initializes a descriptor pool
- *  
+ *
  *  Creates a descriptor pool with specified ratios for different descriptor types.
  *  Useful for custom descriptor pool configuration beyond default initialization.
- *  
+ *
  *  \param base Pointer to the vulkan_base structure
  *  \param Pool Pointer to where the created VkDescriptorPool will be stored
  *  \param Device Vulkan device handle
@@ -365,14 +366,14 @@ internal void InitDescriptors(vulkan_base* base);
 internal void InitDescriptorPool(vulkan_base* base, VkDescriptorPool* Pool, VkDevice Device, u32 MaxSets, pool_size_ratio* pool_ratios, u32 N_Pools);
 
 /** \brief Resets all descriptor sets in a descriptor pool
- *  
+ *
  *  Resets a descriptor pool, making all descriptor sets allocated from it
  *  available for reuse. This is more efficient than destroying and recreating
  *  the pool when you need to update all descriptors.
- *  
+ *
  *  \param allocator Pointer to the descriptor pool to reset
  *  \param device Vulkan device associated with the descriptor pool
- *  
+ *
  *  \note After resetting, all descriptor sets from this pool become invalid
  *        and must be重新 allocated before use
  *  \note This operation does not free the underlying memory resources,
@@ -381,13 +382,13 @@ internal void InitDescriptorPool(vulkan_base* base, VkDescriptorPool* Pool, VkDe
 internal void ClearDescriptorPool(VkDescriptorPool* allocator, VkDevice device);
 
 /** \brief Destroys a descriptor pool and frees its resources
- *  
+ *
  *  Completely destroys a descriptor pool and all descriptor sets allocated
  *  from it, releasing all associated memory resources back to the system.
- *  
+ *
  *  \param allocator Pointer to the descriptor pool to destroy
  *  \param device Vulkan device associated with the descriptor pool
- *  
+ *
  *  \note This function should only be called when the descriptor pool is
  *        no longer needed and all descriptor sets from it are no longer in use
  *  \note After destruction, the descriptor pool handle becomes invalid and
@@ -396,51 +397,51 @@ internal void ClearDescriptorPool(VkDescriptorPool* allocator, VkDevice device);
 internal void DestroyPool(VkDescriptorPool* allocator, VkDevice device);
 
 /** \brief Creates a Vulkan buffer with associated memory allocation
- *  
+ *
  *  Creates a Vulkan buffer object and allocates memory for it using the
  *  Vulkan Memory Allocator (VMA). The buffer is mapped into host memory
  *  if VMA_ALLOCATION_CREATE_MAPPED_BIT is specified.
- *  
+ *
  *  \param allocator VMA memory allocator instance
  *  \param AllocSize Size of the buffer in bytes
  *  \param Usage Buffer usage flags (e.g., VK_BUFFER_USAGE_VERTEX_BUFFER_BIT)
  *  \param MemoryUsage Intended memory usage pattern (e.g., VMA_MEMORY_USAGE_GPU_ONLY)
  *  \return Structure containing the created buffer, its memory allocation, and allocation info
- *  
+ *
  *  \note The function automatically sets VMA_ALLOCATION_CREATE_MAPPED_BIT,
  *        so the buffer memory is mapped and can be accessed directly from CPU
  *  \note The buffer uses exclusive sharing mode (not shared between queues)
  *  \note Uses VK_CHECK macro to validate the creation operation
  */
-internal allocated_buffer CreateBuffer(VmaAllocator allocator, VkDeviceSize AllocSize, 
-                                      VkBufferUsageFlags Usage, VmaMemoryUsage MemoryUsage);
+internal allocated_buffer CreateBuffer(VmaAllocator allocator, VkDeviceSize AllocSize,
+                                       VkBufferUsageFlags Usage, VmaMemoryUsage MemoryUsage);
 
 
 /** \brief Creates a VkFenceCreateInfo structure
- *  
+ *
  *  Helper function to initialize a VkFenceCreateInfo structure with specified flags.
  *  Sets appropriate structure type and default values for other fields.
- *  
+ *
  *  \param flags Creation flags for the fence (signaled state, etc.)
  *  \return Fully initialized VkFenceCreateInfo structure
  */
 internal VkFenceCreateInfo FenceCreateInfo(VkFenceCreateFlags flags);
 
 /** \brief Creates a VkSemaphoreCreateInfo structure
- *  
+ *
  *  Helper function to initialize a VkSemaphoreCreateInfo structure with specified flags.
  *  Sets appropriate structure type and default values for other fields.
- *  
+ *
  *  \param flags Creation flags for the semaphore
  *  \return Fully initialized VkSemaphoreCreateInfo structure
  */
 internal VkSemaphoreCreateInfo SemaphoreCreateInfo(VkSemaphoreCreateFlags flags);
 
 /** \brief Initializes a pipeline builder
- *  
+ *
  *  Creates and initializes a pipeline_builder structure with pre-allocated
  *  space for shader stages. The builder is ready to be configured for pipeline creation.
- *  
+ *
  *  \param n_shader_stages Number of shader stages to pre-allocate space for
  *  \param Allocator Memory allocator to use for dynamic allocations
  *  \return Initialized pipeline_builder structure
@@ -448,19 +449,19 @@ internal VkSemaphoreCreateInfo SemaphoreCreateInfo(VkSemaphoreCreateFlags flags)
 pipeline_builder InitPipelineBuilder(size_t n_shader_stages, Stack_Allocator* Allocator);
 
 /** \brief Resets a pipeline builder to default state
- *  
+ *
  *  Clears all configuration from the pipeline builder, resetting all states
  *  to defaults. Frees any allocated resources within the builder.
- *  
+ *
  *  \param builder Pointer to the pipeline_builder to reset
  */
 void ClearPipelineBuilder(pipeline_builder* builder);
 
 /** \brief Creates a shader stage configuration
- *  
+ *
  *  Helper function to initialize a VkPipelineShaderStageCreateInfo structure
  *  for a specific shader module and entry point.
- *  
+ *
  *  \param stage_flag Shader stage (e.g., VK_SHADER_STAGE_VERTEX_BIT)
  *  \param module Shader module containing the code
  *  \param entry Entry point name in the shader (typically "main")
@@ -469,10 +470,10 @@ void ClearPipelineBuilder(pipeline_builder* builder);
 VkPipelineShaderStageCreateInfo PipelineShaderStageCreateInfo(VkShaderStageFlagBits stage_flag, VkShaderModule module, const char* entry);
 
 /** \brief Adds a push constant range to the pipeline
- *  
+ *
  *  Configures the pipeline to use push constants for the specified shader stages
  *  with the given size. Multiple calls accumulate push constant ranges.
- *  
+ *
  *  \param builder Pointer to the pipeline builder
  *  \param stage Shader stages that will use these push constants
  *  \param size Size of the push constant data in bytes
@@ -480,10 +481,10 @@ VkPipelineShaderStageCreateInfo PipelineShaderStageCreateInfo(VkShaderStageFlagB
 void AddPushConstant(pipeline_builder* builder, VkShaderStageFlags stage, size_t size);
 
 /** \brief Sets vertex and fragment shaders for the pipeline
- *  
+ *
  *  Configures the pipeline builder with the specified vertex and fragment shaders.
  *  Replaces any previously set shaders.
- *  
+ *
  *  \param builder Pointer to the pipeline builder
  *  \param vertex_shader Vertex shader module
  *  \param fragment_shader Fragment shader module
@@ -491,46 +492,46 @@ void AddPushConstant(pipeline_builder* builder, VkShaderStageFlags stage, size_t
 void SetShaders(pipeline_builder* builder, VkShaderModule vertex_shader, VkShaderModule fragment_shader);
 
 /** \brief Sets primitive topology for the pipeline
- *  
+ *
  *  Configures how vertices are assembled into primitives (triangles, lines, etc.).
- *  
+ *
  *  \param builder Pointer to the pipeline builder
  *  \param topology Primitive assembly topology (e.g., triangle list, line strip)
  */
 void SetInputTopology(pipeline_builder* builder, VkPrimitiveTopology topology);
 
 /** \brief Sets descriptor set layout for the pipeline
- *  
+ *
  *  Configures the descriptor set layout that will be used by the pipeline.
- *  
+ *
  *  \param builder Pointer to the pipeline builder
  *  \param layout Pointer to the descriptor set layout
  */
-void SetDescriptorLayout(pipeline_builder* builder, VkDescriptorSetLayout* layout);
+void SetDescriptorLayout(pipeline_builder* builder, VkDescriptorSetLayout* layout, u32 LayoutCount );
 
 /** \brief Configures pipeline for no multisampling
- *  
+ *
  *  Sets up the multisample state to use a single sample per pixel with no
  *  anti-aliasing or coverage effects.
- *  
+ *
  *  \param builder Pointer to the pipeline builder
  */
 void SetMultisamplingNone(pipeline_builder* builder);
 
 /** \brief Disables depth testing in the pipeline
- *  
+ *
  *  Configures the pipeline to ignore depth values, disabling both depth testing
  *  and depth writing. Useful for 2D rendering or transparent objects.
- *  
+ *
  *  \param builder Pointer to the pipeline builder
  */
 void DisableDepthTest(pipeline_builder* builder);
 
 /** \brief Builds a complete graphics pipeline
- *  
+ *
  *  Creates a Vulkan graphics pipeline from the configured pipeline builder.
  *  Handles all necessary validation and error reporting.
- *  
+ *
  *  \param builder Pointer to the configured pipeline builder
  *  \param device Vulkan device to create the pipeline on
  *  \return The created VkPipeline, or VK_NULL_HANDLE on failure
@@ -538,10 +539,10 @@ void DisableDepthTest(pipeline_builder* builder);
 VkPipeline BuildPipeline(pipeline_builder* builder, VkDevice device);
 
 /** \brief Sets vertex attribute descriptions
- *  
+ *
  *  Configures how vertex data is interpreted by the vertex shader.
  *  Defines the format and location of each vertex attribute.
- *  
+ *
  *  \param builder Pointer to the pipeline builder
  *  \param v Array of vertex attribute descriptions
  *  \param count Number of elements in the array
@@ -549,10 +550,10 @@ VkPipeline BuildPipeline(pipeline_builder* builder, VkDevice device);
 void SetVertexInputAttributeDescription(pipeline_builder* builder, const VkVertexInputAttributeDescription* v, size_t count);
 
 /** \brief Sets vertex binding descriptions
- *  
+ *
  *  Configures how vertex data is fetched from buffers, including stride and
  *  input rate (per-vertex or per-instance).
- *  
+ *
  *  \param builder Pointer to the pipeline builder
  *  \param v Array of vertex binding descriptions
  *  \param count Number of elements in the array
@@ -560,19 +561,19 @@ void SetVertexInputAttributeDescription(pipeline_builder* builder, const VkVerte
 void SetVertexInputBindingDescription(pipeline_builder* builder, const VkVertexInputBindingDescription* v, size_t count);
 
 /** \brief Sets polygon rendering mode
- *  
+ *
  *  Configures how polygons are rasterized (filled, wireframe, points).
- *  
+ *
  *  \param builder Pointer to the pipeline builder
  *  \param polygon_mode Rasterization mode (fill, line, point)
  */
 void SetPolygonMode(pipeline_builder* builder, VkPolygonMode polygon_mode);
 
 /** \brief Sets face culling configuration
- *  
+ *
  *  Configures which faces are culled (front, back, or none) and how front faces
  *  are determined (clockwise or counter-clockwise).
- *  
+ *
  *  \param builder Pointer to the pipeline builder
  *  \param cull_mode Which faces to cull (VK_CULL_MODE_BACK_BIT, etc.)
  *  \param front_face How front faces are determined (VK_FRONT_FACE_CLOCKWISE, etc.)
@@ -580,57 +581,57 @@ void SetPolygonMode(pipeline_builder* builder, VkPolygonMode polygon_mode);
 void SetCullMode(pipeline_builder* builder, VkCullModeFlags cull_mode, VkFrontFace front_face);
 
 /** \brief Disables color blending
- *  
+ *
  *  Configures the pipeline to write color values directly without blending.
  *  Color write mask is set to all channels.
- *  
+ *
  *  \param builder Pointer to the pipeline builder
  */
 void DisableBlending(pipeline_builder* builder);
 
 /** \brief Enables additive blending
- *  
+ *
  *  Configures the pipeline for additive blending (SRC_ALPHA, ONE).
  *  Commonly used for particle effects and light accumulation.
- *  
+ *
  *  \param builder Pointer to the pipeline builder
  */
 void EnableBlendingAdditive(pipeline_builder* builder);
 
 /** \brief Enables standard alpha blending
- *  
+ *
  *  Configures the pipeline for standard alpha blending (SRC_ALPHA, ONE_MINUS_SRC_ALPHA).
  *  Used for transparent objects where the background shows through.
- *  
+ *
  *  \param builder Pointer to the pipeline builder
  */
 void EnableBlendingAlphaBlend(pipeline_builder* builder);
 
 /** \brief Sets depth attachment format
- *  
+ *
  *  Configures the pipeline to use the specified format for depth attachments.
  *  Required for depth testing and writing.
- *  
+ *
  *  \param builder Pointer to the pipeline builder
  *  \param format Vulkan format to use for depth (e.g., VK_FORMAT_D32_SFLOAT)
  */
 void SetDepthFormat(pipeline_builder* builder, VkFormat format);
 
 /** \brief Sets color attachment format
- *  
+ *
  *  Configures the pipeline to use the specified format for color attachments.
  *  Must match the swapchain image format for presentation.
- *  
+ *
  *  \param builder Pointer to the pipeline builder
  *  \param format Vulkan format to use for color (e.g., VK_FORMAT_B8G8R8A8_SRGB)
  */
 void SetColorAttachmentFormat(pipeline_builder* builder, VkFormat format);
 
 /** \brief Creates and adds a complete graphics pipeline
- *  
+ *
  *  Loads shaders, builds pipeline layout, and creates a complete graphics pipeline.
  *  Handles shader module creation and cleanup internally.
- *  
+ *
  *  \param base Pointer to the vulkan_base structure
  *  \param builder Pointer to the configured pipeline builder
  *  \param vert_path Path to the vertex shader file
@@ -640,41 +641,41 @@ void SetColorAttachmentFormat(pipeline_builder* builder, VkFormat format);
 vk_pipeline AddPipeline(struct vulkan_base* base, pipeline_builder* builder, const char* vert_path, const char* frag_path);
 
 /** \brief Frees resources allocated by the pipeline builder
- *  
+ *
  *  Releases all memory and resources associated with the pipeline builder.
  *  Should be called when the builder is no longer needed.
- *  
+ *
  *  \param builder Pointer to the pipeline builder to destroy
  */
 void DestroyPipelineBuilder(pipeline_builder* builder);
 
 /**
  * @brief Opens and read a file containing a shader and loads it into a VkShaderModule
- * 
+ *
  * @param filename  String containing the path to the file
  * @param device    Logical device
  * @param outModule Pointer to the VkShaderModule the user wants
  */
 /** \brief Loads a shader module from a SPIR-V file
- *  
+ *
  *  Reads a SPIR-V shader file and creates a Vulkan shader module.
  *  The caller is responsible for destroying the created shader module
  *  with vkDestroyShaderModule when no longer needed.
- *  
+ *
  *  \param filename Path to the SPIR-V shader file
  *  \param device Vulkan device to create the shader module on
  *  \param[out] outModule Pointer to store the created shader module handle
  *  \return true if successful, false otherwise
- *  
+ *
  *  \note The function uses memory-mapped I/O for efficient file reading
  */
 internal bool LoadShaderModule(const char* filename, VkDevice device, VkShaderModule* outModule);
 
 /** \brief Initializes a descriptor set builder
- *  
+ *
  *  Sets up a descriptor set builder structure with pre-allocated space
  *  for descriptor bindings.
- *  
+ *
  *  \param ds Pointer to the descriptor set structure to initialize
  *  \param max_descriptor_set_layout_binding Maximum number of bindings to pre-allocate
  *  \param Allocator Memory allocator to use for dynamic allocations
@@ -682,33 +683,33 @@ internal bool LoadShaderModule(const char* filename, VkDevice device, VkShaderMo
 internal void InitDescriptorSet(vk_descriptor_set* ds, u32 max_descriptor_set_layout_binding, Stack_Allocator* Allocator);
 
 /** \brief Adds a binding to a descriptor set
- *  
+ *
  *  Configures a new descriptor binding with the specified type.
  *  The binding is added to the end of the current bindings list.
- *  
+ *
  *  \param ds Pointer to the descriptor set
  *  \param binding Binding point index
  *  \param type Descriptor type (e.g., VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER)
- *  
+ *
  *  \note The stageFlags field is initialized to 0 and should be set later
  *        when building the descriptor set layout
  */
 internal void AddBindingDescriptorSet(vk_descriptor_set* ds, u32 binding, VkDescriptorType type);
 
 /** \brief Clears all bindings from a descriptor set
- *  
+ *
  *  Resets the descriptor set builder to an empty state, removing all
  *  previously added bindings.
- *  
+ *
  *  \param ds Pointer to the descriptor set to clear
  */
 internal void ClearDescriptorSet(vk_descriptor_set* ds);
 
 /** \brief Builds a descriptor set layout
- *  
+ *
  *  Creates a Vulkan descriptor set layout from the configured bindings.
  *  The stageFlags for each binding are updated with the provided shader stages.
- *  
+ *
  *  \param ds Pointer to the descriptor set builder
  *  \param device Vulkan device to create the layout on
  *  \param shader_stages Shader stages that will access the descriptors
@@ -719,9 +720,9 @@ internal void ClearDescriptorSet(vk_descriptor_set* ds);
 internal VkDescriptorSetLayout BuildDescriptorSet(vk_descriptor_set* ds, VkDevice device, VkShaderStageFlags shader_stages, void* p_next, VkDescriptorSetLayoutCreateFlags flags);
 
 /** \brief Allocates a descriptor set
- *  
+ *
  *  Allocates a descriptor set from the specified descriptor pool.
- *  
+ *
  *  \param Pool Pointer to the descriptor pool to allocate from
  *  \param device Vulkan device
  *  \param layout Descriptor set layout to use for the allocation
@@ -730,10 +731,10 @@ internal VkDescriptorSetLayout BuildDescriptorSet(vk_descriptor_set* ds, VkDevic
 internal VkDescriptorSet DescriptorSetAllocate(VkDescriptorPool* Pool, VkDevice device, VkDescriptorSetLayout* layout);
 
 /** \brief Initializes a descriptor writer
- *  
+ *
  *  Sets up a descriptor writer for building descriptor writes in batches.
  *  Pre-allocates space for the specified capacity of descriptors.
- *  
+ *
  *  \param capacity Maximum number of descriptors to support
  *  \param Allocator Memory allocator to use for dynamic allocations
  *  \return Initialized descriptor_writer structure
@@ -741,19 +742,19 @@ internal VkDescriptorSet DescriptorSetAllocate(VkDescriptorPool* Pool, VkDevice 
 internal descriptor_writer DescriptorWriterInit(u32 capacity, Stack_Allocator* Allocator);
 
 /** \brief Clears a descriptor writer
- *  
+ *
  *  Resets the descriptor writer to an empty state, removing all pending writes.
  *  Does not free the underlying memory allocations.
- *  
+ *
  *  \param dw Pointer to the descriptor writer to clear
  */
 internal void DescriptorWriterClear(descriptor_writer* dw);
 
 /** \brief Adds an image descriptor write operation
- *  
+ *
  *  Configures a descriptor write operation for an image resource.
  *  The write operation is queued and will be applied when UpdateDescriptorSet is called.
- *  
+ *
  *  \param dw Pointer to the descriptor writer
  *  \param binding Binding point to write to
  *  \param Image Image view to bind
@@ -764,10 +765,10 @@ internal void DescriptorWriterClear(descriptor_writer* dw);
 internal void WriteImage(descriptor_writer* dw, i32 binding, VkImageView Image, VkSampler Sample, VkImageLayout Layout, VkDescriptorType Type);
 
 /** \brief Adds a buffer descriptor write operation
- *  
+ *
  *  Configures a descriptor write operation for a buffer resource.
  *  The write operation is queued and will be applied when UpdateDescriptorSet is called.
- *  
+ *
  *  \param dw Pointer to the descriptor writer
  *  \param Binding Binding point to write to
  *  \param Buffer Buffer to bind
@@ -778,10 +779,10 @@ internal void WriteImage(descriptor_writer* dw, i32 binding, VkImageView Image, 
 internal void WriteBuffer(descriptor_writer* dw, i32 Binding, VkBuffer Buffer, i32 Size, i32 Offset, VkDescriptorType Type);
 
 /** \brief Updates a descriptor set with all queued writes
- *  
+ *
  *  Submits all pending descriptor writes to the specified descriptor set.
  *  After this call, the descriptor set contains the configured resources.
- *  
+ *
  *  \param dw Pointer to the descriptor writer containing the writes
  *  \param Device Vulkan device
  *  \param Set Descriptor set to update
@@ -789,10 +790,10 @@ internal void WriteBuffer(descriptor_writer* dw, i32 Binding, VkBuffer Buffer, i
 internal void UpdateDescriptorSet(descriptor_writer* dw, VkDevice Device, VkDescriptorSet Set);
 
 /** \brief Creates a VkImageCreateInfo structure with common parameters
- *  
+ *
  *  Helper function to initialize a VkImageCreateInfo structure for 2D images
  *  with optimal tiling and default configuration.
- *  
+ *
  *  \param Format Image format
  *  \param Flags Usage flags for the image
  *  \param Extent Image dimensions (width, height, depth)
@@ -801,10 +802,10 @@ internal void UpdateDescriptorSet(descriptor_writer* dw, VkDevice Device, VkDesc
 internal VkImageCreateInfo ImageCreateInfo(VkFormat Format, VkImageUsageFlags Flags, VkExtent3D Extent);
 
 /** \brief Creates a VkImageViewCreateInfo structure
- *  
+ *
  *  Helper function to initialize a VkImageViewCreateInfo structure for
  *  2D images with the specified aspect flags.
- *  
+ *
  *  \param Format Image view format
  *  \param image Image to create the view for
  *  \param flags Aspect flags (e.g., VK_IMAGE_ASPECT_COLOR_BIT)
@@ -813,17 +814,17 @@ internal VkImageCreateInfo ImageCreateInfo(VkFormat Format, VkImageUsageFlags Fl
 internal VkImageViewCreateInfo ImageViewCreateInfo(VkFormat Format, VkImage image, VkImageAspectFlags flags);
 
 /** \brief Creates a default image with associated resources
- *  
+ *
  *  Creates a Vulkan image with the specified properties, allocates memory
  *  for it, and creates an image view. Handles mipmapping if requested.
- *  
+ *
  *  \param base Pointer to the vulkan_base structure
  *  \param Size Image dimensions
  *  \param Format Image format
  *  \param Usage Image usage flags
  *  \param is_mipmapped Whether to generate mipmaps
  *  \return vk_image structure containing the created image resources
- *  
+ *
  *  \note The ImageView field in the returned structure must point to
  *        externally allocated memory that will store the image view handle
  */
@@ -831,43 +832,43 @@ internal vk_image CreateImageDefault(vulkan_base* base, VkExtent3D Size, VkForma
 internal vk_image CreateImageData(vulkan_base* base, void* data, VkExtent3D Size, VkFormat Format, VkImageUsageFlags Usage, bool is_mipmapped);
 
 /** \brief Creates a VkCommandBufferBeginInfo structure
- *  
+ *
  *  Helper function to initialize a VkCommandBufferBeginInfo structure
  *  with the specified usage flags.
- *  
+ *
  *  \param flags Command buffer usage flags
  *  \return Fully initialized VkCommandBufferBeginInfo structure
  */
 internal VkCommandBufferBeginInfo CommandBufferBeginInfo(VkCommandBufferUsageFlags flags);
 
 /** \brief Begins an immediate submit command buffer
- *  
+ *
  *  Prepares the immediate submit command buffer for recording by resetting
  *  the associated fence and command buffer.
- *  
+ *
  *  \param base Pointer to the vulkan_base structure
  *  \return Command buffer ready for recording
- *  
+ *
  *  \note This is part of a pattern for single-use command buffers that
  *        are submitted immediately after recording
  */
 internal VkCommandBuffer ImmediateSubmitBegin(vulkan_base* base);
 
 /** \brief Creates a VkCommandBufferSubmitInfo structure
- *  
+ *
  *  Helper function to initialize a VkCommandBufferSubmitInfo structure
  *  for command buffer submission.
- *  
+ *
  *  \param cmd Command buffer to submit
  *  \return Fully initialized VkCommandBufferSubmitInfo structure
  */
 internal VkCommandBufferSubmitInfo CommandBufferSubmitInfo(VkCommandBuffer cmd);
 
 /** \brief Creates a VkSubmitInfo2 structure
- *  
+ *
  *  Helper function to initialize a VkSubmitInfo2 structure for command
  *  submission with optional semaphore signaling.
- *  
+ *
  *  \param cmd Command buffer submission info
  *  \param signalSemaphoreInfo Semaphore info for signaling (can be NULL)
  *  \param waitSemaphoreInfo Semaphore info for waiting (can be NULL)
@@ -876,22 +877,22 @@ internal VkCommandBufferSubmitInfo CommandBufferSubmitInfo(VkCommandBuffer cmd);
 internal VkSubmitInfo2 SubmitInfo(VkCommandBufferSubmitInfo* cmd, VkSemaphoreSubmitInfo* signalSemaphoreInfo, VkSemaphoreSubmitInfo* waitSemaphoreInfo);
 
 /** \brief Completes and submits an immediate command buffer
- *  
+ *
  *  Ends recording of the command buffer, submits it to the queue,
  *  and waits for completion using the associated fence.
- *  
+ *
  *  \param base Pointer to the vulkan_base structure
  *  \param cmd Command buffer to submit
- *  
+ *
  *  \note This function blocks until the command buffer execution completes
  */
 internal void ImmediateSubmitEnd(vulkan_base* base, VkCommandBuffer cmd);
 
 /** \brief Transition an image's layout using Vulkan 1.3 synchronization model
- *  
+ *
  *  Creates and executes an image memory barrier to transition an image between layouts.
  *  This is the full parameter version supporting custom synchronization flags.
- *  
+ *
  *  \param cmd Command buffer to record the barrier into
  *  \param image Image to transition
  *  \param currentLayout Current layout of the image
@@ -902,25 +903,25 @@ internal void ImmediateSubmitEnd(vulkan_base* base, VkCommandBuffer cmd);
  *  \param dstAccessMask Memory accesses that must wait for the barrier
  */
 internal void TransitionImage(VkCommandBuffer cmd, VkImage image, VkImageLayout currentLayout,
-                             VkImageLayout newLayout, VkPipelineStageFlags2 srcStageMask,
-                             VkAccessFlags2 srcAccessMask, VkPipelineStageFlags2 dstStageMask,
-                             VkAccessFlags2 dstAccessMask);
+                              VkImageLayout newLayout, VkPipelineStageFlags2 srcStageMask,
+                              VkAccessFlags2 srcAccessMask, VkPipelineStageFlags2 dstStageMask,
+                              VkAccessFlags2 dstAccessMask);
 
 #define TransitionImageDefault(cmd, image, currentLayout, newLayout) (TransitionImage(cmd, image, currentLayout, newLayout, VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT, VK_ACCESS_2_MEMORY_WRITE_BIT, VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT, VK_ACCESS_2_MEMORY_WRITE_BIT | VK_ACCESS_2_MEMORY_READ_BIT))
 
 /**
  * \brief Copies image content from one image to another using blitting
- * 
+ *
  * Performs an image copy operation using vkCmdBlitImage2, which allows for
  * scaling and format conversion during the copy. The function sets up the
  * necessary blit regions and executes the command in the provided command buffer.
- * 
+ *
  * \param cmd Command buffer to record the blit operation into
  * \param source Source image to copy from (must be in TRANSFER_SRC_OPTIMAL layout)
  * \param destination Destination image to copy to (must be in TRANSFER_DST_OPTIMAL layout)
  * \param srcSize Dimensions of the source image region
  * \param dstSize Dimensions of the destination image region
- * 
+ *
  * \note Both images must have been transitioned to the appropriate layouts
  *       (TRANSFER_SRC_OPTIMAL for source, TRANSFER_DST_OPTIMAL for destination)
  *       before calling this function.
@@ -931,13 +932,13 @@ internal void TransitionImage(VkCommandBuffer cmd, VkImage image, VkImageLayout 
 void CopyImageToImage(VkCommandBuffer cmd, VkImage source, VkImage destination, VkExtent2D srcSize, VkExtent2D dstSize);
 
 /** \brief Recreates the swapchain and associated resources
- *  
+ *
  *  Destroys the current swapchain and image views, then recreates them
  *  with the current window dimensions. This function should be called
  *  when the window is resized or when the swapchain becomes out of date.
- *  
+ *
  *  \param base Pointer to the vulkan_base structure containing Vulkan resources
- *  
+ *
  *  \note This function blocks until the device becomes idle, so it should
  *        not be called frequently during normal rendering.
  *  \note After recreation, the framebuffer resized flag is cleared.
@@ -945,14 +946,14 @@ void CopyImageToImage(VkCommandBuffer cmd, VkImage source, VkImage destination, 
 internal void RecreateSwapchain(vulkan_base* base);
 
 /** \brief Prepares the next frame for rendering
- *  
+ *
  *  Waits for the previous frame to complete, resets synchronization objects,
  *  and acquires the next image from the swapchain. Handles cases where
  *  the swapchain needs to be recreated due to resizing or other conditions.
- *  
+ *
  *  \param base Pointer to the vulkan_base structure
  *  \return true if the swapchain was recreated, false otherwise
- *  
+ *
  *  \note This function may return true without an error if the swapchain
  *        was recreated due to being suboptimal (VK_SUBOPTIMAL_KHR).
  *  \note If VK_ERROR_OUT_OF_DATE_KHR is returned, the swapchain must be
@@ -961,13 +962,13 @@ internal void RecreateSwapchain(vulkan_base* base);
 internal bool PrepareFrame(vulkan_base* base);
 
 /** \brief Begins command buffer recording for a new frame
- *  
+ *
  *  Resets and begins recording a command buffer for the current frame.
  *  Configures the command buffer for one-time submission.
- *  
+ *
  *  \param base Pointer to the vulkan_base structure
  *  \return Command buffer ready for recording commands
- *  
+ *
  *  \note The returned command buffer is already in the recording state
  *        and should have rendering commands recorded into it.
  *  \note This function assumes that PrepareFrame has already been called
@@ -976,27 +977,27 @@ internal bool PrepareFrame(vulkan_base* base);
 internal VkCommandBuffer BeginRender(vulkan_base* base);
 
 /** \brief Creates a VkSemaphoreSubmitInfo structure
- *  
+ *
  *  Helper function to initialize a semaphore submission info structure
  *  for use with vkQueueSubmit2.
- *  
+ *
  *  \param stageMask Pipeline stage where the semaphore will be used
  *  \param semaphore Semaphore to submit
  *  \return Fully initialized VkSemaphoreSubmitInfo structure
- *  
+ *
  *  \note The function sets default values for deviceIndex (0) and value (1)
  */
 internal VkSemaphoreSubmitInfo SemaphoreSubmitInfo(VkPipelineStageFlags2 stageMask, VkSemaphore semaphore);
 
 /** \brief Completes rendering and presents the frame
- *  
+ *
  *  Ends command buffer recording, submits it for execution, and presents
  *  the rendered image to the window. Handles swapchain recreation if needed.
- *  
+ *
  *  \param base Pointer to the vulkan_base structure
  *  \param cmd Command buffer that was used for rendering
  *  \return true if the swapchain was recreated, false otherwise
- *  
+ *
  *  \note This function handles the complete presentation sequence:
  *        - Ending command buffer recording
  *        - Submitting the command buffer with proper synchronization
@@ -1013,11 +1014,11 @@ internal bool EndRender(vulkan_base* base, VkCommandBuffer cmd);
 
 ///////////////////////////////////////////////////////////////////////////////
 //
-VkBool32 
+VkBool32
 debugCallback(VkDebugUtilsMessageSeverityFlagsEXT messageSeverity,
-		VkDebugUtilsMessageTypeFlagsEXT messageType,
-		const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData,
-		void* pUserData) 
+              VkDebugUtilsMessageTypeFlagsEXT messageType,
+              const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData,
+              void* pUserData)
 {
     printf("validation layer: %s\n", pCallbackData->pMessage);
 
@@ -1026,7 +1027,7 @@ debugCallback(VkDebugUtilsMessageSeverityFlagsEXT messageSeverity,
 
 ///////////////////////////////////////////////////////////////////////////////
 //
-internal void 
+internal void
 populate_debug_messenger_create_info(VkDebugUtilsMessengerCreateInfoEXT* createInfo) {
 	createInfo->sType           = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
 	createInfo->messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT;
@@ -1037,7 +1038,7 @@ populate_debug_messenger_create_info(VkDebugUtilsMessengerCreateInfoEXT* createI
 
 ///////////////////////////////////////////////////////////////////////////////
 //
-internal queue_family_indices 
+internal queue_family_indices
 FindQueueFamilies(vulkan_base* base, VkPhysicalDevice Device) {
     queue_family_indices Indices;
     Indices.GraphicsAndCompute = UINT32_MAX;
@@ -1069,7 +1070,7 @@ FindQueueFamilies(vulkan_base* base, VkPhysicalDevice Device) {
             //stack_free(&base->Allocator, Families);
             return Indices;
         }
-    } 
+    }
 
     //stack_free(&base->Allocator, Families);
     return Indices;
@@ -1077,7 +1078,7 @@ FindQueueFamilies(vulkan_base* base, VkPhysicalDevice Device) {
 
 ///////////////////////////////////////////////////////////////////////////////
 //
-internal bool 
+internal bool
 CheckValidationLayerSupport(vulkan_base* base) {
     u32 LayerCount = 0;
     VkLayerProperties* Layers;
@@ -1094,7 +1095,7 @@ CheckValidationLayerSupport(vulkan_base* base) {
             const char* layer_name = (const char*)Layers[i].layerName;
             if( strcmp(layer_name, name) == 0 ) {
                 LayerFound = true;
-            } 
+            }
         }
         if(!LayerFound) {
             fprintf(stderr, "ERROR: validation layer %s not available\n", name);
@@ -1119,7 +1120,7 @@ CheckDeviceExtensionSupport( vulkan_base* base, VkPhysicalDevice Device ) {
     printf("[INFO] Device extensions:\n");
     for( u32 j = 0; j < ExtensionCount; j += 1 ) {
         printf("\t%s\n", Extensions[j].extensionName);
-    }   
+    }
 
     for( u32 i = 0; i < ArrayCount(DEVICE_EXTENSIONS); i += 1 ) {
         const char* extension = DEVICE_EXTENSIONS[i];
@@ -1130,7 +1131,7 @@ CheckDeviceExtensionSupport( vulkan_base* base, VkPhysicalDevice Device ) {
                 printf("[INFO] Found device extension %s\n", extension);
 				ExtensionFound = true;
             }
-        }   
+        }
         if( !ExtensionFound ) {
             //stack_free(&base->Allocator, Extensions);
             return false;
@@ -1143,7 +1144,7 @@ CheckDeviceExtensionSupport( vulkan_base* base, VkPhysicalDevice Device ) {
 
 ///////////////////////////////////////////////////////////////////////////////
 //
-internal swapchain_support_details 
+internal swapchain_support_details
 QuerySwapchainSupport(vulkan_base* base, VkPhysicalDevice Device )
 {
     swapchain_support_details Details = {0};
@@ -1168,7 +1169,7 @@ QuerySwapchainSupport(vulkan_base* base, VkPhysicalDevice Device )
 
 ///////////////////////////////////////////////////////////////////////////////
 //
-internal bool 
+internal bool
 IsSuitableDevice(vulkan_base* base, VkPhysicalDevice Device) {
     queue_family_indices Indices = FindQueueFamilies(base, Device);
 	bool extensions_supported = CheckDeviceExtensionSupport(base, Device);
@@ -1197,22 +1198,22 @@ CreateWindow(F64 w, F64 h) {
     const int screen = DefaultScreen(app.Dpy);
 
     Window win = XCreateSimpleWindow(
-        app.Dpy, RootWindow(app.Dpy, screen),
-        0, 0, w, h, 0,
-        BlackPixel(app.Dpy, screen),
-        WhitePixel(app.Dpy, screen)
-    );
+                                     app.Dpy, RootWindow(app.Dpy, screen),
+                                     0, 0, w, h, 0,
+                                     BlackPixel(app.Dpy, screen),
+                                     WhitePixel(app.Dpy, screen)
+                                     );
 
     XSelectInput(app.Dpy, win,
-               ExposureMask     |
-               PointerMotionMask|
-               ButtonPressMask  |
-               ButtonReleaseMask|
-               KeyPressMask     |
-               KeyReleaseMask   |
-               FocusChangeMask
-    );
-    
+                 ExposureMask     |
+                 PointerMotionMask|
+                 ButtonPressMask  |
+                 ButtonReleaseMask|
+                 KeyPressMask     |
+                 KeyReleaseMask   |
+                 FocusChangeMask
+                 );
+
     app.Width = w;
     app.Height = h;
     XMapWindow(app.Dpy, win);
@@ -1229,19 +1230,19 @@ CreateWindow(F64 w, F64 h) {
 
     /* 4. Create an XIC for each window that needs text input */
     XIC xic = XCreateIC(xim,
-        XNInputStyle,   XIMPreeditNothing | XIMStatusNothing,
-        XNClientWindow, win,
-        XNFocusWindow,  win,
-        NULL);
-    
+                        XNInputStyle,   XIMPreeditNothing | XIMStatusNothing,
+                        XNClientWindow, win,
+                        XNFocusWindow,  win,
+                        NULL);
+
     app.xic = xic;
- 
+
     return app;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 //
-internal vulkan_base 
+internal vulkan_base
 VulkanInit() {
     vulkan_base Base = {0};
 
@@ -1278,12 +1279,12 @@ VulkanInit() {
         puts("Available layers:");
         for (uint32_t i = 0; i < count; ++i)
             printf("  %2u  %s  (spec v%u)\n",
-                i, props[i].layerName, props[i].specVersion);
+                   i, props[i].layerName, props[i].specVersion);
     }
 
     {
         vkEnumerateInstanceExtensionProperties(NULL, &ExtensionCount, NULL);
-        
+
         VkExtensionProperties props[ExtensionCount];
 
         /* 2. Get data */
@@ -1292,10 +1293,10 @@ VulkanInit() {
         for (uint32_t i = 0; i < ExtensionCount; ++i)
             printf(" %2u  %-46s  v%u\n", i, props[i].extensionName, props[i].specVersion);
 
-    #ifndef NDEBUG
+#ifndef NDEBUG
         ExtensionCount += 1;
-    #endif
-        
+#endif
+
         // TODO: Change to own custom memory allocator
         //
         ExtensionNames = stack_push(&Base.Allocator, char*, ExtensionCount);
@@ -1310,30 +1311,30 @@ VulkanInit() {
             strcpy(ExtensionNames[i], props[i].extensionName);
         }
 
-    #ifndef NDEBUG
+#ifndef NDEBUG
         ExtensionNames[ExtensionCount-1] = stack_push(&Base.Allocator, char, strlen("VK_EXT_debug_utils") + 1);
         strcpy(ExtensionNames[ExtensionCount-1], "VK_EXT_debug_utils");
-    #endif
+#endif
 
-    VkInstanceCreateInfo InstanceInfo = {
-        .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
-        .pNext = NULL,
-        .pApplicationInfo = &appInfo,
-        .enabledLayerCount = 1,
-        .ppEnabledLayerNames = VALIDATION_LAYERS,
-        .enabledExtensionCount = ExtensionCount,
-        .ppEnabledExtensionNames = ExtensionNames 
-    };
+        VkInstanceCreateInfo InstanceInfo = {
+            .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
+            .pNext = NULL,
+            .pApplicationInfo = &appInfo,
+            .enabledLayerCount = 1,
+            .ppEnabledLayerNames = VALIDATION_LAYERS,
+            .enabledExtensionCount = ExtensionCount,
+            .ppEnabledExtensionNames = ExtensionNames
+        };
 
 
-    #ifndef NDEBUG
+#ifndef NDEBUG
         populate_debug_messenger_create_info(&DebugCreateInfo);
         InstanceInfo.pNext = &DebugCreateInfo;   // <- add this
         InstanceInfo.enabledLayerCount = 1;
-    #else 
+#else
         InstanceInfo.enabledLayerCount = 0;
         InstanceInfo.pNext = NULL;
-    #endif
+#endif
 
         VK_CHECK(vkCreateInstance(&InstanceInfo, 0, &Base.Instance));
     }
@@ -1364,7 +1365,7 @@ VulkanInit() {
         fprintf(stderr, "[ERROR] Could not create debug utils\n");
         exit(-1);
     }
-#endif 
+#endif
 
     ///////////////////////////////////////////////////////////////////////////
     // SETUP PHYSICAL DEVICE
@@ -1388,6 +1389,7 @@ VulkanInit() {
             if( IsSuitableDevice(&Base, Devices[i]) ) {
                 Base.PhysicalDevice = Devices[i];
                 printf("[INFO] Selected GPU: %s\n", properties.deviceName);
+                break;
             }
         }
 
@@ -1405,45 +1407,45 @@ VulkanInit() {
     Base.FamilyIndices = qfi;
 
     f32 queue_priority = 1.0;
-	VkDeviceQueueCreateInfo queue_create_info = {};
-	queue_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-	queue_create_info.queueFamilyIndex = qfi.GraphicsAndCompute;
-	queue_create_info.queueCount = 1;
-	queue_create_info.pQueuePriorities = &queue_priority;
+    VkDeviceQueueCreateInfo queue_create_info = {};
+    queue_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+    queue_create_info.queueFamilyIndex = qfi.GraphicsAndCompute;
+    queue_create_info.queueCount = 1;
+    queue_create_info.pQueuePriorities = &queue_priority;
 
-	// Vulkan 1.3 features
-	VkPhysicalDeviceVulkan13Features features13 = {};
-	features13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
-	features13.dynamicRendering = true;
-	features13.synchronization2 = true;
-	features13.pNext = 0;
+    // Vulkan 1.3 features
+    VkPhysicalDeviceVulkan13Features features13 = {};
+    features13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
+    features13.dynamicRendering = true;
+    features13.synchronization2 = true;
+    features13.pNext = 0;
 
-	// Vulkan 1.2 features
-	VkPhysicalDeviceVulkan12Features features12 = {};
-	features12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
-	features12.bufferDeviceAddress = true;
-	features12.descriptorIndexing = true;
-	features12.pNext = &features13;
+    // Vulkan 1.2 features
+    VkPhysicalDeviceVulkan12Features features12 = {};
+    features12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
+    features12.bufferDeviceAddress = true;
+    features12.descriptorIndexing = true;
+    features12.pNext = &features13;
 
-	// Core Vulkan features
-	VkPhysicalDeviceFeatures2 device_features = {};
-	device_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
-	device_features.features.samplerAnisotropy = true;
-	device_features.features.fillModeNonSolid = true;
-	device_features.pNext = &features12;
+    // Core Vulkan features
+    VkPhysicalDeviceFeatures2 device_features = {};
+    device_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+    device_features.features.samplerAnisotropy = true;
+    device_features.features.fillModeNonSolid = true;
+    device_features.pNext = &features12;
 
-	VkDeviceCreateInfo create_info = {};
-	create_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-	create_info.pQueueCreateInfos = &queue_create_info;
-	create_info.queueCreateInfoCount = 1;
-	create_info.pEnabledFeatures = 0;
-	create_info.enabledExtensionCount = 4;
-	create_info.ppEnabledExtensionNames = DEVICE_EXTENSIONS;
-	create_info.pNext = &device_features;
+    VkDeviceCreateInfo create_info = {};
+    create_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+    create_info.pQueueCreateInfos = &queue_create_info;
+    create_info.queueCreateInfoCount = 1;
+    create_info.pEnabledFeatures = 0;
+    create_info.enabledExtensionCount = 4;
+    create_info.ppEnabledExtensionNames = DEVICE_EXTENSIONS;
+    create_info.pNext = &device_features;
 
 #ifdef NDEBUG // In case we are not in debug, we do not set layers
     create_info.enabledLayerCount = 0;
-#endif 
+#endif
 
     vkCreateDevice(Base.PhysicalDevice, &create_info, 0, &Base.Device);
     vkGetDeviceQueue(Base.Device, Base.FamilyIndices.GraphicsAndCompute, 0, &Base.GraphicsQueue);
@@ -1506,7 +1508,7 @@ VulkanInit() {
 ///////////////////////////////////////////////////////////////////////////////
 // clamp helper function
 //
-internal u32 
+internal u32
 u32_clamp(u32 value, u32 min, u32 max) {
     if( value < min ) {
         value = min;
@@ -1520,7 +1522,7 @@ u32_clamp(u32 value, u32 min, u32 max) {
 ///////////////////////////////////////////////////////////////////////////////
 // Vulkan Swapchain creation
 //
-internal void 
+internal void
 CreateSwapchain(vulkan_base* base) {
     swapchain_support_details Support = QuerySwapchainSupport(base, base->PhysicalDevice);
     U32 ImageCount = Support.Capabilities.minImageCount + 1;
@@ -1529,7 +1531,7 @@ CreateSwapchain(vulkan_base* base) {
     VkPresentModeKHR   PresentMode;
     VkExtent2D         Extent;
 
-    bool FoundImmediate = false;
+    bool VerticalBlank = false;
 
     if( Support.Capabilities.maxImageCount > 0 && ImageCount > Support.Capabilities.maxImageCount ) {
         ImageCount = Support.Capabilities.maxImageCount;
@@ -1545,13 +1547,13 @@ CreateSwapchain(vulkan_base* base) {
 
     for(u32 i = 0; i < ArrayCount(Support.PresentModes); i += 1) {
         VkPresentModeKHR mode = Support.PresentModes[i];
-        if( mode == VK_PRESENT_MODE_IMMEDIATE_KHR ) {
-            FoundImmediate = true;
+        if( mode == VK_PRESENT_MODE_MAILBOX_KHR ) {
+            VerticalBlank = true;
             PresentMode = mode;
         }
     }
 
-    if( !FoundImmediate ) {
+    if( !VerticalBlank ) {
         PresentMode = VK_PRESENT_MODE_FIFO_KHR;
     }
 
@@ -1568,51 +1570,51 @@ CreateSwapchain(vulkan_base* base) {
         Extent.width  = u32_clamp(Extent.width, Support.Capabilities.minImageExtent.width, Support.Capabilities.maxImageExtent.width);
         Extent.height = u32_clamp(Extent.height, Support.Capabilities.minImageExtent.height, Support.Capabilities.maxImageExtent.height);
     }
-        VkSwapchainCreateInfoKHR CreateInfo = {
-            .sType            = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
-            .surface          = base->Window.Surface,
-            .minImageCount    = ImageCount,
-            .imageFormat      = SurfaceFormat.format,
-            .imageColorSpace  = SurfaceFormat.colorSpace,
-            .imageExtent      = Extent,
-            .imageArrayLayers = 1,
-            .imageUsage       = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
-            .preTransform     = Support.Capabilities.currentTransform,
-            .compositeAlpha   = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR, 
-            .presentMode      = PresentMode,
-            .clipped          = true,
-        };
+    VkSwapchainCreateInfoKHR CreateInfo = {
+        .sType            = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
+        .surface          = base->Window.Surface,
+        .minImageCount    = ImageCount,
+        .imageFormat      = SurfaceFormat.format,
+        .imageColorSpace  = SurfaceFormat.colorSpace,
+        .imageExtent      = Extent,
+        .imageArrayLayers = 1,
+        .imageUsage       = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+        .preTransform     = Support.Capabilities.currentTransform,
+        .compositeAlpha   = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
+        .presentMode      = PresentMode,
+        .clipped          = true,
+    };
 
-        queue_family_indices indices = FindQueueFamilies(base, base->PhysicalDevice);
-        u32 qFamilyIndices[] = {indices.GraphicsAndCompute, indices.Presentation}; 
+    queue_family_indices indices = FindQueueFamilies(base, base->PhysicalDevice);
+    u32 qFamilyIndices[] = {indices.GraphicsAndCompute, indices.Presentation};
 
-        if( indices.GraphicsAndCompute != indices.Presentation ) {
-            CreateInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
-            CreateInfo.queueFamilyIndexCount = 2;
-            CreateInfo.pQueueFamilyIndices   = qFamilyIndices;
-        } else {
-            CreateInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-        }
+    if( indices.GraphicsAndCompute != indices.Presentation ) {
+        CreateInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
+        CreateInfo.queueFamilyIndexCount = 2;
+        CreateInfo.pQueueFamilyIndices   = qFamilyIndices;
+    } else {
+        CreateInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    }
 
-        VK_CHECK(vkCreateSwapchainKHR(base->Device, &CreateInfo, 0, &base->Swapchain.Swapchain));
-        VK_CHECK(vkGetSwapchainImagesKHR(base->Device, base->Swapchain.Swapchain, &base->Swapchain.N_Images, 0));
+    VK_CHECK(vkCreateSwapchainKHR(base->Device, &CreateInfo, 0, &base->Swapchain.Swapchain));
+    VK_CHECK(vkGetSwapchainImagesKHR(base->Device, base->Swapchain.Swapchain, &base->Swapchain.N_Images, 0));
 
-        if(base->Swapchain.Images == 0) {
-            base->Swapchain.Images = stack_push(&base->Allocator, VkImage, base->Swapchain.N_Images);
-        }
+    if(base->Swapchain.Images == 0) {
+        base->Swapchain.Images = stack_push(&base->Allocator, VkImage, base->Swapchain.N_Images);
+    }
 
-        VK_CHECK(vkGetSwapchainImagesKHR(base->Device, base->Swapchain.Swapchain, &base->Swapchain.N_Images, base->Swapchain.Images));
-        
-        base->Swapchain.Format = SurfaceFormat.format;
-        base->Swapchain.Extent = Extent;
-        base->Swapchain.Capabilities = Support.Capabilities;
+    VK_CHECK(vkGetSwapchainImagesKHR(base->Device, base->Swapchain.Swapchain, &base->Swapchain.N_Images, base->Swapchain.Images));
+
+    base->Swapchain.Format = SurfaceFormat.format;
+    base->Swapchain.Extent = Extent;
+    base->Swapchain.Capabilities = Support.Capabilities;
 
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // ImageCreateInfo helper function
 //
-internal VkImageCreateInfo 
+internal VkImageCreateInfo
 ImageCreateInfo(VkFormat Format, VkImageUsageFlags UsageFlags, VkExtent3D Extent) {
     VkImageCreateInfo info = {};
     info.sType         = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -1666,26 +1668,26 @@ CreateImageViews(vulkan_base* base) {
 //
 internal VkCommandPoolCreateInfo
 CommandPoolCreateInfo(u32 queueFamilyIndex, VkCommandPoolCreateFlags flags /*= 0*/) {
-  VkCommandPoolCreateInfo info = {};
-  info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-  info.pNext = 0;
-  info.queueFamilyIndex = queueFamilyIndex;
-  info.flags = flags;
+    VkCommandPoolCreateInfo info = {};
+    info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+    info.pNext = 0;
+    info.queueFamilyIndex = queueFamilyIndex;
+    info.flags = flags;
 
-  return info;
+    return info;
 }
 
 internal VkCommandBufferAllocateInfo
 CommandBufferAllocateInfo( VkCommandPool pool, u32 count ) {
-  VkCommandBufferAllocateInfo info = {};
-  info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-  info.pNext = 0;
+    VkCommandBufferAllocateInfo info = {};
+    info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    info.pNext = 0;
 
-  info.commandPool = pool;
-  info.commandBufferCount = count;
-  info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    info.commandPool = pool;
+    info.commandBufferCount = count;
+    info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 
-  return info;
+    return info;
 }
 
 
@@ -1717,24 +1719,24 @@ InitCommands(vulkan_base* base) {
 // -----------------------------------------------------------------------------
 internal VkSemaphoreCreateInfo
 SemaphoreCreateInfo( VkSemaphoreCreateFlags flags) {
-  VkSemaphoreCreateInfo info = {};
-  info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-  info.pNext = 0;
-  info.flags = flags;
+    VkSemaphoreCreateInfo info = {};
+    info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+    info.pNext = 0;
+    info.flags = flags;
 
-  return info;
+    return info;
 }
 
 // ------------------------------------------------------------------
 internal VkFenceCreateInfo
 FenceCreateInfo(VkFenceCreateFlags flags) {
-  VkFenceCreateInfo info = {};
-  info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-  info.pNext = 0;
+    VkFenceCreateInfo info = {};
+    info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+    info.pNext = 0;
 
-  info.flags = flags;
+    info.flags = flags;
 
-  return info;
+    return info;
 }
 
 internal void
@@ -1780,13 +1782,13 @@ InitDescriptors(vulkan_base* base) {
 	sizes[1] = (pool_size_ratio){VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 8};
 	sizes[2] = (pool_size_ratio){VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 8};
 
-	InitDescriptorPool(base, &base->GlobalDescriptorAllocator, base->Device, 24, sizes, 3); 
+	InitDescriptorPool(base, &base->GlobalDescriptorAllocator, base->Device, 24, sizes, 3);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // Init descriptor pool
 //
-internal void 
+internal void
 InitDescriptorPool(vulkan_base* base, VkDescriptorPool* Pool, VkDevice Device, u32 MaxSets, pool_size_ratio* pool_ratios, u32 N_Pools ) {
     VkDescriptorPoolSize* PoolSizes = stack_push(&base->Allocator, VkDescriptorPoolSize, N_Pools);
 
@@ -1846,7 +1848,7 @@ CreateBuffer(VmaAllocator allocator, VkDeviceSize AllocSize, VkBufferUsageFlags 
     return out;
 }
 
-internal void 
+internal void
 DestroyBuffer(VmaAllocator* allocator, allocated_buffer* buf)
 {
     vmaDestroyBuffer(*allocator, buf->Buffer, buf->Allocation);
@@ -1897,16 +1899,16 @@ void ClearPipelineBuilder(pipeline_builder* builder) {
     builder->ShaderStages.len = 0;
 }
 
-void 
+void
 DestroyPipelineBuilder(pipeline_builder* builder) {
     //stack_free(builder->Allocator, builder->ss_buffer);
     //stack_free(builder->Allocator, builder->ss_buffer);
 }
 
 VkPipelineShaderStageCreateInfo PipelineShaderStageCreateInfo(
-    VkShaderStageFlagBits stage_flag, 
-    VkShaderModule module, 
-    const char* entry) {
+                                                              VkShaderStageFlagBits stage_flag,
+                                                              VkShaderModule module,
+                                                              const char* entry) {
 
     VkPipelineShaderStageCreateInfo info = {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
@@ -1933,27 +1935,28 @@ void SetShaders(pipeline_builder* builder, VkShaderModule vertex_shader, VkShade
     builder->ShaderStages.len = 0;
 
     VkPipelineShaderStageCreateInfo psci = PipelineShaderStageCreateInfo(
-            VK_SHADER_STAGE_VERTEX_BIT, 
-            vertex_shader, 
-            "main");
+                                                                         VK_SHADER_STAGE_VERTEX_BIT,
+                                                                         vertex_shader,
+                                                                         "main");
     VectorAppend(&builder->ShaderStages, &psci);
 
     psci = PipelineShaderStageCreateInfo(
-            VK_SHADER_STAGE_FRAGMENT_BIT, 
-            fragment_shader, 
-            "main");
+                                         VK_SHADER_STAGE_FRAGMENT_BIT,
+                                         fragment_shader,
+                                         "main");
     VectorAppend(&builder->ShaderStages, &psci);
 }
 
-void SetInputTopology(pipeline_builder* builder, 
-                     VkPrimitiveTopology topology) {
+void SetInputTopology(pipeline_builder* builder,
+                      VkPrimitiveTopology topology) {
     builder->InputAssembly.topology = topology;
     builder->InputAssembly.primitiveRestartEnable = VK_FALSE;
 }
 
-void SetDescriptorLayout(pipeline_builder* builder, 
-                        VkDescriptorSetLayout* layout) {
+void SetDescriptorLayout(pipeline_builder* builder,
+                         VkDescriptorSetLayout* layout, u32 LayoutCount ) {
     builder->DescriptorLayout = layout;
+    builder->DescriptorLayoutCount = LayoutCount;
 }
 
 void SetMultisamplingNone(pipeline_builder* builder) {
@@ -1998,13 +2001,13 @@ VkPipeline BuildPipeline(pipeline_builder* builder, VkDevice device) {
     };
 
     if (builder->AttributeDescriptionCount > 0) {
-        vertex_input_info.vertexAttributeDescriptionCount = 
-            (u32)builder->AttributeDescriptionCount;
-        vertex_input_info.pVertexAttributeDescriptions = 
+        vertex_input_info.vertexAttributeDescriptionCount =
+        (u32)builder->AttributeDescriptionCount;
+        vertex_input_info.pVertexAttributeDescriptions =
             builder->AttributeDescriptions;
-        vertex_input_info.vertexBindingDescriptionCount = 
-            (u32)builder->BindingDescriptionCount;
-        vertex_input_info.pVertexBindingDescriptions = 
+        vertex_input_info.vertexBindingDescriptionCount =
+        (u32)builder->BindingDescriptionCount;
+        vertex_input_info.pVertexBindingDescriptions =
             builder->BindingDescriptions;
     }
 
@@ -2040,8 +2043,8 @@ VkPipeline BuildPipeline(pipeline_builder* builder, VkDevice device) {
 
     // Create the pipeline
     VkPipeline new_pipeline;
-    if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, 
-                                &pipeline_info, NULL, &new_pipeline) != VK_SUCCESS) {
+    if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1,
+                                  &pipeline_info, NULL, &new_pipeline) != VK_SUCCESS) {
         fprintf(stderr, "[ERROR] Failed to create pipeline\n");
         return VK_NULL_HANDLE;
     }
@@ -2049,17 +2052,17 @@ VkPipeline BuildPipeline(pipeline_builder* builder, VkDevice device) {
     return new_pipeline;
 }
 
-void SetVertexInputAttributeDescription(pipeline_builder* builder, 
-                                      const VkVertexInputAttributeDescription* v,
-                                      size_t count) {
+void SetVertexInputAttributeDescription(pipeline_builder* builder,
+                                        const VkVertexInputAttributeDescription* v,
+                                        size_t count) {
     builder->AttributeDescriptions = malloc(count * sizeof(VkVertexInputAttributeDescription));
     memcpy(builder->AttributeDescriptions, v, count * sizeof(VkVertexInputAttributeDescription));
     builder->AttributeDescriptionCount = count;
 }
 
-void SetVertexInputBindingDescription(pipeline_builder* builder, 
-                                    const VkVertexInputBindingDescription* v,
-                                    size_t count) {
+void SetVertexInputBindingDescription(pipeline_builder* builder,
+                                      const VkVertexInputBindingDescription* v,
+                                      size_t count) {
     builder->BindingDescriptions = malloc(count * sizeof(VkVertexInputBindingDescription));
     memcpy(builder->BindingDescriptions, v, count * sizeof(VkVertexInputBindingDescription));
     builder->BindingDescriptionCount = count;
@@ -2070,23 +2073,23 @@ void SetPolygonMode(pipeline_builder* builder, VkPolygonMode polygon_mode) {
     builder->Rasterizer.lineWidth = 1.0f;
 }
 
-void SetCullMode(pipeline_builder* builder, 
-                VkCullModeFlags cull_mode, 
-                VkFrontFace front_face) {
+void SetCullMode(pipeline_builder* builder,
+                 VkCullModeFlags cull_mode,
+                 VkFrontFace front_face) {
     builder->Rasterizer.cullMode = cull_mode;
     builder->Rasterizer.frontFace = front_face;
 }
 
 void DisableBlending(pipeline_builder* builder) {
-    builder->ColorBlendAttachment.colorWriteMask = 
-        VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | 
+    builder->ColorBlendAttachment.colorWriteMask =
+        VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
         VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
     builder->ColorBlendAttachment.blendEnable = VK_FALSE;
 }
 
 void EnableBlendingAdditive(pipeline_builder* builder) {
-    builder->ColorBlendAttachment.colorWriteMask = 
-        VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | 
+    builder->ColorBlendAttachment.colorWriteMask =
+        VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
         VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
     builder->ColorBlendAttachment.blendEnable = VK_TRUE;
     builder->ColorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
@@ -2098,8 +2101,8 @@ void EnableBlendingAdditive(pipeline_builder* builder) {
 }
 
 void EnableBlendingAlphaBlend(pipeline_builder* builder) {
-    builder->ColorBlendAttachment.colorWriteMask = 
-        VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | 
+    builder->ColorBlendAttachment.colorWriteMask =
+        VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
         VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
     builder->ColorBlendAttachment.blendEnable = VK_TRUE;
     builder->ColorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
@@ -2120,7 +2123,7 @@ void SetColorAttachmentFormat(pipeline_builder* builder, VkFormat format) {
     builder->RenderInfo.pColorAttachmentFormats = &builder->ColorAttachmentFormat;
 }
 
-internal bool 
+internal bool
 LoadShaderModule(const char* filename, VkDevice device, VkShaderModule* outModule)
 {
     f_file f = OpenFile(filename, RDONLY);
@@ -2193,14 +2196,14 @@ vk_pipeline AddPipeline(vulkan_base* base, pipeline_builder* builder, const char
     return pipeline;
 }
 
-internal void 
+internal void
 InitDescriptorSet(vk_descriptor_set* ds, u32 max_descriptor_set_layout_binding, Stack_Allocator* Allocator) {
     ds->Allocator  = Allocator;
     ds->BackBuffer = stack_push(ds->Allocator, VkDescriptorSetLayoutBinding, max_descriptor_set_layout_binding);
     ds->bindings   = VectorNew(ds->BackBuffer, 0, max_descriptor_set_layout_binding, VkDescriptorSetLayoutBinding);
 }
 
-internal void 
+internal void
 AddBindingDescriptorSet(vk_descriptor_set* ds, u32 binding, VkDescriptorType type) {
     VkDescriptorSetLayoutBinding new_bind = {0};
     new_bind.binding = binding;
@@ -2216,17 +2219,17 @@ AddBindingDescriptorSet(vk_descriptor_set* ds, u32 binding, VkDescriptorType typ
     VectorAppend(&ds->bindings, &new_bind);
 }
 
-internal void 
+internal void
 ClearDescriptorSet(vk_descriptor_set* ds) {
     VectorClear(&ds->bindings);
 }
 
-internal VkDescriptorSetLayout 
+internal VkDescriptorSetLayout
 BuildDescriptorSet(vk_descriptor_set* ds, VkDevice device, VkShaderStageFlags shader_stages, void* p_next, VkDescriptorSetLayoutCreateFlags flags) {
     for( u32 idx = 0; idx < ds->bindings.len; idx += 1 ) {
         VkDescriptorSetLayoutBinding* binding = VectorGet(&ds->bindings, idx);
         binding->stageFlags += shader_stages;
-    } 
+    }
 
     VkDescriptorSetLayoutCreateInfo Info = {0};
     Info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
@@ -2241,7 +2244,7 @@ BuildDescriptorSet(vk_descriptor_set* ds, VkDevice device, VkShaderStageFlags sh
     return set;
 }
 
-internal VkDescriptorSet 
+internal VkDescriptorSet
 DescriptorSetAllocate(VkDescriptorPool* Pool, VkDevice device, VkDescriptorSetLayout* layout) {
     VkDescriptorSetAllocateInfo alloc_info = {0};
     alloc_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
@@ -2256,7 +2259,7 @@ DescriptorSetAllocate(VkDescriptorPool* Pool, VkDevice device, VkDescriptorSetLa
     return ds;
 }
 
-internal descriptor_writer 
+internal descriptor_writer
 DescriptorWriterInit(u32 capacity, Stack_Allocator* Allocator) {
     descriptor_writer Writer = {0};
 
@@ -2272,14 +2275,14 @@ DescriptorWriterInit(u32 capacity, Stack_Allocator* Allocator) {
     return Writer;
 }
 
-internal void 
+internal void
 DescriptorWriterClear(descriptor_writer* dw) {
     VectorClear(&dw->Writes);
     QueueClear(&dw->BufferInfos);
     QueueClear(&dw->ImageInfos);
 }
 
-internal void 
+internal void
 WriteImage(descriptor_writer* dw, i32 binding, VkImageView Image, VkSampler Sample, VkImageLayout Layout, VkDescriptorType Type) {
     VkDescriptorImageInfo Info = {0};
     Info.sampler = Sample;
@@ -2295,12 +2298,12 @@ WriteImage(descriptor_writer* dw, i32 binding, VkImageView Image, VkSampler Samp
     Write.dstBinding = binding;
     Write.descriptorCount = 1;
     Write.descriptorType  = Type;
-    Write.pImageInfo      = WriteInfo; 
+    Write.pImageInfo      = WriteInfo;
 
     VectorAppend(&dw->Writes, &Write);
 }
 
-internal void 
+internal void
 WriteBuffer(descriptor_writer* dw, i32 Binding, VkBuffer Buffer, i32 Size, i32 Offset, VkDescriptorType Type) {
     VkDescriptorBufferInfo BufferInfo = {0};
     BufferInfo.buffer = Buffer;
@@ -2320,7 +2323,7 @@ WriteBuffer(descriptor_writer* dw, i32 Binding, VkBuffer Buffer, i32 Size, i32 O
     VectorAppend(&dw->Writes, &Write);
 }
 
-internal void 
+internal void
 UpdateDescriptorSet(descriptor_writer* dw, VkDevice Device, VkDescriptorSet Set) {
     for( u32 i = 0; i < dw->Writes.len; i += 1 ) {
         VkWriteDescriptorSet* Write = VectorGet(&dw->Writes, i);
@@ -2330,7 +2333,7 @@ UpdateDescriptorSet(descriptor_writer* dw, VkDevice Device, VkDescriptorSet Set)
     vkUpdateDescriptorSets( Device, dw->Writes.len, dw->Writes.data, 0, 0 );
 }
 
-internal VkImageViewCreateInfo 
+internal VkImageViewCreateInfo
 ImageViewCreateInfo(VkFormat Format, VkImage image, VkImageAspectFlags flags) {
     VkImageViewCreateInfo info = {0};
     info.sType    = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -2349,7 +2352,7 @@ ImageViewCreateInfo(VkFormat Format, VkImage image, VkImageAspectFlags flags) {
     return info;
 }
 
-internal vk_image 
+internal vk_image
 CreateImageDefault(vulkan_base* base, VkExtent3D Size, VkFormat Format, VkImageUsageFlags Usage, bool is_mipmapped)
 {
     vk_image new_image = {0};
@@ -2371,7 +2374,7 @@ CreateImageDefault(vulkan_base* base, VkExtent3D Size, VkFormat Format, VkImageU
 
     if( Format == VK_FORMAT_D32_SFLOAT ) {
         AspectFlags = VK_IMAGE_ASPECT_DEPTH_BIT;
-    } 
+    }
 
     VkImageViewCreateInfo ViewInfo = ImageViewCreateInfo(Format, new_image.Image, AspectFlags);
     ViewInfo.subresourceRange.levelCount = ImgInfo.mipLevels;
@@ -2386,30 +2389,30 @@ CreateImageDefault(vulkan_base* base, VkExtent3D Size, VkFormat Format, VkImageU
  * @todo   Maybe it should be good to directly pass as an argument the data_size, we do not assume that is
  *         related to an rgba format, thus we multiply data_size * 4;
  */
-internal vk_image 
+internal vk_image
 CreateImageData(vulkan_base* base, void* data, VkExtent3D Size, VkFormat Format, VkImageUsageFlags Usage, bool is_mipmapped)
 {
     size_t data_size = Size.depth * Size.width * Size.height * sizeof(u8);
 
 	allocated_buffer upload_buffer = CreateBuffer(
-        base->GPUAllocator, 
-        data_size, 
-        VK_BUFFER_USAGE_TRANSFER_SRC_BIT, 
-        VMA_MEMORY_USAGE_CPU_ONLY
-    );
+                                                  base->GPUAllocator,
+                                                  data_size,
+                                                  VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                                                  VMA_MEMORY_USAGE_CPU_ONLY
+                                                  );
 
 	memcpy(upload_buffer.Info.pMappedData, data, data_size);
 
 	vk_image new_image = CreateImageDefault(base, Size, Format, Usage | VK_IMAGE_USAGE_TRANSFER_DST_BIT, is_mipmapped);
-	
+
 	VkCommandBuffer cmd = ImmediateSubmitBegin(base);
 	{
 		TransitionImageDefault(
-            cmd, 
-            new_image.Image, 
-            VK_IMAGE_LAYOUT_UNDEFINED, 
-            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
-        );
+                               cmd,
+                               new_image.Image,
+                               VK_IMAGE_LAYOUT_UNDEFINED,
+                               VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
+                               );
 
 		VkBufferImageCopy copyRegion = {0};
         copyRegion.bufferOffset = 0;
@@ -2424,28 +2427,31 @@ CreateImageData(vulkan_base* base, void* data, VkExtent3D Size, VkFormat Format,
         copyRegion.imageExtent = Size;
 
 		vkCmdCopyBufferToImage(
-            cmd, 
-            upload_buffer.Buffer, 
-            new_image.Image, 
-            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 
-            1, &copyRegion
-        );
+                               cmd,
+                               upload_buffer.Buffer,
+                               new_image.Image,
+                               VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                               1, &copyRegion
+                               );
 
 		TransitionImageDefault(
-            cmd, 
-            new_image.Image, 
-            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 
-            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-        );
+                               cmd,
+                               new_image.Image,
+                               VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                               VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                               );
 	}
 	ImmediateSubmitEnd(base, cmd);
 
 	DestroyBuffer(&base->GPUAllocator, &upload_buffer);
 
+	new_image.Width = Size.width;
+	new_image.Height = Size.height;
+
 	return new_image;
 }
 
-internal VkCommandBufferBeginInfo 
+internal VkCommandBufferBeginInfo
 CommandBufferBeginInfo ( VkCommandBufferUsageFlags flags )
 {
 	VkCommandBufferBeginInfo info = (VkCommandBufferBeginInfo){
@@ -2458,7 +2464,7 @@ CommandBufferBeginInfo ( VkCommandBufferUsageFlags flags )
 	return info;
 }
 
-internal VkCommandBuffer 
+internal VkCommandBuffer
 ImmediateSubmitBegin(vulkan_base* base) {
     VK_CHECK(vkResetFences(base->Device, 1, &base->ImmFence));
     VK_CHECK(vkResetCommandBuffer(base->ImmCommandBuffer, 0));
@@ -2473,7 +2479,7 @@ ImmediateSubmitBegin(vulkan_base* base) {
 }
 
 internal VkCommandBufferSubmitInfo
-CommandBufferSubmitInfo(VkCommandBuffer cmd) 
+CommandBufferSubmitInfo(VkCommandBuffer cmd)
 {
 	VkCommandBufferSubmitInfo info = {0};
 	info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO;
@@ -2486,24 +2492,24 @@ CommandBufferSubmitInfo(VkCommandBuffer cmd)
 
 internal VkSubmitInfo2
 SubmitInfo( VkCommandBufferSubmitInfo* cmd, VkSemaphoreSubmitInfo* signalSemaphoreInfo, VkSemaphoreSubmitInfo *waitSemaphoreInfo) {
-  
-  VkSubmitInfo2 info = {0};
-  info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2;
-  info.pNext = 0;
 
-  info.waitSemaphoreInfoCount = waitSemaphoreInfo == NULL ? 0 : 1;
-  info.pWaitSemaphoreInfos = waitSemaphoreInfo;
+    VkSubmitInfo2 info = {0};
+    info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2;
+    info.pNext = 0;
 
-  info.signalSemaphoreInfoCount = signalSemaphoreInfo == NULL ? 0 : 1;
-  info.pSignalSemaphoreInfos = signalSemaphoreInfo;
+    info.waitSemaphoreInfoCount = waitSemaphoreInfo == NULL ? 0 : 1;
+    info.pWaitSemaphoreInfos = waitSemaphoreInfo;
 
-  info.commandBufferInfoCount = 1;
-  info.pCommandBufferInfos = cmd;
+    info.signalSemaphoreInfoCount = signalSemaphoreInfo == NULL ? 0 : 1;
+    info.pSignalSemaphoreInfos = signalSemaphoreInfo;
 
-  return info;
+    info.commandBufferInfoCount = 1;
+    info.pCommandBufferInfos = cmd;
+
+    return info;
 }
 
-internal void 
+internal void
 ImmediateSubmitEnd(vulkan_base* base, VkCommandBuffer cmd) {
     VK_CHECK(vkEndCommandBuffer(cmd));
     VkCommandBufferSubmitInfo CmdInfo = CommandBufferSubmitInfo(cmd);
@@ -2514,11 +2520,11 @@ ImmediateSubmitEnd(vulkan_base* base, VkCommandBuffer cmd) {
 
 }
 
-internal 
+internal
 void TransitionImage(VkCommandBuffer cmd, VkImage image, VkImageLayout currentLayout,
-                    VkImageLayout newLayout, VkPipelineStageFlags2 srcStageMask,
-                    VkAccessFlags2 srcAccessMask, VkPipelineStageFlags2 dstStageMask,
-                    VkAccessFlags2 dstAccessMask)
+                     VkImageLayout newLayout, VkPipelineStageFlags2 srcStageMask,
+                     VkAccessFlags2 srcAccessMask, VkPipelineStageFlags2 dstStageMask,
+                     VkAccessFlags2 dstAccessMask)
 {
     VkImageAspectFlags aspectMask;
     if (newLayout == VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL) {
@@ -2557,7 +2563,7 @@ void TransitionImage(VkCommandBuffer cmd, VkImage image, VkImageLayout currentLa
 }
 
 void CopyImageToImage(VkCommandBuffer cmd, VkImage source, VkImage destination,
-                     VkExtent2D srcSize, VkExtent2D dstSize)
+                      VkExtent2D srcSize, VkExtent2D dstSize)
 {
     VkImageBlit2 blitRegion = {
         .sType = VK_STRUCTURE_TYPE_IMAGE_BLIT_2,
@@ -2599,9 +2605,10 @@ void CopyImageToImage(VkCommandBuffer cmd, VkImage source, VkImage destination,
     vkCmdBlitImage2(cmd, &blitInfo);
 }
 
-internal void 
+internal void
 RecreateSwapchain(vulkan_base* base) {
     vkDeviceWaitIdle(base->Device);
+
     vkDestroySwapchainKHR(base->Device, base->Swapchain.Swapchain, 0);
     for( u32 i = 0; i < base->Swapchain.N_ImageViews; i += 1 ) {
         vkDestroyImageView(base->Device, base->Swapchain.ImageViews[i], 0);
@@ -2618,10 +2625,13 @@ RecreateSwapchain(vulkan_base* base) {
     CreateSwapchain(base);
     CreateImageViews(base);
 
+    ClearDescriptorPool(&base->GlobalDescriptorAllocator, base->Device);
+    //InitDescriptors(base);
+
     base->FramebufferResized = false;
 }
 
-internal bool 
+internal bool
 PrepareFrame(vulkan_base* base) {
     u32 FrameIdx = base->CurrentFrame;
 
@@ -2629,24 +2639,24 @@ PrepareFrame(vulkan_base* base) {
 	VK_CHECK(vkResetFences(base->Device, 1, &base->Semaphores.InFlight[FrameIdx]));
 
     VkResult result = vkAcquireNextImageKHR(
-		base->Device,
-		base->Swapchain.Swapchain,
-		1000000000,
-		base->Semaphores.ImageAvailable[FrameIdx],
-		0,
-		&base->SwapchainImageIdx
-	);
+                                            base->Device,
+                                            base->Swapchain.Swapchain,
+                                            1000000000,
+                                            base->Semaphores.ImageAvailable[FrameIdx],
+                                            0,
+                                            &base->SwapchainImageIdx
+                                            );
 
 	if( result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR ) {
 		if (result == VK_ERROR_OUT_OF_DATE_KHR) {
-			// Resize swapchain 
+			// Resize swapchain
 			RecreateSwapchain(base);
 			return true;
 		}
 	} else {
 		VK_CHECK(result);
 	}
-	return false;    
+	return false;
 }
 
 internal VkCommandBuffer
@@ -2671,15 +2681,15 @@ BeginRender(vulkan_base* base)
 
 internal VkSemaphoreSubmitInfo
 SemaphoreSubmitInfo( VkPipelineStageFlags2 stageMask, VkSemaphore semaphore) {
-  VkSemaphoreSubmitInfo submitInfo = {0};
-  submitInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
-  submitInfo.pNext = 0;
-  submitInfo.semaphore = semaphore;
-  submitInfo.stageMask = stageMask;
-  submitInfo.deviceIndex = 0;
-  submitInfo.value = 1;
+    VkSemaphoreSubmitInfo submitInfo = {0};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
+    submitInfo.pNext = 0;
+    submitInfo.semaphore = semaphore;
+    submitInfo.stageMask = stageMask;
+    submitInfo.deviceIndex = 0;
+    submitInfo.value = 1;
 
-  return submitInfo;
+    return submitInfo;
 }
 
 internal bool
@@ -2694,22 +2704,22 @@ EndRender( vulkan_base* base, VkCommandBuffer cmd ) {
 	VkCommandBufferSubmitInfo cmdInfo = CommandBufferSubmitInfo( cmd );
 
 	VkSemaphoreSubmitInfo waitInfo   = SemaphoreSubmitInfo(
-        VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR, 
-        base->Semaphores.ImageAvailable[FrameIdx]
-    );
+                                                           VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT_KHR,
+                                                           base->Semaphores.ImageAvailable[FrameIdx]
+                                                           );
 	VkSemaphoreSubmitInfo signalInfo = SemaphoreSubmitInfo(
-        VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT, 
-        base->Semaphores.RenderFinished[SwapchainImageIdx]
-    );
+                                                           VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT,
+                                                           base->Semaphores.RenderFinished[SwapchainImageIdx]
+                                                           );
 
 	VkSubmitInfo2 submit = SubmitInfo(&cmdInfo, &signalInfo, &waitInfo);
 
 	VK_CHECK(vkQueueSubmit2(
-        base->GraphicsQueue, 
-        1, 
-        &submit, 
-        base->Semaphores.InFlight[FrameIdx])
-    );
+                            base->GraphicsQueue,
+                            1,
+                            &submit,
+                            base->Semaphores.InFlight[FrameIdx])
+             );
 
 	// prepare present
 	// this will put the image we just rendered to into the visible window.
@@ -2749,37 +2759,37 @@ EndRender( vulkan_base* base, VkCommandBuffer cmd ) {
 
 internal VkRenderingAttachmentInfo
 AttachmentInfo( VkImageView View, VkClearValue *Clear, VkImageLayout Layout ) {
-  VkRenderingAttachmentInfo colorAttachment = {0};
-  colorAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-  colorAttachment.pNext = 0;
+    VkRenderingAttachmentInfo colorAttachment = {0};
+    colorAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+    colorAttachment.pNext = 0;
 
-  colorAttachment.imageView = View;
-  colorAttachment.imageLayout = Layout;
-  colorAttachment.loadOp = Clear != NULL ? VK_ATTACHMENT_LOAD_OP_CLEAR : VK_ATTACHMENT_LOAD_OP_LOAD;
-  colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-  if (Clear != NULL)  {
-    colorAttachment.clearValue = *Clear;
-  }
+    colorAttachment.imageView = View;
+    colorAttachment.imageLayout = Layout;
+    colorAttachment.loadOp = Clear != NULL ? VK_ATTACHMENT_LOAD_OP_CLEAR : VK_ATTACHMENT_LOAD_OP_LOAD;
+    colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    if (Clear != NULL)  {
+        colorAttachment.clearValue = *Clear;
+    }
 
-  return colorAttachment;
+    return colorAttachment;
 }
 
 // ------------------------------------------------------------------
 
 internal VkRenderingInfo
 RenderingInfo(VkExtent2D Extent, VkRenderingAttachmentInfo *ColorInfo, VkRenderingAttachmentInfo* DepthInfo)  {
-  VkRenderingInfo renderInfo = {0};
-  renderInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
-  renderInfo.pNext = 0;
+    VkRenderingInfo renderInfo = {0};
+    renderInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
+    renderInfo.pNext = 0;
 
-  renderInfo.renderArea = (VkRect2D){(VkOffset2D){0, 0}, Extent};
-  renderInfo.layerCount = 1;
-  renderInfo.colorAttachmentCount = 1;
-  renderInfo.pColorAttachments = ColorInfo;
-  renderInfo.pDepthAttachment = DepthInfo;
-  renderInfo.pStencilAttachment = NULL;
+    renderInfo.renderArea = (VkRect2D){(VkOffset2D){0, 0}, Extent};
+    renderInfo.layerCount = 1;
+    renderInfo.colorAttachmentCount = 1;
+    renderInfo.pColorAttachments = ColorInfo;
+    renderInfo.pDepthAttachment = DepthInfo;
+    renderInfo.pStencilAttachment = NULL;
 
-  return renderInfo;
+    return renderInfo;
 }
 
-#endif 
+#endif

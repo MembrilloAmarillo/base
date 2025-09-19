@@ -68,4 +68,12 @@ bool HashTableContains( hash_table *Table, char* Id );
  */
 entry* HashTableFindPointer( hash_table *Table, char* Id );
 
+// --------------------------------------------------------------- //
+
+static U64 UCF_Strlen( char* str );
+
+static u32 UCF_Streq( char* a, char* b );
+
+static u32 UCF_Streqn( char* a, char* b, u32 n );
+
 #endif

@@ -17,7 +17,7 @@ vma_impl.o: $(VMA)
 
 UI_Sample: $(SRC_C) vma_impl.o
 	@echo "Compiling $@..."
-	$(CC) $(CPPFLAGS) $(INC) -o $@ $^ $(LIBS)
+	$(CC) $(CFLAGS) $(CPPFLAGS) $(INC) -o $@ $^ $(LIBS)
 
 # -Wextra -fPIE -Wconversion
 # -Wextra                   \

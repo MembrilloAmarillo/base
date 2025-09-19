@@ -12,6 +12,47 @@ static U64 UCF_Strlen( char* str ) {
 
 // --------------------------------------------------------------- //
 
+static u32 UCF_Streq( char* a, char* b ) {
+    char* a1 = a, *b1 = b;
+
+    while( (*a1 && *b1) && (*a1 == *b1) ) {
+        a1++;
+        b1++;
+    }
+
+    // if there is still more to read from one of the
+    // strings return 0 as its not equal
+    //
+    if( *a1 || *b1 ) {
+        return 0;
+    }
+
+    return 1;
+}
+
+// --------------------------------------------------------------- //
+
+static u32 UCF_Streqn( char* a, char* b, u32 n ) {
+    char* a1 = a, *b1 = b;
+
+    u32 i = 0;
+    while( (*a1 && *b1) && (*a1 == *b1) && i < n ) {
+        a1++;
+        b1++;
+        i++;
+    }
+
+    // if i != n means that a1 == b1 was not succesfull for all n iterations
+    //
+    if( i != n ) {
+        return 0;
+    }
+
+    return 1;
+}
+
+// --------------------------------------------------------------- //
+
 static U32 JenkinsHashFunction( const U8* key, U64 length ) {
     U64 i    = 0;
     U32 hash = 0;
