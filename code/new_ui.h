@@ -13,6 +13,7 @@
  */
 
 /**
+ * 2025/09/22. Input Text fixed.
  * 2025/09/22. Drag and resize added on Windows. Improvements still to be made.
  * 2025/09/19. First somewhat working version. Added tree node implementation
  */
@@ -311,6 +312,8 @@ UI_Init(ui_context* Context, UI_Graphics* Gfx, Stack_Allocator* Allocator, Stack
     Context->Windows.N = MAX_STACK_SIZE;
 
     Context->TextInput = StringCreate(1024, Allocator);
+    Context->FocusObject = &UI_NULL_OBJECT;
+    Context->CurrentParent = &UI_NULL_OBJECT;
 
     HashTableInit(&Context->TableObject, stack_push(Allocator, entry, 256), NULL);
 }
@@ -320,6 +323,9 @@ UI_Begin(ui_context* Context) {
     Context->KeyPressed   = 0;
     Context->CursorClick  = (vec2){0, 0};
     Context->CursorAction = NoInput;
+    Context->LastInput    = NoInput;
+
+    Context->TextInput.idx = 0;
 
     StackClear(&Context->Windows);
     StackClear(&Context->Layouts);
@@ -403,7 +409,7 @@ UI_End(ui_context* UI_Context) {
                 u8* p = Object->Text.data;
                 float pen_x = (float)Object->Pos.x;
                 float pen_y = (float)Object->Pos.y; // baseline or top depending on your coordinate convention
-                for ( u32 _it = 0; *p && _it < Object->Text.idx; ++p) {
+                for ( u32 _it = 0; *p && _it < Object->Text.idx; ++p, ++_it) {
                     // Skip UTF-8 continuation bytes (0b10xxxxxx)
                     if ( (*p & 0xC0) == 0x80 ) continue;
 
@@ -460,7 +466,7 @@ UI_WindowBegin(ui_context* Context, rect_2d Rect, const char* Title, ui_lay_opt 
     };
     TreeInit(&win.Objects, &UI_NULL_OBJECT);
 
-    ui_object* Object = NULL;
+    ui_object* Object = &UI_NULL_OBJECT;
 
     if( HashTableContains(&Context->TableObject, Title) ) {
         entry* StoredWindowEntry = HashTableFindPointer(&Context->TableObject, Title);
@@ -471,8 +477,23 @@ UI_WindowBegin(ui_context* Context, rect_2d Rect, const char* Title, ui_lay_opt 
         Object->Rect = win.WindowRect;
     }
 
+    // Make it the focus object if clicking on title bar or 
+    // on the resize box on the bottom-left part of the window
+    //
     if( UI_ConsumeEvents(Context, Object) & LeftClickPress ) {
-        Context->FocusObject = Object;
+        rect_2d TitleRect = (rect_2d){Object->Rect.Pos, {Object->Rect.Size.x, Object->Size.y}};
+        vec2 CornerSize = (vec2){20, 20};
+        rect_2d ResizeRect = (rect_2d){
+            Vec2Add(Object->Rect.Pos, Vec2Sub(Object->Rect.Size, CornerSize)),
+            {20, 20}
+        };
+        if(IsCursorOnRect(Context, TitleRect)) {
+            Context->FocusObject = Object;
+        } else if( Object->Option & UI_Resize )  {
+            if( IsCursorOnRect(Context, ResizeRect) ) {
+                Context->FocusObject = Object;
+            }
+        }
     }
 
     if( !( UI_ConsumeEvents(Context, Object) & LeftClickRelease) && Object == Context->FocusObject ) {
@@ -538,7 +559,7 @@ UI_WindowEnd(ui_context* Context) {
 internal ui_object*
 UI_BuildObjectWithParent(ui_context* Context, u8* Key, u8* Text, rect_2d Rect, ui_lay_opt Options, ui_object* Parent )
 {
-    ui_object* Object = NULL;
+    ui_object* Object = &UI_NULL_OBJECT;
     // @TODO For now it does not compute the hash with the parent
     //
     if( HashTableContains(&Context->TableObject, Key) ) {
@@ -582,15 +603,20 @@ UI_BuildObjectWithParent(ui_context* Context, u8* Key, u8* Text, rect_2d Rect, u
         if( Context->TextInput.len > Object->Text.len ) {
             Object->Text = StringCreate(Context->TextInput.len, Context->Allocator);
         }
-        if( Context->TextInput.idx > 0 ) {
-            StringCpyStr(&Object->Text, &Context->TextInput);
+        if( Context->TextInput.idx > 0 && !(Context->LastInput & Backspace) ) {
+            StringAppndStr(&Object->Text, &Context->TextInput);
+            Object->Text.data[Object->Text.idx] = '\0';
+        } 
+        if( Context->LastInput & Backspace ) {
+            Object->Text.idx = Object->Text.idx > 0 ? Object->Text.idx - 1 : 0;
         }
-        Object->Text.idx = Context->TextInput.idx;
-        Object->Text.data[Object->Text.idx] = '\0';
     }
 
     Object->Pos  = Rect.Pos;
-    Object->Size = (vec2){(f32)F_TextWidth( Object->Theme->Font, Object->Text.data, Object->Text.idx ), (f32)F_TextHeight(Object->Theme->Font)};
+    Object->Size = (vec2){
+        (f32)F_TextWidth( Object->Theme->Font, Object->Text.data, Object->Text.idx ), 
+        (f32)F_TextHeight(Object->Theme->Font)
+    };
 
     Object->Pos.y += Rect.Size.y / 2 - Object->Size.y / 2;
 
@@ -855,6 +881,7 @@ UI_LastEvent(ui_context* Context) {
         XNextEvent(gfx->base->Window.Dpy, &ev);
         if (ev.type == KeyPress && ev.xkey.keycode == XK_Escape ) {
             Input = StopUI;
+            Context->LastInput = Input;
             return Input;
         }
 
@@ -914,6 +941,7 @@ UI_LastEvent(ui_context* Context) {
                 XButtonEvent* be = (XButtonEvent*)&ev;
                 Context->CursorClick  = (vec2){ev.xbutton.x, ev.xbutton.y};
                 Context->CursorAction |= LeftClickPress;
+                Context->LastInput = LeftClickPress;
                 return LeftClickPress;
                 break;
             }
@@ -922,6 +950,7 @@ UI_LastEvent(ui_context* Context) {
                 XButtonEvent* be = (XButtonEvent*)&ev;
                 Context->CursorClick  = (vec2){ev.xbutton.x, ev.xbutton.y};
                 Context->CursorAction |= LeftClickRelease;
+                Context->LastInput = LeftClickPress;
                 return LeftClickRelease;
                 break;
             }
@@ -1022,6 +1051,7 @@ UI_LastEvent(ui_context* Context) {
         }
     }
 
+    Context->LastInput |= Input;
     return Input;
 }
 

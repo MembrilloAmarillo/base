@@ -82,6 +82,7 @@ main( int argc, char *argv[] )
         UI_Begin(UI_Context);
 
         ui_input Input = UI_LastEvent(UI_Context);
+        
         if( Input == StopUI ) {
             fprintf(stderr, "[INFO] Finished Application\n");
             running = false;
