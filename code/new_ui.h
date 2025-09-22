@@ -2,11 +2,20 @@
 * Copyright (c) 20225 Sascha Paez
 *
  * @author Sascha Paez
-* @version 0.1
+* @version 0.3
 *
 * This library is free software; you can redistribute it and/or modify it
 * under the terms of the MIT license. See `microui.c` for details.
 */
+
+/**
+ * @todo Fix multiple input text as it shares the same input buffer
+ */
+
+/**
+ * 2025/09/22. Drag and resize added on Windows. Improvements still to be made.
+ * 2025/09/19. First somewhat working version. Added tree node implementation
+ */
 
 #ifndef _SP_UI_H_
 #define _SP_UI_H_
@@ -61,6 +70,7 @@ enum ui_input {
     Down              = (1 << 23),
     ESC               = (1 << 24),
     StopUI            = (1 << 25),
+    ActiveObject      = (1 << 26)
 };
 
 typedef enum ui_lay_opt ui_lay_opt;
@@ -216,6 +226,7 @@ struct ui_context {
     vec2 CursorClick;
     vec2 CursorPos;
     vec2 LastCursorPos;
+    vec2 CursorDelta;
     ui_input CursorAction;
 
     U8_String TextInput;
@@ -264,6 +275,8 @@ internal ui_input UI_Button(ui_context* Context, const char* text);
 internal ui_input UI_Label(ui_context* Context, const char* text);
 internal ui_input UI_LabelWithKey(ui_context* Context, const char* key, const char* text);
 internal ui_input UI_TextBox(ui_context* Context, const char* text);
+internal ui_input UI_BeginTreeNode(ui_context* Context, const char* text);
+internal ui_input UI_EndTreeNode(ui_context* Context);
 
 internal void UI_SetNextParent(ui_context* Context, ui_object* Object);
 internal void UI_PushNextLayout(ui_context* Context, rect_2d Rect, ui_lay_opt Options);
@@ -281,6 +294,7 @@ internal void UI_EndColumn(ui_context* Context);
 internal void UI_BeginScrollbarView(ui_context* Context);
 internal void ui_EndScrollbarView(ui_context* Context);
 
+internal bool IsCursorOnRect(ui_context* Context, rect_2d Rect);
 
 #endif // _SP_UI_H_
 
@@ -457,6 +471,28 @@ UI_WindowBegin(ui_context* Context, rect_2d Rect, const char* Title, ui_lay_opt 
         Object->Rect = win.WindowRect;
     }
 
+    if( UI_ConsumeEvents(Context, Object) & LeftClickPress ) {
+        Context->FocusObject = Object;
+    }
+
+    if( !( UI_ConsumeEvents(Context, Object) & LeftClickRelease) && Object == Context->FocusObject ) {
+        vec2 CornerSize = (vec2){20, 20};
+        rect_2d ResizeRect = (rect_2d){
+            Vec2Add(Object->Rect.Pos, Vec2Sub(Object->Rect.Size, CornerSize)),
+            {20, 20}
+        };
+        if( Object->Option & UI_Resize )  {
+            if( IsCursorOnRect(Context, ResizeRect) ) {
+                Object->Rect.Size = Vec2Add(Object->Rect.Size, Context->CursorDelta);
+            }
+        }
+        if( Object->Option & UI_Drag && !IsCursorOnRect(Context, ResizeRect) ) {
+            Object->Rect.Pos = Vec2Add(Object->Rect.Pos, Context->CursorDelta);
+        }
+    } else if( UI_ConsumeEvents(Context, Object) & LeftClickRelease && Object == Context->FocusObject ) {
+        Context->FocusObject = &UI_NULL_OBJECT;
+    }
+
     win.WindowRect = Object->Rect;
     if( !StackIsEmpty(&Context->Themes) ) {
         Object->Theme = &StackGetFront(&Context->Themes);
@@ -474,7 +510,7 @@ UI_WindowBegin(ui_context* Context, rect_2d Rect, const char* Title, ui_lay_opt 
         Object->Pos.x = (Object->Pos.x + (Object->Rect.Size.x / 2.0)) - (Object->Size.x / 2.0);
     }
     Object->Type = UI_Window;
-
+    Object->Option = Options;
     TreeClear(Object, &UI_NULL_OBJECT);
     StackPush(&Context->Windows, win);
 
@@ -485,6 +521,8 @@ UI_WindowBegin(ui_context* Context, rect_2d Rect, const char* Title, ui_lay_opt 
     ui_layout* Layout = &StackGetFront(&Context->Layouts);
     Layout->BoxSize = (vec2){Object->Rect.Size.x, Object->Size.y};
     Layout->ContentSize.v[Layout->AxisDirection] += Object->Size.v[Layout->AxisDirection];
+
+    Context->CurrentParent = &StackGetFront(&Context->Windows).Objects;
 }
 
 internal void
@@ -535,7 +573,9 @@ UI_BuildObjectWithParent(ui_context* Context, u8* Key, u8* Text, rect_2d Rect, u
     u32 Len = UCF_Strlen(Text);
     if( Object->Text.data == NULL ) {
         Object->Text = StringNew(Text, Len, Context->Allocator);
-    } else {
+    } else if( Object->Type != UI_InputText ) {
+        // If it is Input text we do not want to copy again the title text, as 
+        // it already stores input information from the user
         StringCpy(&Object->Text, Text);
     }
     if( Object->Type == UI_InputText && Object == Context->FocusObject ) {
@@ -596,7 +636,7 @@ UI_Button(ui_context* Context, const char* Title) {
 
     ui_window* Win = &StackGetFront(&Context->Windows);
 
-    ui_object* Parent = &Win->Objects;
+    ui_object* Parent = Context->CurrentParent;
 
     ui_layout Layout = StackGetFront(&Context->Layouts);
     rect_2d Rect     = Layout.Size;
@@ -617,7 +657,7 @@ internal ui_input
 UI_Label(ui_context* Context, const char* text) {
     ui_window* Win = &StackGetFront(&Context->Windows);
 
-    ui_object* Parent = &Win->Objects;
+    ui_object* Parent = Context->CurrentParent;
 
     ui_layout Layout = StackGetFront(&Context->Layouts);
     rect_2d Rect     = Layout.Size;
@@ -638,7 +678,7 @@ internal ui_input
 UI_LabelWithKey(ui_context* Context, const char* Key, const char* text) {
     ui_window* Win = &StackGetFront(&Context->Windows);
 
-    ui_object* Parent = &Win->Objects;
+    ui_object* Parent = Context->CurrentParent;
 
     ui_layout Layout = StackGetFront(&Context->Layouts);
     rect_2d Rect     = Layout.Size;
@@ -659,7 +699,7 @@ internal ui_input
 UI_TextBox(ui_context* Context, const char* text) {
     ui_window* Win = &StackGetFront(&Context->Windows);
 
-    ui_object* Parent = &Win->Objects;
+    ui_object* Parent = Context->CurrentParent;
 
     ui_layout Layout = StackGetFront(&Context->Layouts);
     rect_2d Rect     = Layout.Size;
@@ -678,6 +718,43 @@ UI_TextBox(ui_context* Context, const char* text) {
     }
 
     return Input;
+}
+
+
+internal ui_input 
+UI_BeginTreeNode(ui_context* Context, const char* text) {
+    ui_window* Win = &StackGetFront(&Context->Windows);
+
+    ui_object* Parent = Context->CurrentParent;
+
+    ui_layout Layout = StackGetFront(&Context->Layouts);
+    rect_2d Rect     = Layout.Size;
+    Rect.Pos         = Vec2Add(Rect.Pos, Layout.ContentSize);
+    Rect.Size.v[Layout.AxisDirection] = Layout.BoxSize.v[Layout.AxisDirection];
+
+    ui_lay_opt Options = UI_AlignCenter | UI_Interact | UI_Select | Layout.Option;
+    ui_object* TreeNode = UI_BuildObjectWithParent(Context, text, text, Rect, Options, Parent);
+
+    ui_input Input = UI_ConsumeEvents(Context, TreeNode);
+    ui_input IsActive = TreeNode->LastInputSet & ActiveObject;
+    TreeNode->LastInputSet = Input | IsActive;
+    TreeNode->Type = UI_Tree;
+
+    if( Input & LeftClickPress && Context->FocusObject != TreeNode) {
+        Context->FocusObject = TreeNode;
+        TreeNode->LastInputSet |= ActiveObject;
+    } else if( Context->FocusObject == TreeNode ) {
+        if (Input & LeftClickPress) {
+            TreeNode->LastInputSet ^= ActiveObject;
+        }
+    }
+
+    return TreeNode->LastInputSet;
+}
+
+internal ui_input 
+UI_EndTreeNode(ui_context* Context) {
+    Context->CurrentParent = Context->CurrentParent->Parent;
 }
 
 internal vec2
@@ -763,13 +840,15 @@ UI_LastEvent(ui_context* Context) {
     u32 window_height = gfx->base->Swapchain.Extent.height;
     {
         vec2 Mouse = UI_GetMousePosition(gfx);
+        vec2 LastCursor = Context->CursorPos;
         Context->CursorPos = Mouse;
 
         while( Context->LastCursorPos.x == Mouse.x && Context->LastCursorPos.y == Mouse.y && !XPending(gfx->base->Window.Dpy)) {
             Mouse = UI_GetMousePosition(gfx);
         }
 
-        Context->LastCursorPos = Mouse;
+        Context->LastCursorPos = LastCursor;
+        Context->CursorDelta = Vec2Sub(Context->CursorPos, LastCursor);
     }
 
     while (XPending(gfx->base->Window.Dpy)) {

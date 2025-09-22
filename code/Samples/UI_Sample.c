@@ -90,14 +90,19 @@ main( int argc, char *argv[] )
 
         UI_SetNextTheme(UI_Context, DefaultTheme);
         UI_PushNextFont(UI_Context, &TitleFont);
-        UI_WindowBegin(UI_Context, (rect_2d){ {20, 20}, {400, 400} }, "Window Title", 0);
+        UI_WindowBegin(UI_Context, (rect_2d){ {20, 20}, {400, 400} }, "Window Title", UI_Select | UI_Drag | UI_Resize);
          UI_PopTheme(UI_Context);
          if( UI_Button(UI_Context, "Hello Button 1")  & LeftClickPress  ) {
          }
          UI_Label(UI_Context, "This is my new label");
          if( UI_Button(UI_Context, "Hello Button 2") & LeftClickPress ) {
          }
+         if( UI_BeginTreeNode(UI_Context, "Tree Node") & ActiveObject ) {
+            UI_Label(UI_Context, "My Tree Node label!!");
+         }
+         UI_EndTreeNode(UI_Context);
          UI_TextBox(UI_Context, "Input Text");
+         UI_TextBox(UI_Context, "Second Input Text");
          u8 buf[126] = {0};
          sprintf(buf, "Refresh Rate (ms): %.2f", posix_dur);
          UI_LabelWithKey(UI_Context, "Refresh Rate", buf);
