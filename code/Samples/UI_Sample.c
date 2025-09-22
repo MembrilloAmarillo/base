@@ -82,7 +82,7 @@ main( int argc, char *argv[] )
         UI_Begin(UI_Context);
 
         ui_input Input = UI_LastEvent(UI_Context);
-        
+
         if( Input == StopUI ) {
             fprintf(stderr, "[INFO] Finished Application\n");
             running = false;
@@ -102,7 +102,9 @@ main( int argc, char *argv[] )
             UI_Label(UI_Context, "My Tree Node label!!");
          }
          UI_EndTreeNode(UI_Context);
-         UI_TextBox(UI_Context, "Input Text");
+         if( UI_TextBox(UI_Context, "Input Text") & Return ) {
+            fprintf(stdout, "Text entered!\n");
+         }
          UI_TextBox(UI_Context, "Second Input Text");
          u8 buf[126] = {0};
          sprintf(buf, "Refresh Rate (ms): %.2f", posix_dur);

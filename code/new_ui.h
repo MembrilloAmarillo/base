@@ -13,6 +13,7 @@
  */
 
 /**
+ * 2025/09/22. Better handling for input text when submiting on return
  * 2025/09/22. Input Text fixed.
  * 2025/09/22. Drag and resize added on Windows. Improvements still to be made.
  * 2025/09/19. First somewhat working version. Added tree node implementation
@@ -285,6 +286,8 @@ internal void UI_PushNextLayoutRow(ui_context* Context, int N_Rows, const int* R
 internal void UI_PushNextLayoutColumn(ui_context* Context, int N_Columns, const int* Columns );
 internal void UI_PushNextLayoutBoxSize(ui_context* Context, vec2 BoxSize);
 
+internal U8_String*  UI_GetTextFromBox(ui_context* Context, const char* Key);
+
 internal void UI_SetNextTheme(ui_context* Context, object_theme Theme);
 internal void UI_PushNextFont(ui_context* Context, FontCache* Font);
 internal void UI_PopTheme(ui_context* Context);
@@ -556,6 +559,16 @@ UI_WindowEnd(ui_context* Context) {
     }
 }
 
+internal U8_String* 
+UI_GetTextFromBox(ui_context* Context, const char* Key) {
+    if( HashTableContains(&Context->TableObject, Key) ) {
+        entry* StoredWindowEntry = HashTableFindPointer(&Context->TableObject, Key);
+        ui_object* Object = (ui_object*)StoredWindowEntry->Value;
+        return &Object->Text;
+    }
+    return NULL;
+}
+
 internal ui_object*
 UI_BuildObjectWithParent(ui_context* Context, u8* Key, u8* Text, rect_2d Rect, ui_lay_opt Options, ui_object* Parent )
 {
@@ -743,7 +756,11 @@ UI_TextBox(ui_context* Context, const char* text) {
         Context->FocusObject = TextBox;
     }
 
-    return Input;
+    if( TextBox == Context->FocusObject ) {
+        TextBox->LastInputSet |= Context->LastInput;
+    }
+
+    return TextBox->LastInputSet;
 }
 
 
@@ -963,7 +980,8 @@ UI_LastEvent(ui_context* Context) {
                 int key = 0;
                 for (size_t i = 0; i < ArrayCount(keys_to_check); ++i) {
                     if (keysym_from_utf8 == keys_to_check[i].x_key) {
-                        key= keys_to_check[i].input;
+                        key = keys_to_check[i].input;
+                        Input |= key;
                     }
                 }
                 if (key) {
@@ -1005,6 +1023,10 @@ UI_LastEvent(ui_context* Context) {
                     case XK_Down: {
                         Input |= Down;
                     }break;
+                    case XK_KP_Enter : 
+                    case XK_Return   : {
+                        Input |= Return;
+                    } 
                     case XK_Control_L:
                     case XK_Control_R: {
                         Input |= Ctrl;
