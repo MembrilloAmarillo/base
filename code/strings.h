@@ -7,8 +7,8 @@
 typedef struct U8_String U8_String;
 struct U8_String {
     u8* data;
-    u64 len;
-    u64 idx;
+    i64 len;
+    i64 idx;
 };
 
 U8_String StringCreate(u64 len, Stack_Allocator* a);
@@ -16,10 +16,16 @@ U8_String StringNew(const char* str, u64 len, Stack_Allocator* a);
 void StringDestroy(U8_String* s);
 
 void StringAppend(U8_String* Dst, const char* Str);
-void StringAppndStr(U8_String* Dst, U8_String* Str);
+void StringAppendStr(U8_String* Dst, U8_String* Str);
+
+void StringInsert(U8_String* Dst, u32 Idx, const char* Str);
+void StringInsertStr(U8_String* Dst, u32 Idx, U8_String* Str);
 
 void StringCpy(U8_String* Dst, char* Src);
 void StringCpyStr(U8_String* Dst, U8_String* Src);
+
+void StringErase(U8_String* Str, u32 Idx);
+void StringPop(U8_String* Str);
 
 U8_String SplitFirst(U8_String* Str, char val);
 
@@ -103,6 +109,49 @@ SplitMultiple(U8_String* Dst, u64 Size, const U8_String* Src, char val) {
     }
 }
 
+void 
+StringInsert(U8_String* Dst, u32 Idx, const char* Str) {
+    u64 len = UCF_Strlen(Str);
+    if( Dst->idx + len < Dst->len && Dst->idx > Idx ) {
+        memcpy(Dst->data + Idx + len, Dst->data + Idx, Dst->idx - Idx);
+        memcpy(Dst->data + Idx, Str, len);
+        Dst->idx += len;
+    } else if ( Dst->idx + len < Dst->len && Dst->idx == 0 ) {
+        memcpy(Dst->data, Str, len);
+        Dst->idx += len;
+    } else if (Dst->idx + len < Dst->len && Dst->idx == Idx) {
+        StringAppend(Dst, Str);
+    }
+}
+
+void 
+StringInsertStr(U8_String* Dst, u32 Idx, U8_String* Str) {
+    if( Dst->idx + Str->idx < Dst->len && Dst->idx > Idx && Dst->idx > 0 ) {
+        memcpy(Dst->data + Idx + Str->idx, Dst->data + Idx, Dst->idx - Idx);
+        memcpy(Dst->data + Idx, Str->data, Str->idx);
+        Dst->idx += Str->idx;
+    } else if ( Dst->idx + Str->idx < Dst->len && Dst->idx == 0 ) {
+        memcpy(Dst->data, Str->data, Str->idx);
+        Dst->idx += Str->idx;
+    } else if (Dst->idx + Str->idx < Dst->len && Dst->idx == Idx) {
+        StringAppendStr(Dst, Str);
+    }
+}
+
+void StringErase(U8_String* Str, u32 Idx) {
+    if( Idx == -1 ) { return; }
+    if( Idx < Str->idx ) {
+        memcpy(Str->data + Idx, Str->data + Idx + 1, Str->idx - Idx);
+        Str->idx = Max(0, Str->idx - 1);
+    } else if( Idx == Str->idx ) {
+        Str->idx = Max(0, Str->idx - 1);
+    }
+}
+
+void StringPop(U8_String* Str) {
+    StringErase(Str, Str->idx);
+}
+
 void
 StringCpy(U8_String* Dst, char* Src) {
     u64 len = UCF_Strlen(Src);
@@ -130,7 +179,7 @@ void StringAppend(U8_String* Dst, const char* Str) {
     }
 }
 
-void StringAppndStr(U8_String* Dst, U8_String* Str) {
+void StringAppendStr(U8_String* Dst, U8_String* Str) {
     if( Dst->idx + Str->idx >= Dst->len ) {
         // to big of a string, skip
     } else {

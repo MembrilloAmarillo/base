@@ -6,10 +6,17 @@ layout( location = 1 ) in vec2 in_size;     // NDC [0, 2] for the width and heig
 layout( location = 2 ) in vec2 in_uv;
 layout( location = 3 ) in vec2 in_uv_size;
 layout( location = 4 ) in vec4 in_color;
+layout( location = 5 ) in float in_corner_radius;
 
 // Outputs
 layout( location = 0 ) out vec4 out_color;
 layout( location = 1 ) out vec2 out_uv;
+layout( location = 2 ) out vec2 out_dst_half_size;
+layout( location = 3 ) out vec2 out_dst_center;
+layout( location = 4 ) out vec2 out_dst_pos;
+layout( location = 5 ) out vec2 out_corner_coord;
+layout( location = 6 ) out float out_corner_radius;
+
 
 layout( binding = 1 ) uniform UniformBuffer {
  float AtlasWidth;
@@ -35,6 +42,9 @@ void main() {
       { 1, 1},
       { 1, 0},
      };
+    
+    out_corner_coord = pixel_vert[gl_VertexIndex];
+
      vec2 top_left  = in_pos;
      vec2 bot_right = in_pos + in_size;
 
@@ -56,10 +66,15 @@ void main() {
 
     // UVs and Color
     if (in_uv.x == -2.0) {
-        out_uv = vec2(-1.0, -1.0);
+        out_uv = vec2(-2.0, -2.0);
     } else {
         out_uv = vec2(src_pos.x / ubo.AtlasWidth, src_pos.y / ubo.AtlasHeight);
     }
+
+    out_dst_pos            = dst_pos;
+    out_dst_center         = dst_center;
+    out_dst_half_size      = dst_half_size;
+    out_corner_radius      = in_corner_radius;
 
     out_color.r = GAMMA_TO_LINEAR(in_color.r);
     out_color.g = GAMMA_TO_LINEAR(in_color.g);

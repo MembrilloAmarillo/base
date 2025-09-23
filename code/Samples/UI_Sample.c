@@ -61,8 +61,8 @@ main( int argc, char *argv[] )
         .TextInputForeground = RgbaToNorm(fg),
         .TextInputBackground = RgbaToNorm(bg),
         .TextInputCursor     = RgbaToNorm(fg),
-        .WindowRadius        = 0,
-        .ButtonRadius        = 0,
+        .WindowRadius        = 10,
+        .ButtonRadius        = 6,
         .InputTextRadius     = 0,
         .Font = &DefaultFont
     };

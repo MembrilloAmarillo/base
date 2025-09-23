@@ -2,17 +2,20 @@
 * Copyright (c) 20225 Sascha Paez
 *
  * @author Sascha Paez
-* @version 0.3
+* @version 0.4
 *
 * This library is free software; you can redistribute it and/or modify it
 * under the terms of the MIT license. See `microui.c` for details.
 */
 
 /**
- * @todo Fix multiple input text as it shares the same input buffer
+ * @todo Implement Window API for window creation and Event handling
+ * @todo Abstract X11 handling to better support OS-specific API
  */
 
 /**
+ * 2025/09/23. Added Clipboard pasting.
+ * 2025/09/23. Fixed Input declaration taking garbage values creating buggy responses
  * 2025/09/22. Better handling for input text when submiting on return
  * 2025/09/22. Input Text fixed.
  * 2025/09/22. Drag and resize added on Windows. Improvements still to be made.
@@ -156,7 +159,7 @@ struct ui_layout {
 
 typedef struct ui_object ui_object;
 struct ui_object {
-    u64 HashId; // to identify the object
+    u64 HashId;
     object_type Type;
     union {
         struct {
@@ -164,6 +167,7 @@ struct ui_object {
             U8_String Text;
             vec2      Pos;
             vec2      Size;
+            i32       TextCursorIdx;
         };
         struct {
             vec2 IconPos;
@@ -225,6 +229,7 @@ struct ui_context {
     ui_input KeyPressed;
     ui_input KeyDown;
 
+    vec2 TextCursorPos;
     vec2 CursorClick;
     vec2 CursorPos;
     vec2 LastCursorPos;
@@ -365,10 +370,12 @@ UI_End(ui_context* UI_Context) {
             vec2 Size = Object->Rect.Size;
 
             ui_color PanelBg = Object->Theme->WindowBackground;
-            ui_color Color = Object->Theme->WindowForeground;
+            ui_color Color   = Object->Theme->WindowForeground;
+            f32 Radius       = Object->Theme->WindowRadius;
             if(Object->Type == UI_ButtonType) {
                 PanelBg = Object->Theme->ButtonBackground;
                 Color   = Object->Theme->ButtonForeground;
+                Radius  = Object->Theme->ButtonRadius;
             }
             if( Object->LastInputSet & CursorHover ) {
                 PanelBg = Object->Theme->ButtonHoverBackground;
@@ -378,18 +385,19 @@ UI_End(ui_context* UI_Context) {
 
             // This do not need to render a rect
             if( Object->Type != UI_LabelType &&
-                Object->Type != UI_Text      &&
-                Object->Type != UI_Icon      &&
-                Object->Type != UI_ImageType )
+               Object->Type != UI_Text      &&
+               Object->Type != UI_Icon      &&
+               Object->Type != UI_ImageType )
             {
 
                 // Now, create the vertex data with the correct size
                 v_2d v1 = {
-                    .LeftCorner = Pos,
-                    .Size       = Size, // <-- Pass the correct width and height
-                    .UV         = { -2, -2 },
-                    .UVSize     = { 0, 0 },
-                    .Color      = {(f32)PanelBg.r, (f32)PanelBg.g, (f32)PanelBg.b, (f32)PanelBg.a}
+                    .LeftCorner   = Pos,
+                    .Size         = Size, // <-- Pass the correct width and height
+                    .UV           = { -2, -2 },
+                    .UVSize       = { 0, 0 },
+                    .Color        = {(f32)PanelBg.r, (f32)PanelBg.g, (f32)PanelBg.b, (f32)PanelBg.a},
+                    .CornerRadius = Radius
                 };
 
                 if( gfx->ui_rects.len > gfx->ui_rects.capacity - 3 || gfx->ui_indxs.len > gfx->ui_indxs.capacity - 3 ) {
@@ -401,6 +409,19 @@ UI_End(ui_context* UI_Context) {
                     VectorResize(&gfx->ui_indxs, I_Buffer, gfx->ui_indxs.capacity * 2);
                 }
 
+
+                if( Object->Type == UI_Window ) {
+                    vec2 ShadowSize = {10, 10};
+                    v_2d v2 = {
+                        .LeftCorner   = Vec2Add(Pos, ShadowSize),
+                        .Size         = Size, // <-- Pass the correct width and height
+                        .UV           = { -2, -2 },
+                        .UVSize       = { 0, 0 },
+                        .Color        = {(f32)PanelBg.r * 0.2, (f32)PanelBg.g * 0.2, (f32)PanelBg.b * 0.2, (f32)PanelBg.a * 0.5},
+                        .CornerRadius = Radius
+                    };
+                    VectorAppend(&gfx->ui_rects, &v2);
+                }
                 VectorAppend(&gfx->ui_rects, &v1);
                 for(u32 i = 0 ; i < 6; i += 1 ) {
                     VectorAppend(&gfx->ui_indxs, &idx[i]);
@@ -443,7 +464,8 @@ UI_End(ui_context* UI_Context) {
                         .Size = {g.width, g.height} ,
                         .UV = { _u0, _v0 },
                         .UVSize = { _u1, _v1 },
-                        .Color = ColorVec
+                        .Color = ColorVec,
+                        .CornerRadius = 0
                     };
 
                     // Append verts & indices (use your existing capacity logic)
@@ -455,6 +477,18 @@ UI_End(ui_context* UI_Context) {
 
                     // Advance pen by glyph advance (use xadvance from packing)
                     pen_x += g.advance;
+                }
+                if( Object->TextCursorIdx != -1 ) {
+                    float Start = Object->Pos.x + F_TextWidth(Object->Theme->Font, Object->Text.data, Object->TextCursorIdx);
+                    v_2d v1 = {
+                        .LeftCorner = { Start, Object->Pos.y },
+                        .Size = {4, Object->Size.y} ,
+                        .UV = { -2, -2 },
+                        .UVSize = { 0, 0 },
+                        .Color = {Color.r, Color.g, Color.b, 1},
+                        .CornerRadius = 6
+                    };
+                    VectorAppend(&gfx->ui_rects, &v1);
                 }
             }
         }
@@ -478,9 +512,10 @@ UI_WindowBegin(ui_context* Context, rect_2d Rect, const char* Title, ui_lay_opt 
         Object = stack_push(Context->Allocator, ui_object, 1);
         HashTableAdd(&Context->TableObject, Title, Object);
         Object->Rect = win.WindowRect;
+        Object->TextCursorIdx = -1;
     }
 
-    // Make it the focus object if clicking on title bar or 
+    // Make it the focus object if clicking on title bar or
     // on the resize box on the bottom-left part of the window
     //
     if( UI_ConsumeEvents(Context, Object) & LeftClickPress ) {
@@ -559,7 +594,7 @@ UI_WindowEnd(ui_context* Context) {
     }
 }
 
-internal U8_String* 
+internal U8_String*
 UI_GetTextFromBox(ui_context* Context, const char* Key) {
     if( HashTableContains(&Context->TableObject, Key) ) {
         entry* StoredWindowEntry = HashTableFindPointer(&Context->TableObject, Key);
@@ -581,6 +616,7 @@ UI_BuildObjectWithParent(ui_context* Context, u8* Key, u8* Text, rect_2d Rect, u
     } else {
         Object = stack_push(Context->Allocator, ui_object, 1);
         HashTableAdd(&Context->TableObject, Key, Object);
+        Object->TextCursorIdx = -1;
     }
 
     Object->Rect   = Rect;
@@ -608,26 +644,30 @@ UI_BuildObjectWithParent(ui_context* Context, u8* Key, u8* Text, rect_2d Rect, u
     if( Object->Text.data == NULL ) {
         Object->Text = StringNew(Text, Len, Context->Allocator);
     } else if( Object->Type != UI_InputText ) {
-        // If it is Input text we do not want to copy again the title text, as 
+        // If it is Input text we do not want to copy again the title text, as
         // it already stores input information from the user
         StringCpy(&Object->Text, Text);
     }
     if( Object->Type == UI_InputText && Object == Context->FocusObject ) {
+        Object->TextCursorIdx = Max(0, Object->TextCursorIdx);
         if( Context->TextInput.len > Object->Text.len ) {
             Object->Text = StringCreate(Context->TextInput.len, Context->Allocator);
         }
         if( Context->TextInput.idx > 0 && !(Context->LastInput & Backspace) ) {
-            StringAppndStr(&Object->Text, &Context->TextInput);
-            Object->Text.data[Object->Text.idx] = '\0';
-        } 
+            //StringAppndStr(&Object->Text, &Context->TextInput);
+            //Object->Text.data[Object->Text.idx] = '\0';
+            StringInsertStr(&Object->Text, Object->TextCursorIdx, &Context->TextInput);
+            Object->TextCursorIdx += Context->TextInput.idx;
+        }
         if( Context->LastInput & Backspace ) {
-            Object->Text.idx = Object->Text.idx > 0 ? Object->Text.idx - 1 : 0;
+            //Object->Text.idx = Object->Text.idx > 0 ? Object->Text.idx - 1 : 0;
+            StringErase(&Object->Text, Object->TextCursorIdx);
         }
     }
 
     Object->Pos  = Rect.Pos;
     Object->Size = (vec2){
-        (f32)F_TextWidth( Object->Theme->Font, Object->Text.data, Object->Text.idx ), 
+        (f32)F_TextWidth( Object->Theme->Font, Object->Text.data, Object->Text.idx ),
         (f32)F_TextHeight(Object->Theme->Font)
     };
 
@@ -764,7 +804,7 @@ UI_TextBox(ui_context* Context, const char* text) {
 }
 
 
-internal ui_input 
+internal ui_input
 UI_BeginTreeNode(ui_context* Context, const char* text) {
     ui_window* Win = &StackGetFront(&Context->Windows);
 
@@ -795,7 +835,7 @@ UI_BeginTreeNode(ui_context* Context, const char* text) {
     return TreeNode->LastInputSet;
 }
 
-internal ui_input 
+internal ui_input
 UI_EndTreeNode(ui_context* Context) {
     Context->CurrentParent = Context->CurrentParent->Parent;
 }
@@ -876,7 +916,7 @@ UI_PopTheme(ui_context* Context) {
 
 internal ui_input
 UI_LastEvent(ui_context* Context) {
-    ui_input Input;
+    ui_input Input = NoInput;
     UI_Graphics* gfx = Context->Gfx;
     XEvent ev = {0};
     u32 window_width  = gfx->base->Swapchain.Extent.width;
@@ -896,11 +936,6 @@ UI_LastEvent(ui_context* Context) {
 
     while (XPending(gfx->base->Window.Dpy)) {
         XNextEvent(gfx->base->Window.Dpy, &ev);
-        if (ev.type == KeyPress && ev.xkey.keycode == XK_Escape ) {
-            Input = StopUI;
-            Context->LastInput = Input;
-            return Input;
-        }
 
         if( ev.type == FocusOut ) {
             while( XNextEvent( gfx->base->Window.Dpy, &ev) && ev.type != FocusIn ) {
@@ -947,6 +982,34 @@ UI_LastEvent(ui_context* Context) {
                 break;
             }
 
+            // --- Clipboard ---
+            case SelectionNotify: {
+                if (ev.xselection.property == None) {
+                    printf("Failed to get clipboard data. The owner did not respond or format is not supported.\n");
+                } else {
+                    unsigned char* data = NULL;
+                    Atom actual_type;
+                    int actual_format;
+                    unsigned long nitems, bytes_after;
+
+                    XGetWindowProperty(gfx->base->Window.Dpy,
+                                       ev.xselection.requestor, // Our window
+                                       ev.xselection.property,  // The property we asked for
+                                       0, 1024, False, AnyPropertyType,
+                                       &actual_type, &actual_format, &nitems, &bytes_after, &data);
+
+                    if (data && nitems > 0) {
+                        printf("Pasted content: %s\n", data);
+                        StringAppend(&Context->TextInput, data);
+                        XFree(data);
+                    } else {
+                        printf("Clipboard is empty or data could not be read.\n");
+                    }
+                    // Clean up the property
+                    XDeleteProperty(gfx->base->Window.Dpy, ev.xselection.requestor, ev.xselection.property);
+                }
+            }break;
+
             // --- Mouse Events ---
             case MotionNotify: {
                 XMotionEvent* me = (XMotionEvent*)&ev;
@@ -973,8 +1036,8 @@ UI_LastEvent(ui_context* Context) {
             }
 
             case KeyPress: {
-                char buffer[256];
-                KeySym keysym_from_utf8 = 0;
+                char buffer[256] = {0};
+                KeySym keysym_from_utf8 = NoSymbol;
                 int num_bytes = Xutf8LookupString(gfx->base->Window.xic, &ev.xkey, buffer, sizeof(buffer), &keysym_from_utf8, NULL);
 
                 int key = 0;
@@ -989,8 +1052,28 @@ UI_LastEvent(ui_context* Context) {
                     Context->KeyDown    |= key;
                 }
 
+                if (keysym_from_utf8 == XK_Escape) {
+                    Input = StopUI;
+                    Context->LastInput = Input;
+                    return Input; // This will now correctly exit the loop
+                }
+
+                if ( (ev.xkey.state & ControlMask) && (keysym_from_utf8 == XK_v || keysym_from_utf8 == XK_V)) {
+                    printf("Ctrl+V detected! Requesting clipboard content...\n");
+                    XConvertSelection(
+                                      gfx->base->Window.Dpy,
+                                      gfx->base->Window.Clipboard.Clipboard,
+                                      gfx->base->Window.Clipboard.Utf8,
+                                      gfx->base->Window.Clipboard.Paste,
+                                      gfx->base->Window.Win,
+                                      CurrentTime
+                                      );
+                    XFlush(gfx->base->Window.Dpy); // Ensure the request is sent immediately
+                    break;
+                }
+
                 if (num_bytes > 0 && !key) {
-                    buffer[num_bytes] = '\0';
+                    //buffer[num_bytes] = '\0';
                     StringAppend(&Context->TextInput, buffer);
                 }
 
@@ -1013,9 +1096,11 @@ UI_LastEvent(ui_context* Context) {
                     }break;
                     case XK_Left: {
                         Input |= Left;
+                        Context->FocusObject->TextCursorIdx = Max(0, Context->FocusObject->TextCursorIdx - 1);
                     }break;
                     case XK_Right: {
                         Input |= Right;
+                        Context->FocusObject->TextCursorIdx = Min(Context->FocusObject->Text.idx, Context->FocusObject->TextCursorIdx + 1);
                     }break;
                     case XK_Up: {
                         Input |= Up;
@@ -1023,10 +1108,9 @@ UI_LastEvent(ui_context* Context) {
                     case XK_Down: {
                         Input |= Down;
                     }break;
-                    case XK_KP_Enter : 
-                    case XK_Return   : {
+                    case XK_Return: {
                         Input |= Return;
-                    } 
+                    } break;
                     case XK_Control_L:
                     case XK_Control_R: {
                         Input |= Ctrl;
@@ -1041,6 +1125,7 @@ UI_LastEvent(ui_context* Context) {
                     } break;
                     case XK_BackSpace: {
                         Input |= Backspace;
+                        Context->FocusObject->TextCursorIdx = Max(0, Context->FocusObject->TextCursorIdx - 1 );
                         Context->TextInput.idx = Context->TextInput.idx > 0 ? Context->TextInput.idx - 1 : 0;
                     } break;
                     default: {}break;
@@ -1073,7 +1158,7 @@ UI_LastEvent(ui_context* Context) {
         }
     }
 
-    Context->LastInput |= Input;
+    Context->LastInput = Input;
     return Input;
 }
 

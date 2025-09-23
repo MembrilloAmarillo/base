@@ -441,8 +441,14 @@ UI_CreateUI_Pipeline( UI_Graphics* gfx, u8* Bitmap, u32 Width, u32 Height ) {
                 .format   = VK_FORMAT_R32G32B32A32_SFLOAT,
                 .offset   = 4 * sizeof(vec2),
             },
+            {
+                .location = 5,
+                .binding  = 0,
+                .format   = VK_FORMAT_R32_SFLOAT,
+                .offset   = 4 * sizeof(vec2) + sizeof(vec4),
+            },
         };
-        SetVertexInputAttributeDescription(&p_Build, attribute_descriptions, 5);
+        SetVertexInputAttributeDescription(&p_Build, attribute_descriptions, 6);
         SetVertexInputBindingDescription(&p_Build, &binding_description, 1);
 
         gfx->UI_TextureImage = CreateImageData(
