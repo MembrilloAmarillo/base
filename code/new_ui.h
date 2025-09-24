@@ -14,6 +14,7 @@
  */
 
 /**
+ * 2025/09/24. Fixed drag, movement and resize. Also ordered windows by depth index.
  * 2025/09/23. Added Clipboard pasting.
  * 2025/09/23. Fixed Input declaration taking garbage values creating buggy responses
  * 2025/09/22. Better handling for input text when submiting on return
@@ -89,7 +90,8 @@ enum ui_lay_opt {
     UI_Interact    = (1 << 6),
     UI_Drag        = (1 << 7),
     UI_Select      = (1 << 8),
-    UI_NoTitle     = (1 << 9)
+    UI_NoTitle     = (1 << 9),
+    UI_AlignVertical = (1 << 10)
 };
 
 typedef struct rect_2d rect_2d;
@@ -176,6 +178,7 @@ struct ui_object {
     };
     ui_lay_opt Option;
     object_theme* Theme;
+    u64 DepthIdx;
 
     ui_input LastInputSet;
 
@@ -196,7 +199,7 @@ typedef struct ui_win_stack ui_win_stack;
 struct ui_win_stack {
     u32 N;
     u32 Current;
-    ui_window Items[MAX_STACK_SIZE];
+    ui_window* Items[MAX_STACK_SIZE];
 };
 
 typedef struct ui_theme_stack ui_theme_stack;
@@ -354,7 +357,9 @@ UI_End(ui_context* UI_Context) {
     void* I_Buffer = stack_push(TempAllocator, u32, kibibyte(256));
     gfx->ui_indxs  = VectorNew(I_Buffer, 0, kibibyte(256), u32);
 
-    for( ui_window* win = &StackGetFront(&UI_Context->Windows); !StackIsEmpty(&UI_Context->Windows); win = &StackGetFront(&UI_Context->Windows) ) {
+    i32 N_Windows = UI_Context->Windows.Current;
+    for( i32 i = 0 ; i < N_Windows; i += 1) {
+        ui_window* win = StackGetFront(&UI_Context->Windows);
         StackPop(&UI_Context->Windows);
         for(
             ui_object* Object = win->Objects.FirstSon;
@@ -377,6 +382,7 @@ UI_End(ui_context* UI_Context) {
                 Color   = Object->Theme->ButtonForeground;
                 Radius  = Object->Theme->ButtonRadius;
             }
+
             if( Object->LastInputSet & CursorHover ) {
                 PanelBg = Object->Theme->ButtonHoverBackground;
             } else if( Object->LastInputSet & LeftClickPress ) {
@@ -404,11 +410,10 @@ UI_End(ui_context* UI_Context) {
                     stack_free(TempAllocator, I_Buffer);
                     stack_free(TempAllocator, V_Buffer);
                     V_Buffer = stack_push(TempAllocator, v_2d, gfx->ui_rects.capacity * 2);
-                    I_Buffer = stack_push(TempAllocator, u32, gfx->ui_indxs.capacity * 2);
-                    VectorResize(&gfx->ui_rects, V_Buffer, gfx->ui_rects.capacity * 2);
-                    VectorResize(&gfx->ui_indxs, I_Buffer, gfx->ui_indxs.capacity * 2);
+                    I_Buffer = stack_push(TempAllocator, u32, gfx->ui_indxs.capacity  * 2);
+                    VectorResize(&gfx->ui_rects, V_Buffer, gfx->ui_rects.capacity     * 2);
+                    VectorResize(&gfx->ui_indxs, I_Buffer, gfx->ui_indxs.capacity     * 2);
                 }
-
 
                 if( Object->Type == UI_Window ) {
                     vec2 ShadowSize = {10, 10};
@@ -427,6 +432,7 @@ UI_End(ui_context* UI_Context) {
                     VectorAppend(&gfx->ui_indxs, &idx[i]);
                 }
             }
+
             if( Object->Text.data != NULL && Object->Text.idx > 0 ) {
                 f32 txt_offset = 0;
                 // Use unsigned char pointer to avoid signedness issues
@@ -482,11 +488,11 @@ UI_End(ui_context* UI_Context) {
                     float Start = Object->Pos.x + F_TextWidth(Object->Theme->Font, Object->Text.data, Object->TextCursorIdx);
                     v_2d v1 = {
                         .LeftCorner = { Start, Object->Pos.y },
-                        .Size = {4, Object->Size.y} ,
+                        .Size = {3, Object->Size.y} ,
                         .UV = { -2, -2 },
                         .UVSize = { 0, 0 },
                         .Color = {Color.r, Color.g, Color.b, 1},
-                        .CornerRadius = 6
+                        .CornerRadius = 4
                     };
                     VectorAppend(&gfx->ui_rects, &v1);
                 }
@@ -496,25 +502,38 @@ UI_End(ui_context* UI_Context) {
 }
 
 internal void
+UI_SortWindowByDepth(ui_win_stack* window) {
+    ui_window* wind = window->Items[0];
+
+    for(i32 i = 1; i < window->Current; i += 1) {
+        u64 DepthIdx   = window->Items[i]->Objects.FirstSon->DepthIdx;
+        u64 PriorDepth = window->Items[i-1]->Objects.FirstSon->DepthIdx;
+        if(DepthIdx >= PriorDepth) {
+            window->Items[i-1] = window->Items[i];
+            window->Items[i]   = wind;
+        }
+    }
+}
+
+internal void
 UI_WindowBegin(ui_context* Context, rect_2d Rect, const char* Title, ui_lay_opt Options) {
-    ui_window win = {
-        .WindowRect = Rect,
-        .ContentSize = (vec2){0, 0}
-    };
-    TreeInit(&win.Objects, &UI_NULL_OBJECT);
+    ui_window* win = stack_push(Context->TempAllocator, ui_window, 1);
+
+    win->WindowRect = Rect;
+    win->ContentSize = (vec2){0, 0};
+
+    TreeInit(&win->Objects, &UI_NULL_OBJECT);
+
+    StackPush(&Context->Windows, win);
+
+    TreeInit(&StackGetFront(&Context->Windows)->Objects, &UI_NULL_OBJECT);
+
+    ui_window* NewWin = StackGetFront(&Context->Windows);
 
     ui_object* Object = &UI_NULL_OBJECT;
 
-    if( HashTableContains(&Context->TableObject, Title) ) {
-        entry* StoredWindowEntry = HashTableFindPointer(&Context->TableObject, Title);
-        Object = (ui_object*)StoredWindowEntry->Value;
-    } else {
-        Object = stack_push(Context->Allocator, ui_object, 1);
-        HashTableAdd(&Context->TableObject, Title, Object);
-        Object->Rect = win.WindowRect;
-        Object->TextCursorIdx = -1;
-    }
-
+    Object = UI_BuildObjectWithParent(Context, Title, Title, Rect, Options, &NewWin->Objects);
+    Object->Type = UI_Window;
     // Make it the focus object if clicking on title bar or
     // on the resize box on the bottom-left part of the window
     //
@@ -526,9 +545,15 @@ UI_WindowBegin(ui_context* Context, rect_2d Rect, const char* Title, ui_lay_opt 
             {20, 20}
         };
         if(IsCursorOnRect(Context, TitleRect)) {
+            if( Context->FocusObject != Object ) {
+                Object->DepthIdx += 1;
+            }
             Context->FocusObject = Object;
         } else if( Object->Option & UI_Resize )  {
             if( IsCursorOnRect(Context, ResizeRect) ) {
+                if( Context->FocusObject != Object ) {
+                    Object->DepthIdx += 1;
+                }
                 Context->FocusObject = Object;
             }
         }
@@ -552,36 +577,14 @@ UI_WindowBegin(ui_context* Context, rect_2d Rect, const char* Title, ui_lay_opt 
         Context->FocusObject = &UI_NULL_OBJECT;
     }
 
-    win.WindowRect = Object->Rect;
-    if( !StackIsEmpty(&Context->Themes) ) {
-        Object->Theme = &StackGetFront(&Context->Themes);
-    } else {
-        Object->Theme = &Context->DefaultTheme;
-    }
-
-    if( !(Options & UI_NoTitle) ) {
-        u32 TitleLen = UCF_Strlen(Title);
-        if( Object->Text.data == NULL ) {
-            Object->Text = StringNew(Title, TitleLen, Context->Allocator);
-        }
-        Object->Pos  = win.WindowRect.Pos;
-        Object->Size = (vec2){(f32)F_TextWidth( Object->Theme->Font, Title, TitleLen ), (f32)F_TextHeight(Object->Theme->Font)};
-        Object->Pos.x = (Object->Pos.x + (Object->Rect.Size.x / 2.0)) - (Object->Size.x / 2.0);
-    }
-    Object->Type = UI_Window;
-    Object->Option = Options;
-    TreeClear(Object, &UI_NULL_OBJECT);
-    StackPush(&Context->Windows, win);
-
-    TreeInit(&StackGetFront(&Context->Windows).Objects, &UI_NULL_OBJECT);
-    TreePushSon(&StackGetFront(&Context->Windows).Objects, Object, &UI_NULL_OBJECT);
-
     UI_PushNextLayout(Context, Object->Rect, Options);
     ui_layout* Layout = &StackGetFront(&Context->Layouts);
     Layout->BoxSize = (vec2){Object->Rect.Size.x, Object->Size.y};
     Layout->ContentSize.v[Layout->AxisDirection] += Object->Size.v[Layout->AxisDirection];
 
-    Context->CurrentParent = &StackGetFront(&Context->Windows).Objects;
+    Context->CurrentParent = &StackGetFront(&Context->Windows)->Objects;
+
+    UI_SortWindowByDepth(&Context->Windows);
 }
 
 internal void
@@ -617,10 +620,12 @@ UI_BuildObjectWithParent(ui_context* Context, u8* Key, u8* Text, rect_2d Rect, u
         Object = stack_push(Context->Allocator, ui_object, 1);
         HashTableAdd(&Context->TableObject, Key, Object);
         Object->TextCursorIdx = -1;
+        Object->DepthIdx = 0;
     }
-
-    Object->Rect   = Rect;
-    Object->Option = Options;
+    if( Object->Type != UI_Window ) {
+        Object->Rect   = Rect;
+        Object->Option = Options;
+    }
 
     if( !StackIsEmpty(&Context->Themes) ) {
         Object->Theme = &StackGetFront(&Context->Themes);
@@ -665,14 +670,15 @@ UI_BuildObjectWithParent(ui_context* Context, u8* Key, u8* Text, rect_2d Rect, u
         }
     }
 
-    Object->Pos  = Rect.Pos;
+    Object->Pos  = Object->Rect.Pos;
     Object->Size = (vec2){
         (f32)F_TextWidth( Object->Theme->Font, Object->Text.data, Object->Text.idx ),
         (f32)F_TextHeight(Object->Theme->Font)
     };
 
-    Object->Pos.y += Rect.Size.y / 2 - Object->Size.y / 2;
-
+    if( Options & UI_AlignVertical ) {
+        Object->Pos.y += Object->Rect.Size.y / 2 - Object->Size.y / 2;
+    }
     if( Options & UI_AlignCenter ) {
         Object->Pos.x = (Object->Pos.x + (Object->Rect.Size.x / 2.0)) - (Object->Size.x / 2.0);
     }
@@ -722,7 +728,7 @@ UI_Button(ui_context* Context, const char* Title) {
     Rect.Pos         = Vec2Add(Rect.Pos, Layout.ContentSize);
     Rect.Size.v[Layout.AxisDirection] = Layout.BoxSize.v[Layout.AxisDirection];
 
-    ui_lay_opt Options = UI_AlignCenter | UI_Interact | UI_Select | Layout.Option;
+    ui_lay_opt Options = UI_AlignVertical | UI_AlignCenter | UI_Interact | UI_Select | Layout.Option;
     ui_object* Button = UI_BuildObjectWithParent(Context, Title, Title, Rect, Options, Parent);
 
     ui_input Input = UI_ConsumeEvents(Context, Button);
@@ -743,7 +749,7 @@ UI_Label(ui_context* Context, const char* text) {
     Rect.Pos         = Vec2Add(Rect.Pos, Layout.ContentSize);
     Rect.Size.v[Layout.AxisDirection] = Layout.BoxSize.v[Layout.AxisDirection];
 
-    ui_lay_opt Options = UI_Interact | UI_Select | Layout.Option;
+    ui_lay_opt Options = UI_AlignVertical | UI_Interact | UI_Select | Layout.Option;
     ui_object* Label = UI_BuildObjectWithParent(Context, text, text, Rect, Options, Parent);
 
     ui_input Input = UI_ConsumeEvents(Context, Label);
@@ -764,7 +770,7 @@ UI_LabelWithKey(ui_context* Context, const char* Key, const char* text) {
     Rect.Pos         = Vec2Add(Rect.Pos, Layout.ContentSize);
     Rect.Size.v[Layout.AxisDirection] = Layout.BoxSize.v[Layout.AxisDirection];
 
-    ui_lay_opt Options = UI_Interact | UI_Select | Layout.Option;
+    ui_lay_opt Options = UI_AlignVertical | UI_Interact | UI_Select | Layout.Option;
     ui_object* Label = UI_BuildObjectWithParent(Context, Key, text, Rect, Options, Parent);
 
     ui_input Input = UI_ConsumeEvents(Context, Label);
@@ -785,7 +791,7 @@ UI_TextBox(ui_context* Context, const char* text) {
     Rect.Pos         = Vec2Add(Rect.Pos, Layout.ContentSize);
     Rect.Size.v[Layout.AxisDirection] = Layout.BoxSize.v[Layout.AxisDirection];
 
-    ui_lay_opt Options = UI_AlignCenter | UI_Interact | UI_Select | Layout.Option;
+    ui_lay_opt Options = UI_AlignVertical | UI_Interact | UI_Select | Layout.Option;
     ui_object* TextBox = UI_BuildObjectWithParent(Context, text, text, Rect, Options, Parent);
 
     ui_input Input = UI_ConsumeEvents(Context, TextBox);
@@ -815,7 +821,7 @@ UI_BeginTreeNode(ui_context* Context, const char* text) {
     Rect.Pos         = Vec2Add(Rect.Pos, Layout.ContentSize);
     Rect.Size.v[Layout.AxisDirection] = Layout.BoxSize.v[Layout.AxisDirection];
 
-    ui_lay_opt Options = UI_AlignCenter | UI_Interact | UI_Select | Layout.Option;
+    ui_lay_opt Options = UI_AlignVertical | UI_AlignCenter | UI_Interact | UI_Select | Layout.Option;
     ui_object* TreeNode = UI_BuildObjectWithParent(Context, text, text, Rect, Options, Parent);
 
     ui_input Input = UI_ConsumeEvents(Context, TreeNode);

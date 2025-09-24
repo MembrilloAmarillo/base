@@ -91,7 +91,7 @@ main( int argc, char *argv[] )
 
         UI_SetNextTheme(UI_Context, DefaultTheme);
         UI_PushNextFont(UI_Context, &TitleFont);
-        UI_WindowBegin(UI_Context, (rect_2d){ {20, 20}, {400, 400} }, "Window Title", UI_Select | UI_Drag | UI_Resize);
+        UI_WindowBegin(UI_Context, (rect_2d){ {20, 20}, {400, 400} }, "Window Title", UI_AlignCenter | UI_Select | UI_Drag | UI_Resize);
          UI_PopTheme(UI_Context);
          if( UI_Button(UI_Context, "Hello Button 1")  & LeftClickPress  ) {
          }
@@ -109,6 +109,28 @@ main( int argc, char *argv[] )
          u8 buf[126] = {0};
          sprintf(buf, "Refresh Rate (ms): %.2f", posix_dur);
          UI_LabelWithKey(UI_Context, "Refresh Rate", buf);
+        UI_WindowEnd(UI_Context);
+
+        UI_SetNextTheme(UI_Context, DefaultTheme);
+        UI_PushNextFont(UI_Context, &TitleFont);
+        UI_WindowBegin(UI_Context, (rect_2d){ {100, 100}, {400, 400} }, "Window Title 2", UI_Select | UI_Drag | UI_Resize);
+         UI_PopTheme(UI_Context);
+         if( UI_Button(UI_Context, "Hello Button 3")  & LeftClickPress  ) {
+         }
+         UI_Label(UI_Context, "This is my new label 2");
+         if( UI_Button(UI_Context, "Hello Button 4") & LeftClickPress ) {
+         }
+         if( UI_BeginTreeNode(UI_Context, "Tree Node 2") & ActiveObject ) {
+            UI_Label(UI_Context, "My Tree Node label!!");
+         }
+         UI_EndTreeNode(UI_Context);
+         if( UI_TextBox(UI_Context, "Input Text 2") & Return ) {
+            fprintf(stdout, "Text entered!\n");
+         }
+         UI_TextBox(UI_Context, "Second Input Text 3");
+         u8 buf2[126] = {0};
+         sprintf(buf2, "Refresh Rate (ms): %.2f", posix_dur);
+         UI_LabelWithKey(UI_Context, "Refresh Rate 2", buf2);
         UI_WindowEnd(UI_Context);
 
         UI_End(UI_Context);
