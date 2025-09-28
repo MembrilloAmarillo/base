@@ -56,6 +56,8 @@ main( int argc, char *argv[] )
         .LabelForeground     = RgbaToNorm(fg),
         .ButtonForeground    = RgbaToNorm(bg),
         .ButtonBackground    = RgbaToNorm(bg2),
+        .ScrollForeground    = RgbaToNorm(bg),
+        .ScrollBackground    = RgbaToNorm(bg2),
         .ButtonHoverBackground = RgbaToNorm(bd),
         .ButtonPressBackground = RgbaToNorm(bg),
         .TextInputForeground = RgbaToNorm(fg),
@@ -109,6 +111,13 @@ main( int argc, char *argv[] )
          u8 buf[126] = {0};
          sprintf(buf, "Refresh Rate (ms): %.2f", posix_dur);
          UI_LabelWithKey(UI_Context, "Refresh Rate", buf);
+         UI_BeginScrollbarView(UI_Context);
+          for(int i = 0; i < 15; i += 1 ) {
+           char buff[256] = {0};
+           snprintf(buff, 256, "label_%d", i);
+           UI_Label(UI_Context, buff);
+          }
+         UI_EndScrollbarView(UI_Context);
         UI_WindowEnd(UI_Context);
 
         UI_SetNextTheme(UI_Context, DefaultTheme);

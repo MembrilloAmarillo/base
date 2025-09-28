@@ -91,7 +91,8 @@ enum ui_lay_opt {
     UI_Drag        = (1 << 7),
     UI_Select      = (1 << 8),
     UI_NoTitle     = (1 << 9),
-    UI_AlignVertical = (1 << 10)
+    UI_AlignVertical = (1 << 10),
+    UI_DrawText    = (1 << 11)
 };
 
 typedef struct rect_2d rect_2d;
@@ -113,7 +114,8 @@ enum object_type {
     UI_ImageType,
     UI_Window,
     UI_ButtonType,
-    UI_Panel
+    UI_Panel,
+    UI_ScrollbarType
 };
 
 typedef struct ui_color ui_color;
@@ -133,6 +135,8 @@ struct object_theme {
     ui_color LabelForeground;
     ui_color ButtonForeground;
     ui_color ButtonBackground;
+    ui_color ScrollForeground;
+    ui_color ScrollBackground;
     ui_color ButtonHoverBackground;
     ui_color ButtonPressBackground;
     ui_color TextInputForeground;
@@ -181,6 +185,8 @@ struct ui_object {
     u64 DepthIdx;
 
     ui_input LastInputSet;
+
+    vec2 LastDelta;
 
     ui_object* Parent;
     ui_object* Left;
@@ -357,16 +363,33 @@ UI_End(ui_context* UI_Context) {
     void* I_Buffer = stack_push(TempAllocator, u32, kibibyte(256));
     gfx->ui_indxs  = VectorNew(I_Buffer, 0, kibibyte(256), u32);
 
+    // Stack to iterate over the tree object
+    //
+    typedef struct {
+        u32 N;
+        u32 Current;
+        ui_object* Items[MAX_STACK_SIZE];
+    } ObjectStack;
+
     i32 N_Windows = UI_Context->Windows.Current;
     for( i32 i = 0 ; i < N_Windows; i += 1) {
         ui_window* win = StackGetFront(&UI_Context->Windows);
         StackPop(&UI_Context->Windows);
-        for(
-            ui_object* Object = win->Objects.FirstSon;
-            Object != &UI_NULL_OBJECT && Object != NULL;
-            Object = Object->Right
-            )
+        ObjectStack Stack = {
+            .N = MAX_STACK_SIZE,
+            .Current = 0
+        };
+
+        // For each window, iterate over the tree of objects generated
+        //
+        StackPush(&Stack, win->Objects.FirstSon);
+        for( ; Stack.Current > 0 ; )
         {
+            ui_object* Object = StackGetFront(&Stack);
+            StackPop(&Stack);
+            for( ui_object* Child = Object->FirstSon; Child != &UI_NULL_OBJECT && Child != NULL; Child = Child->Right ) {
+                StackPush(&Stack, Child);
+            }
             u32 BaseVertexIdx = gfx->ui_rects.len;
             u32 idx[6] = {
                 BaseVertexIdx + 0, BaseVertexIdx + 1, BaseVertexIdx + 3, BaseVertexIdx + 3, BaseVertexIdx + 2, BaseVertexIdx + 0
@@ -380,6 +403,10 @@ UI_End(ui_context* UI_Context) {
             if(Object->Type == UI_ButtonType) {
                 PanelBg = Object->Theme->ButtonBackground;
                 Color   = Object->Theme->ButtonForeground;
+                Radius  = Object->Theme->ButtonRadius;
+            } else if ( Object->Type == UI_ScrollbarType ) {
+                PanelBg = Object->Theme->WindowForeground;
+                Color   = Object->Theme->WindowForeground;
                 Radius  = Object->Theme->ButtonRadius;
             }
 
@@ -532,7 +559,7 @@ UI_WindowBegin(ui_context* Context, rect_2d Rect, const char* Title, ui_lay_opt 
 
     ui_object* Object = &UI_NULL_OBJECT;
 
-    Object = UI_BuildObjectWithParent(Context, Title, Title, Rect, Options, &NewWin->Objects);
+    Object = UI_BuildObjectWithParent(Context, Title, Title, Rect, UI_DrawText | Options, &NewWin->Objects);
     Object->Type = UI_Window;
     // Make it the focus object if clicking on title bar or
     // on the resize box on the bottom-left part of the window
@@ -582,7 +609,7 @@ UI_WindowBegin(ui_context* Context, rect_2d Rect, const char* Title, ui_lay_opt 
     Layout->BoxSize = (vec2){Object->Rect.Size.x, Object->Size.y};
     Layout->ContentSize.v[Layout->AxisDirection] += Object->Size.v[Layout->AxisDirection];
 
-    Context->CurrentParent = &StackGetFront(&Context->Windows)->Objects;
+    Context->CurrentParent = Object;
 
     UI_SortWindowByDepth(&Context->Windows);
 }
@@ -618,10 +645,12 @@ UI_BuildObjectWithParent(ui_context* Context, u8* Key, u8* Text, rect_2d Rect, u
         Object = (ui_object*)StoredWindowEntry->Value;
     } else {
         Object = stack_push(Context->Allocator, ui_object, 1);
+        memset(Object, 0, sizeof(ui_object));
         HashTableAdd(&Context->TableObject, Key, Object);
         Object->TextCursorIdx = -1;
-        Object->DepthIdx = 0;
     }
+    // As these are dragable, we do not want the to have the fixed rect size
+    //
     if( Object->Type != UI_Window ) {
         Object->Rect   = Rect;
         Object->Option = Options;
@@ -645,49 +674,51 @@ UI_BuildObjectWithParent(ui_context* Context, u8* Key, u8* Text, rect_2d Rect, u
         Layout->ContentSize.v[Layout->AxisDirection] += Object->Rect.Size.v[Layout->AxisDirection];
     }
 
-    u32 Len = UCF_Strlen(Text);
-    if( Object->Text.data == NULL ) {
-        Object->Text = StringNew(Text, Len, Context->Allocator);
-    } else if( Object->Type != UI_InputText ) {
-        // If it is Input text we do not want to copy again the title text, as
-        // it already stores input information from the user
-        StringCpy(&Object->Text, Text);
-    }
-    if( Object->Type == UI_InputText && Object == Context->FocusObject ) {
-        Object->TextCursorIdx = Max(0, Object->TextCursorIdx);
-        if( Context->TextInput.len > Object->Text.len ) {
-            Object->Text = StringCreate(Context->TextInput.len, Context->Allocator);
+    if( Options & UI_DrawText ) {
+        u32 Len = UCF_Strlen(Text);
+        if( Object->Text.data == NULL ) {
+            Object->Text = StringNew(Text, Len, Context->Allocator);
+        } else if( Object->Type != UI_InputText ) {
+            // If it is Input text we do not want to copy again the title text, as
+            // it already stores input information from the user
+            StringCpy(&Object->Text, Text);
         }
-        if( Context->TextInput.idx > 0 && !(Context->LastInput & Backspace) ) {
-            //StringAppndStr(&Object->Text, &Context->TextInput);
-            //Object->Text.data[Object->Text.idx] = '\0';
-            StringInsertStr(&Object->Text, Object->TextCursorIdx, &Context->TextInput);
-            Object->TextCursorIdx += Context->TextInput.idx;
+        if( Object->Type == UI_InputText && Object == Context->FocusObject ) {
+            Object->TextCursorIdx = Max(0, Object->TextCursorIdx);
+            if( Context->TextInput.len > Object->Text.len ) {
+                Object->Text = StringCreate(Context->TextInput.len, Context->Allocator);
+            }
+            if( Context->TextInput.idx > 0 && !(Context->LastInput & Backspace) ) {
+                //StringAppndStr(&Object->Text, &Context->TextInput);
+                //Object->Text.data[Object->Text.idx] = '\0';
+                StringInsertStr(&Object->Text, Object->TextCursorIdx, &Context->TextInput);
+                Object->TextCursorIdx += Context->TextInput.idx;
+            }
+            if( Context->LastInput & Backspace ) {
+                //Object->Text.idx = Object->Text.idx > 0 ? Object->Text.idx - 1 : 0;
+                StringErase(&Object->Text, Object->TextCursorIdx);
+            }
         }
-        if( Context->LastInput & Backspace ) {
-            //Object->Text.idx = Object->Text.idx > 0 ? Object->Text.idx - 1 : 0;
-            StringErase(&Object->Text, Object->TextCursorIdx);
-        }
-    }
 
-    Object->Pos  = Object->Rect.Pos;
-    Object->Size = (vec2){
-        (f32)F_TextWidth( Object->Theme->Font, Object->Text.data, Object->Text.idx ),
-        (f32)F_TextHeight(Object->Theme->Font)
-    };
+        Object->Pos  = Object->Rect.Pos;
+        Object->Size = (vec2){
+            (f32)F_TextWidth( Object->Theme->Font, Object->Text.data, Object->Text.idx ),
+            (f32)F_TextHeight(Object->Theme->Font)
+        };
 
-    if( Options & UI_AlignVertical ) {
-        Object->Pos.y += Object->Rect.Size.y / 2 - Object->Size.y / 2;
-    }
-    if( Options & UI_AlignCenter ) {
-        Object->Pos.x = (Object->Pos.x + (Object->Rect.Size.x / 2.0)) - (Object->Size.x / 2.0);
-    }
-    if( Options & UI_AlignBottom ) {
-        Object->Pos = Rect.Pos;
-        Object->Pos.y += Object->Rect.Size.y - 2*Object->Size.y;
-    }
-    if( Options & UI_AlignRight ) {
-        Object->Pos.x += (Object->Rect.Size.x - Object->Size.x);
+        if( Options & UI_AlignVertical ) {
+            Object->Pos.y += Object->Rect.Size.y / 2 - Object->Size.y / 2;
+        }
+        if( Options & UI_AlignCenter ) {
+            Object->Pos.x = (Object->Pos.x + (Object->Rect.Size.x / 2.0)) - (Object->Size.x / 2.0);
+        }
+        if( Options & UI_AlignBottom ) {
+            Object->Pos = Rect.Pos;
+            Object->Pos.y += Object->Rect.Size.y - 2*Object->Size.y;
+        }
+        if( Options & UI_AlignRight ) {
+            Object->Pos.x += (Object->Rect.Size.x - Object->Size.x);
+        }
     }
 
     TreeInit(Object, &UI_NULL_OBJECT);
@@ -728,7 +759,7 @@ UI_Button(ui_context* Context, const char* Title) {
     Rect.Pos         = Vec2Add(Rect.Pos, Layout.ContentSize);
     Rect.Size.v[Layout.AxisDirection] = Layout.BoxSize.v[Layout.AxisDirection];
 
-    ui_lay_opt Options = UI_AlignVertical | UI_AlignCenter | UI_Interact | UI_Select | Layout.Option;
+    ui_lay_opt Options = UI_DrawText | UI_AlignVertical | UI_AlignCenter | UI_Interact | UI_Select | Layout.Option;
     ui_object* Button = UI_BuildObjectWithParent(Context, Title, Title, Rect, Options, Parent);
 
     ui_input Input = UI_ConsumeEvents(Context, Button);
@@ -749,7 +780,7 @@ UI_Label(ui_context* Context, const char* text) {
     Rect.Pos         = Vec2Add(Rect.Pos, Layout.ContentSize);
     Rect.Size.v[Layout.AxisDirection] = Layout.BoxSize.v[Layout.AxisDirection];
 
-    ui_lay_opt Options = UI_AlignVertical | UI_Interact | UI_Select | Layout.Option;
+    ui_lay_opt Options = UI_DrawText | UI_AlignVertical | UI_Interact | UI_Select | Layout.Option;
     ui_object* Label = UI_BuildObjectWithParent(Context, text, text, Rect, Options, Parent);
 
     ui_input Input = UI_ConsumeEvents(Context, Label);
@@ -770,7 +801,7 @@ UI_LabelWithKey(ui_context* Context, const char* Key, const char* text) {
     Rect.Pos         = Vec2Add(Rect.Pos, Layout.ContentSize);
     Rect.Size.v[Layout.AxisDirection] = Layout.BoxSize.v[Layout.AxisDirection];
 
-    ui_lay_opt Options = UI_AlignVertical | UI_Interact | UI_Select | Layout.Option;
+    ui_lay_opt Options = UI_DrawText | UI_AlignVertical | UI_Interact | UI_Select | Layout.Option;
     ui_object* Label = UI_BuildObjectWithParent(Context, Key, text, Rect, Options, Parent);
 
     ui_input Input = UI_ConsumeEvents(Context, Label);
@@ -791,7 +822,7 @@ UI_TextBox(ui_context* Context, const char* text) {
     Rect.Pos         = Vec2Add(Rect.Pos, Layout.ContentSize);
     Rect.Size.v[Layout.AxisDirection] = Layout.BoxSize.v[Layout.AxisDirection];
 
-    ui_lay_opt Options = UI_AlignVertical | UI_Interact | UI_Select | Layout.Option;
+    ui_lay_opt Options = UI_DrawText | UI_AlignVertical | UI_Interact | UI_Select | Layout.Option;
     ui_object* TextBox = UI_BuildObjectWithParent(Context, text, text, Rect, Options, Parent);
 
     ui_input Input = UI_ConsumeEvents(Context, TextBox);
@@ -821,7 +852,7 @@ UI_BeginTreeNode(ui_context* Context, const char* text) {
     Rect.Pos         = Vec2Add(Rect.Pos, Layout.ContentSize);
     Rect.Size.v[Layout.AxisDirection] = Layout.BoxSize.v[Layout.AxisDirection];
 
-    ui_lay_opt Options = UI_AlignVertical | UI_AlignCenter | UI_Interact | UI_Select | Layout.Option;
+    ui_lay_opt Options = UI_DrawText | UI_AlignVertical | UI_AlignCenter | UI_Interact | UI_Select | Layout.Option;
     ui_object* TreeNode = UI_BuildObjectWithParent(Context, text, text, Rect, Options, Parent);
 
     ui_input Input = UI_ConsumeEvents(Context, TreeNode);
@@ -838,11 +869,91 @@ UI_BeginTreeNode(ui_context* Context, const char* text) {
         }
     }
 
+    Context->CurrentParent = TreeNode;
+
     return TreeNode->LastInputSet;
 }
 
 internal ui_input
 UI_EndTreeNode(ui_context* Context) {
+    Context->CurrentParent = Context->CurrentParent->Parent;
+}
+
+internal void
+UI_BeginScrollbarView(ui_context* Context) {
+
+    char name[] = "ScrollBarView";
+
+    ui_layout *Layout = &StackGetFront(&Context->Layouts);
+
+    ui_object* Parent = Context->CurrentParent;
+
+    rect_2d Rect = Layout->Size;
+
+    vec2 ContentSize = Layout->ContentSize;
+
+    Rect.Pos.x = Rect.Pos.x + Rect.Size.x - 15;
+    Rect.Size.x = 15;
+    Rect.Pos.y += ContentSize.y;
+    Rect.Size.y = Rect.Size.y - ContentSize.y;
+
+    ui_object* ScrollObj = UI_BuildObjectWithParent(Context, name, NULL, Rect, UI_DrawText, Parent);
+
+    ScrollObj->Type = 0;
+
+    Layout->ContentSize = ContentSize;
+
+    Context->CurrentParent = ScrollObj;
+}
+
+internal void
+UI_EndScrollbarView(ui_context* Context) {
+    ui_object* Scrollbar   = Context->CurrentParent;
+
+    typedef struct {
+        u32 N;
+        u32 Current;
+        ui_object* Items[MAX_STACK_SIZE];
+    } ObjectStack;
+
+    ObjectStack Stack = {
+        .N = MAX_STACK_SIZE,
+        .Current = 0
+    };
+
+    StackPush(&Stack, Scrollbar);
+    u32 NObjs = 0;
+    for( ; Stack.Current > 0 ; ) {
+        ui_object* Object = StackGetFront(&Stack);
+        StackPop(&Stack);
+
+        for( ui_object* Child = Object->FirstSon; Child != &UI_NULL_OBJECT && Child != NULL; Child = Child->Right ) {
+            StackPush(&Stack, Child);
+        }
+        NObjs += 1;
+    }
+
+    rect_2d ScrollableSize = Scrollbar->Rect;
+    ScrollableSize.Size.y /= NObjs;
+
+    char buf[256] = {0};
+    snprintf(buf, 256, "Scrollbar_End_%*.s", Scrollbar->Text.len, Scrollbar->Text.data);
+
+    ui_object* Scrollable = UI_BuildObjectWithParent(Context, buf, buf, ScrollableSize, UI_Select | UI_Drag, Scrollbar);
+    Scrollable->Type = UI_ScrollbarType;
+    if( UI_ConsumeEvents(Context, Scrollable) & LeftClickPress ) {
+        Context->FocusObject = Scrollable;
+    }
+    if( UI_ConsumeEvents(Context, Scrollable) & LeftClickRelease && Context->FocusObject == Scrollable ) {
+        Context->FocusObject = &UI_NULL_OBJECT;
+    } else if( Context->FocusObject == Scrollable ) {
+        vec2 VerticalDelta = {0, Context->CursorDelta.y};
+        Scrollable->LastDelta = Vec2Add(Scrollable->LastDelta, VerticalDelta);
+        Scrollable->Rect.Pos.y += Scrollable->LastDelta.y;
+        Scrollable->Rect.Pos.y = Max(Scrollbar->Rect.Pos.y, Scrollable->Rect.Pos.y);
+        Scrollable->Rect.Pos.y = Min(Scrollable->Rect.Pos.y, Scrollbar->Rect.Pos.y + Scrollbar->Rect.Size.y);
+    }
+
     Context->CurrentParent = Context->CurrentParent->Parent;
 }
 
