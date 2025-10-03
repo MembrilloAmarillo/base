@@ -157,7 +157,7 @@ StringCpy(U8_String* Dst, char* Src) {
     u64 len = UCF_Strlen(Src);
     if(Dst->len >= len) {
         memcpy(Dst->data, Src, len);
-        Dst->idx += len;
+        Dst->idx = len;
     }
 }
 

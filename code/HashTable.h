@@ -1,9 +1,17 @@
 #ifndef _HASH_TABLE_H_
 #define _HASH_TABLE_H_
 
-typedef struct entry entry;
+#include "types.h"
+#include "allocator.h"
 
+#include "third-party/xxhash.h"
+
+typedef struct entry entry;
 struct entry {
+    entry* Root;
+    entry* Prev;
+    entry* Next;
+
     U64 HashId;
     char* Id;
     void* Value;
@@ -18,15 +26,15 @@ struct hash_table {
 
     U64 LoadFactorPercent;
 
-    void* BackingBuffer;
+    Stack_Allocator* Allocator;
 
     // TODO(s.p): Maybe do it dynamic
     //
-    entry Entries[256];
+    entry* Entries;
 
     bool CustomFunction;
 
-    U32 (*HashFunction)(const U8* key, U64 length);
+    U64 (*HashFunction)(const U8* key, U64 length, U64 seed);
 };
 
 /**
@@ -35,7 +43,7 @@ struct hash_table {
  * @param BackingBuffer pointer to a buffer used for backing memory
  * @param HashFunction  pointer to a custom hash function
  */
-void  HashTableInit( hash_table *Table, void* BackingBuffer, U32 (*HashFunction)(const U8* key, U64 length) );
+void  HashTableInit( hash_table *Table, Stack_Allocator* BackingBuffer, u64 BufSize, U64 (*HashFunction)(const U8* key, U64 length, U64 seed) );
 /**
  * @brief Adds a pointer to a value into the table
  * @param Table hash_table pointer to the struct
@@ -43,14 +51,14 @@ void  HashTableInit( hash_table *Table, void* BackingBuffer, U32 (*HashFunction)
  * @param Value void* pointer to the value
  * @return entry* to the entry added, if already existed, pointer to that entry
  */
-entry* HashTableAdd( hash_table *Table, char* Id, void* Value );
+entry* HashTableAdd( hash_table *Table, char* Id, void* Value, U64 parent );
 /**
  * @brief Sets a pointer to a value into an already existing entry
  * @param Table hash_table pointer to the struct
  * @param Id    char* with the Id
  * @param Value void* pointer to the value
  */
-void* HashTableSet( hash_table *Table, char* Id, void* Value );
+void* HashTableSet( hash_table *Table, char* Id, void* Value, U64 parent );
 
 /**
  * @brief Indicates if an entry already exists
@@ -58,7 +66,7 @@ void* HashTableSet( hash_table *Table, char* Id, void* Value );
  * @param Id        char* with the Id
  * @return bool true if exists, if not, false
  */
-bool HashTableContains( hash_table *Table, char* Id );
+bool HashTableContains( hash_table *Table, char* Id, U64 parent );
 
 /**
  * @brief Returns the value of an entry, if exists
@@ -66,7 +74,7 @@ bool HashTableContains( hash_table *Table, char* Id );
  * @param Id        char* with the Id
  * @return entry*    Non-null if exists, if not, NULL
  */
-entry* HashTableFindPointer( hash_table *Table, char* Id );
+entry* HashTableFindPointer( hash_table *Table, char* Id, U64 parent );
 
 // --------------------------------------------------------------- //
 

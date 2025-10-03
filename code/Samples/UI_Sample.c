@@ -18,17 +18,17 @@
 int
 main( int argc, char *argv[] )
 {
-    Arena* main_arena = ArenaAllocDefault();
+    vulkan_base VkBase = VulkanInit();
+
+    Arena* main_arena = VkBase.Arena;
     Temp   arena_temp = TempBegin( main_arena );
 
     Stack_Allocator Allocator;
     Stack_Allocator TempAllocator;
-    u8* Buffer     = PushArray(main_arena, u8, mebibyte(256));
+    u8* Buffer     = PushArray(main_arena, u8, gigabyte(1));
     u8* TempBuffer = PushArray(main_arena, u8, mebibyte(256));
-    stack_init(&Allocator, Buffer, mebibyte(256));
+    stack_init(&Allocator, Buffer, gigabyte(1));
     stack_init(&TempAllocator, TempBuffer, mebibyte(256));
-
-    vulkan_base VkBase = VulkanInit();
 
     ui_context* UI_Context = PushArray(main_arena, ui_context, 1);
 
@@ -95,13 +95,14 @@ main( int argc, char *argv[] )
         UI_PushNextFont(UI_Context, &TitleFont);
         UI_WindowBegin(UI_Context, (rect_2d){ {20, 20}, {400, 400} }, "Window Title", UI_AlignCenter | UI_Select | UI_Drag | UI_Resize);
          UI_PopTheme(UI_Context);
+         UI_PushNextLayoutPadding(UI_Context, (vec2){10, 0});
          if( UI_Button(UI_Context, "Hello Button 1")  & LeftClickPress  ) {
          }
          UI_Label(UI_Context, "This is my new label");
          if( UI_Button(UI_Context, "Hello Button 2") & LeftClickPress ) {
          }
          if( UI_BeginTreeNode(UI_Context, "Tree Node") & ActiveObject ) {
-            UI_Label(UI_Context, "My Tree Node label!!");
+            UI_Label(UI_Context, "My Tree Node label 2!!");
          }
          UI_EndTreeNode(UI_Context);
          if( UI_TextBox(UI_Context, "Input Text") & Return ) {
@@ -112,9 +113,9 @@ main( int argc, char *argv[] )
          sprintf(buf, "Refresh Rate (ms): %.2f", posix_dur);
          UI_LabelWithKey(UI_Context, "Refresh Rate", buf);
          UI_BeginScrollbarView(UI_Context);
-          for(int i = 0; i < 15; i += 1 ) {
+          for(int i = 0; i < 1000; i += 1 ) {
            char buff[256] = {0};
-           snprintf(buff, 256, "label_%d", i);
+           snprintf(buff, 256, "label_%d_from_scroll_%d", i, i*2);
            UI_Label(UI_Context, buff);
           }
          UI_EndScrollbarView(UI_Context);
@@ -122,9 +123,9 @@ main( int argc, char *argv[] )
 
         UI_SetNextTheme(UI_Context, DefaultTheme);
         UI_PushNextFont(UI_Context, &TitleFont);
-        UI_WindowBegin(UI_Context, (rect_2d){ {100, 100}, {400, 400} }, "Window Title 2", UI_Select | UI_Drag | UI_Resize);
+        UI_WindowBegin(UI_Context, (rect_2d){ {100, 100}, {400, 400} }, "Another Window", UI_Select | UI_Drag | UI_Resize);
          UI_PopTheme(UI_Context);
-         if( UI_Button(UI_Context, "Hello Button 3")  & LeftClickPress  ) {
+         if( UI_Button(UI_Context, "Hello Button 3")  & LeftClickPress ) {
          }
          UI_Label(UI_Context, "This is my new label 2");
          if( UI_Button(UI_Context, "Hello Button 4") & LeftClickPress ) {
@@ -141,6 +142,7 @@ main( int argc, char *argv[] )
          sprintf(buf2, "Refresh Rate (ms): %.2f", posix_dur);
          UI_LabelWithKey(UI_Context, "Refresh Rate 2", buf2);
         UI_WindowEnd(UI_Context);
+
 
         UI_End(UI_Context);
 

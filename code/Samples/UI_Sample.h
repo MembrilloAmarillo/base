@@ -70,3 +70,5 @@
 
 #define UI_RENDER_IMPL
 #include "../ui_render.h"
+
+#include "../third-party/xxhash.c"

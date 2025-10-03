@@ -7,6 +7,9 @@ CPPFLAGS:= -D_POSIX_PTHREAD_SEMANTICS
 INC     := -Icode
 LIBS    := -lzmq -lsocketcan -lm -lpthread -ldl -lrt -lX11 -lvulkan -lstdc++
 
+CFLAGS_OPT := -Wall -Wno-unused-function -std=gnu11 -D_GNU_SOURCE -O3
+CXXFLAGS_OPT := -std=c++17 -Wall -O3
+
 SRC_C := code/Samples/UI_Sample.c
 VMA   := code/third-party/vk_mem_alloc.c
 
@@ -14,6 +17,13 @@ all: UI_Sample shaders
 
 vma_impl.o: $(VMA)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+vma_impl_release.o: $(VMA)
+	$(CXX) $(CXXFLAGS_OPT) -c $< -o $@
+
+UI_Sample_Release: $(SRC_C) vma_impl_release.o
+	@echo "Compiling $@..."
+	$(CC) $(CFLAGS_OPT) $(CPPFLAGS) $(INC) -o $@ $^ $(LIBS)
 
 UI_Sample: $(SRC_C) vma_impl.o
 	@echo "Compiling $@..."
@@ -46,7 +56,7 @@ UI_Sample: $(SRC_C) vma_impl.o
 # -fstack-clash-protection  \
 # -fPIE
 
-shaders: 
+shaders:
 	glslc ./data/compute.comp         -o ./data/compute.comp.spv
 	glslc ./data/ColoredTriangle.vert -o ./data/ColoredTriangle.vert.spv
 	glslc ./data/ColoredTriangle.frag -o ./data/ColoredTriangle.frag.spv

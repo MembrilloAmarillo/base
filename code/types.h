@@ -101,6 +101,7 @@ union vec2 {
 #define Vec2Add(v1, v2) (vec2){v1.x + v2.x, v1.y + v2.y}
 #define Vec2Sub(v1, v2) (vec2){v1.x - v2.x, v1.y - v2.y}
 #define Vec2Mul(v1, v2) (vec2){v1.x * v2.x, v1.y * v2.y}
+#define Vec2ScalarMul(scalar, v1) (vec2){scalar * v1.x, scalar, v1.y}
 
 
 typedef struct DLL DLL;
@@ -161,7 +162,8 @@ if((Element)->Next)                                  \
 //
 #define TreeInit(Root, NULL_OBJ)                                \
 	(Root)->Parent = (Root);                                    \
-	(Root)->Left = (Root)->Right = (Root)->FirstSon = NULL_OBJ;
+	(Root)->Left = (Root)->Right = (Root)->FirstSon = NULL_OBJ; \
+	(Root)->Last = NULL_OBJ;
 
 #define TreeClear(Root, NULL_OBJ) \
 	TreeInit(Root, NULL_OBJ)
@@ -169,15 +171,16 @@ if((Element)->Next)                                  \
 #define TreePushSon(Node, Son, NULL_OBJ)             \
 	if( (Node)->FirstSon == NULL_OBJ ) {             \
 		(Node)->FirstSon = Son;                      \
+		(Son)->Left = (Son)->Right = NULL_OBJ;       \
+		(Son)->Parent = Node;                        \ 
+		(Node)->Last  = Son;                         \
 	} else {                                         \
-		typeof(Node) p;                              \
-		for( p = (Node)->FirstSon;                   \
-			 p != NULL_OBJ && p->Right != NULL_OBJ;  \
-			 p = p->Right                            \
-		);                                           \
+		typeof(Node) p = (Node)->Last;               \
 		p->Right = Son;                              \
 		(Son)->Left = p;                             \
 		(Son)->Parent = Node;                        \
+		(Son)->Right = (Son)->Last = NULL_OBJ;       \
+		(Node)->Last  = Son;                         \
 	}                                                \
 
 #define TreePop(Node, NULL_OBJ)                       \

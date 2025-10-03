@@ -14,6 +14,10 @@
  */
 
 /**
+ * 2025/10/02. Added linked listing for box creation, in debug mode, ~1000 objects in 3ms, in release ~1.7 ms.
+               Still have to be more efficient.
+ * 2025/10/01. Added xxhash for faster hashing, and parent-dependent hashing.
+               Also improved better scrolling and greater quantity of objects per frame.
  * 2025/09/24. Fixed drag, movement and resize. Also ordered windows by depth index.
  * 2025/09/23. Added Clipboard pasting.
  * 2025/09/23. Fixed Input declaration taking garbage values creating buggy responses
@@ -36,6 +40,8 @@
 #include "load_font.h"
 
 #include "ui_render.h"
+
+#include "third-party/xxhash.h"
 
 
 #define HexToRGBA(val) ((rgba){.r = (val & 0xff000000) >> 24, .g = (val & 0x00ff0000) >> 16, .b = (val & 0x0000ff00) >> 8, .a = val & 0x000000ff})
@@ -92,7 +98,8 @@ enum ui_lay_opt {
     UI_Select      = (1 << 8),
     UI_NoTitle     = (1 << 9),
     UI_AlignVertical = (1 << 10),
-    UI_DrawText    = (1 << 11)
+    UI_DrawText    = (1 << 11),
+    UI_SetPosPersistent = (1 << 12 )
 };
 
 typedef struct rect_2d rect_2d;
@@ -115,7 +122,8 @@ enum object_type {
     UI_Window,
     UI_ButtonType,
     UI_Panel,
-    UI_ScrollbarType
+    UI_ScrollbarType,
+    UI_ScrollbarTypeButton
 };
 
 typedef struct ui_color ui_color;
@@ -161,6 +169,7 @@ struct ui_layout {
     vec2       BoxSize;
     ui_lay_opt Option;
     u8         AxisDirection;
+    vec2       Padding;
 };
 
 typedef struct ui_object ui_object;
@@ -187,11 +196,13 @@ struct ui_object {
     ui_input LastInputSet;
 
     vec2 LastDelta;
+    float ScrollRatio;
 
     ui_object* Parent;
     ui_object* Left;
     ui_object* Right;
     ui_object* FirstSon;
+    ui_object* Last;
 };
 
 typedef struct ui_window ui_window;
@@ -259,7 +270,11 @@ ui_object UI_NULL_OBJECT = {
     .Parent   = &UI_NULL_OBJECT,
     .Left     = &UI_NULL_OBJECT,
     .Right    = &UI_NULL_OBJECT,
-    .FirstSon = &UI_NULL_OBJECT
+    .FirstSon = &UI_NULL_OBJECT,
+    .Last     = &UI_NULL_OBJECT,
+    .HashId   = 0,
+    .DepthIdx = 0,
+    .Rect     = {{0, 0}, {0, 0}}
 };
 
 internal void UI_Init(ui_context* Context, UI_Graphics* Gfx, Stack_Allocator* Allocator, Stack_Allocator* TempAllocator);
@@ -299,6 +314,7 @@ internal void UI_PushNextLayout(ui_context* Context, rect_2d Rect, ui_lay_opt Op
 internal void UI_PushNextLayoutRow(ui_context* Context, int N_Rows, const int* Rows );
 internal void UI_PushNextLayoutColumn(ui_context* Context, int N_Columns, const int* Columns );
 internal void UI_PushNextLayoutBoxSize(ui_context* Context, vec2 BoxSize);
+internal void UI_PushNextLayoutPadding(ui_context* Context, vec2 Padding);
 
 internal U8_String*  UI_GetTextFromBox(ui_context* Context, const char* Key);
 
@@ -318,6 +334,11 @@ internal bool IsCursorOnRect(ui_context* Context, rect_2d Rect);
 
 #ifdef SP_UI_IMPL
 
+internal u64
+UI_CustomXXHash( const u8* buffer, u64 len, u64 seed ) {
+    return XXH3_64bits_withSeed(buffer, len, seed);
+}
+
 internal void
 UI_Init(ui_context* Context, UI_Graphics* Gfx, Stack_Allocator* Allocator, Stack_Allocator* TempAllocator) {
     Context->Allocator = Allocator;
@@ -332,7 +353,7 @@ UI_Init(ui_context* Context, UI_Graphics* Gfx, Stack_Allocator* Allocator, Stack
     Context->FocusObject = &UI_NULL_OBJECT;
     Context->CurrentParent = &UI_NULL_OBJECT;
 
-    HashTableInit(&Context->TableObject, stack_push(Allocator, entry, 256), NULL);
+    HashTableInit(&Context->TableObject, Allocator, 4096, UI_CustomXXHash);
 }
 
 internal void
@@ -357,28 +378,31 @@ UI_End(ui_context* UI_Context) {
 
     Stack_Allocator* TempAllocator = UI_Context->TempAllocator;
     Stack_Allocator* Allocator     = UI_Context->Allocator;
+    // Stack to iterate over the tree object
+    //
+    typedef struct {
+        u32 N;
+        u32 Current;
+        ui_object** Items;
+    } ObjectStack;
+
+    ObjectStack Stack = {
+        .N = 24 << 10,
+        .Current = 0
+    };
+    Stack.Items = stack_push(TempAllocator, ui_object*, 24 << 10);
 
     void* V_Buffer = stack_push(TempAllocator, v_2d, kibibyte(256));
     gfx->ui_rects  = VectorNew(V_Buffer, 0, kibibyte(256), v_2d);
     void* I_Buffer = stack_push(TempAllocator, u32, kibibyte(256));
     gfx->ui_indxs  = VectorNew(I_Buffer, 0, kibibyte(256), u32);
 
-    // Stack to iterate over the tree object
-    //
-    typedef struct {
-        u32 N;
-        u32 Current;
-        ui_object* Items[MAX_STACK_SIZE];
-    } ObjectStack;
 
     i32 N_Windows = UI_Context->Windows.Current;
     for( i32 i = 0 ; i < N_Windows; i += 1) {
         ui_window* win = StackGetFront(&UI_Context->Windows);
         StackPop(&UI_Context->Windows);
-        ObjectStack Stack = {
-            .N = MAX_STACK_SIZE,
-            .Current = 0
-        };
+        Stack.Current = 0;
 
         // For each window, iterate over the tree of objects generated
         //
@@ -405,8 +429,12 @@ UI_End(ui_context* UI_Context) {
                 Color   = Object->Theme->ButtonForeground;
                 Radius  = Object->Theme->ButtonRadius;
             } else if ( Object->Type == UI_ScrollbarType ) {
-                PanelBg = Object->Theme->WindowForeground;
-                Color   = Object->Theme->WindowForeground;
+                PanelBg = Object->Theme->WindowBackground;
+                Color   = Object->Theme->WindowBackground;
+                Radius  = Object->Theme->ButtonRadius;
+            } else if ( Object->Type == UI_ScrollbarTypeButton ) {
+                PanelBg = Object->Theme->ButtonBackground;
+                Color   = Object->Theme->ButtonBackground;
                 Radius  = Object->Theme->ButtonRadius;
             }
 
@@ -414,6 +442,20 @@ UI_End(ui_context* UI_Context) {
                 PanelBg = Object->Theme->ButtonHoverBackground;
             } else if( Object->LastInputSet & LeftClickPress ) {
                 PanelBg = Object->Theme->ButtonPressBackground;
+            }
+
+            if (Object->Parent->Type == UI_ScrollbarType && Object->Type != UI_ScrollbarTypeButton) {
+                ui_object* Thumb = Object->Parent->Last;
+
+                if( Object->Rect.Pos.y < Object->Parent->Rect.Pos.y ) {
+                    continue;
+                }
+                if( Object->Rect.Pos.y > Object->Parent->Rect.Pos.y + Object->Parent->Rect.Size.y ) {
+                    continue;
+                }
+                //Object->Rect.Pos = Vec2Sub(Object->Rect.Pos, Vec2ScalarMul(Thumb->ScrollRatio, Thumb->LastDelta));
+                //Object->Pos = Vec2Sub(Object->Pos, Vec2ScalarMul(Thumb->ScrollRatio, Thumb->LastDelta));
+
             }
 
             // This do not need to render a rect
@@ -608,7 +650,7 @@ UI_WindowBegin(ui_context* Context, rect_2d Rect, const char* Title, ui_lay_opt 
     ui_layout* Layout = &StackGetFront(&Context->Layouts);
     Layout->BoxSize = (vec2){Object->Rect.Size.x, Object->Size.y};
     Layout->ContentSize.v[Layout->AxisDirection] += Object->Size.v[Layout->AxisDirection];
-
+    Layout->Padding = (vec2){5, 0};
     Context->CurrentParent = Object;
 
     UI_SortWindowByDepth(&Context->Windows);
@@ -626,8 +668,9 @@ UI_WindowEnd(ui_context* Context) {
 
 internal U8_String*
 UI_GetTextFromBox(ui_context* Context, const char* Key) {
-    if( HashTableContains(&Context->TableObject, Key) ) {
-        entry* StoredWindowEntry = HashTableFindPointer(&Context->TableObject, Key);
+    ui_object* parent = Context->CurrentParent;
+    if( HashTableContains(&Context->TableObject, Key, parent->HashId) ) {
+        entry* StoredWindowEntry = HashTableFindPointer(&Context->TableObject, Key, parent->HashId);
         ui_object* Object = (ui_object*)StoredWindowEntry->Value;
         return &Object->Text;
     }
@@ -640,18 +683,32 @@ UI_BuildObjectWithParent(ui_context* Context, u8* Key, u8* Text, rect_2d Rect, u
     ui_object* Object = &UI_NULL_OBJECT;
     // @TODO For now it does not compute the hash with the parent
     //
-    if( HashTableContains(&Context->TableObject, Key) ) {
-        entry* StoredWindowEntry = HashTableFindPointer(&Context->TableObject, Key);
-        Object = (ui_object*)StoredWindowEntry->Value;
+    ui_object* IdParent = Context->CurrentParent;
+    if( HashTableContains(&Context->TableObject, Key, Parent->HashId) ) {
+        entry* StoredWindowEntry = HashTableFindPointer(&Context->TableObject, Key, Parent->HashId);
+        for( entry* it = StoredWindowEntry->Next; it != StoredWindowEntry; it = it->Next ) {
+            ui_object* Value = (ui_object*)it->Value;
+            if( Value == NULL ) {
+            } else {
+                if( Value->HashId == UI_CustomXXHash(Key, UCF_Strlen(Key), Parent->HashId) ) {
+                    Object = Value;
+                    break;
+                }
+            }
+        }
+
     } else {
         Object = stack_push(Context->Allocator, ui_object, 1);
         memset(Object, 0, sizeof(ui_object));
-        HashTableAdd(&Context->TableObject, Key, Object);
+        entry* val = HashTableAdd(&Context->TableObject, Key, Object, Parent->HashId);
+        Object->HashId = val->HashId;
         Object->TextCursorIdx = -1;
+        Object->Rect   = Rect;
+        Object->Option = Options;
     }
     // As these are dragable, we do not want the to have the fixed rect size
     //
-    if( Object->Type != UI_Window ) {
+    if( Object->Type != UI_Window && !(Options & UI_SetPosPersistent) ) {
         Object->Rect   = Rect;
         Object->Option = Options;
     }
@@ -670,6 +727,10 @@ UI_BuildObjectWithParent(ui_context* Context, u8* Key, u8* Text, rect_2d Rect, u
         if( Layout->N_Columns > 0 ) {
             Object->Rect.Pos.x += Layout->RowSizes[Layout->CurrentRow];
         }
+
+        Object->Rect.Pos = Vec2Add(Object->Rect.Pos, Layout->Padding);
+        vec2 RightPadding = Vec2ScalarMul(2, Layout->Padding);
+        Object->Rect.Size = Vec2Sub(Object->Rect.Size, RightPadding);
 
         Layout->ContentSize.v[Layout->AxisDirection] += Object->Rect.Size.v[Layout->AxisDirection];
     }
@@ -892,6 +953,9 @@ UI_BeginScrollbarView(ui_context* Context) {
 
     vec2 ContentSize = Layout->ContentSize;
 
+    vec2 Padding = Layout->Padding;
+    Layout->Padding = (vec2){0, 0};
+
     Rect.Pos.x = Rect.Pos.x + Rect.Size.x - 15;
     Rect.Size.x = 15;
     Rect.Pos.y += ContentSize.y;
@@ -899,61 +963,79 @@ UI_BeginScrollbarView(ui_context* Context) {
 
     ui_object* ScrollObj = UI_BuildObjectWithParent(Context, name, NULL, Rect, UI_DrawText, Parent);
 
-    ScrollObj->Type = 0;
+    ScrollObj->Type = UI_ScrollbarType;
 
     Layout->ContentSize = ContentSize;
 
     Context->CurrentParent = ScrollObj;
+
+    Layout->Padding = Padding;
 }
 
 internal void
 UI_EndScrollbarView(ui_context* Context) {
     ui_object* Scrollbar   = Context->CurrentParent;
 
-    typedef struct {
-        u32 N;
-        u32 Current;
-        ui_object* Items[MAX_STACK_SIZE];
-    } ObjectStack;
-
-    ObjectStack Stack = {
-        .N = MAX_STACK_SIZE,
-        .Current = 0
-    };
-
-    StackPush(&Stack, Scrollbar);
-    u32 NObjs = 0;
-    for( ; Stack.Current > 0 ; ) {
-        ui_object* Object = StackGetFront(&Stack);
-        StackPop(&Stack);
-
-        for( ui_object* Child = Object->FirstSon; Child != &UI_NULL_OBJECT && Child != NULL; Child = Child->Right ) {
-            StackPush(&Stack, Child);
-        }
-        NObjs += 1;
+    float ContentHeight = 0;
+    for (ui_object* Child = Scrollbar->FirstSon; Child != &UI_NULL_OBJECT; Child = Child->Right) {
+        ContentHeight += Child->Rect.Size.y;
     }
 
+    float ViewportHeight = Scrollbar->Rect.Size.y;
+
     rect_2d ScrollableSize = Scrollbar->Rect;
-    ScrollableSize.Size.y /= NObjs;
 
-    char buf[256] = {0};
-    snprintf(buf, 256, "Scrollbar_End_%*.s", Scrollbar->Text.len, Scrollbar->Text.data);
+    ScrollableSize.Size.y = (ViewportHeight / ContentHeight) * ViewportHeight;
+    ScrollableSize.Size.y = Max(ScrollableSize.Size.y, 20.0f);
 
-    ui_object* Scrollable = UI_BuildObjectWithParent(Context, buf, buf, ScrollableSize, UI_Select | UI_Drag, Scrollbar);
-    Scrollable->Type = UI_ScrollbarType;
+    float ThumbMovementRange = ViewportHeight - ScrollableSize.Size.y;
+    float ScrollRange        = ContentHeight - ViewportHeight;
+    float ScrollT = ThumbMovementRange / ScrollRange; // 0..1
+
+    char buf[] = "EndOfScroll";
+
+    assert(!StackIsEmpty(&Context->Layouts));
+
+    ui_layout* Layout = &StackGetFront(&Context->Layouts);
+
+    vec2 Padding = Layout->Padding;
+    Layout->Padding = (vec2){0, 0};
+
+    ui_object* Scrollable = UI_BuildObjectWithParent(Context, buf, NULL, ScrollableSize, UI_Select | UI_Drag, Scrollbar);
+    Scrollable->Type = UI_ScrollbarTypeButton;
+    Layout->Padding = Padding;
+
+    vec2 VerticalDelta = Vec2Zero();
+    if( Context->FocusObject == Scrollable ) {
+        VerticalDelta = (vec2){0, Context->CursorDelta.y};
+    }
+
+    Scrollable->LastDelta = Vec2Add(Scrollable->LastDelta, VerticalDelta);
+    Scrollable->ScrollRatio = ScrollT;
+    Scrollable->Rect.Pos.y += Scrollable->LastDelta.y * ScrollT;
+    Scrollable->Rect.Pos.y = Max(Scrollbar->Rect.Pos.y, Scrollable->Rect.Pos.y);
+    Scrollable->Rect.Pos.y = Min(Scrollable->Rect.Pos.y, Scrollbar->Rect.Pos.y + Scrollbar->Rect.Size.y);
+
+    if(Scrollable->Rect.Pos.y == Scrollbar->Rect.Pos.y) {
+        Scrollable->LastDelta = Vec2Zero();
+    } else if( Scrollable->Rect.Pos.y == Scrollbar->Rect.Pos.y + Scrollbar->Rect.Size.y ) {
+        Scrollable->LastDelta = Vec2Sub(Scrollable->LastDelta, VerticalDelta);
+    }
+
+    for (ui_object* Child = Scrollbar->FirstSon; Child != &UI_NULL_OBJECT; Child = Child->Right) {
+        Child->Rect.Pos.y -= Scrollable->ScrollRatio * Scrollable->LastDelta.y;
+        Child->Pos.y      -= Scrollable->ScrollRatio * Scrollable->LastDelta.y;
+    }
+
     if( UI_ConsumeEvents(Context, Scrollable) & LeftClickPress ) {
         Context->FocusObject = Scrollable;
     }
+
     if( UI_ConsumeEvents(Context, Scrollable) & LeftClickRelease && Context->FocusObject == Scrollable ) {
         Context->FocusObject = &UI_NULL_OBJECT;
-    } else if( Context->FocusObject == Scrollable ) {
-        vec2 VerticalDelta = {0, Context->CursorDelta.y};
-        Scrollable->LastDelta = Vec2Add(Scrollable->LastDelta, VerticalDelta);
-        Scrollable->Rect.Pos.y += Scrollable->LastDelta.y;
-        Scrollable->Rect.Pos.y = Max(Scrollbar->Rect.Pos.y, Scrollable->Rect.Pos.y);
-        Scrollable->Rect.Pos.y = Min(Scrollable->Rect.Pos.y, Scrollbar->Rect.Pos.y + Scrollbar->Rect.Size.y);
+    } else if( Context->FocusObject == Scrollable && Context->CursorAction & LeftClickRelease ) {
+        Context->FocusObject = &UI_NULL_OBJECT;
     }
-
     Context->CurrentParent = Context->CurrentParent->Parent;
 }
 
@@ -1013,6 +1095,13 @@ internal void UI_PushNextLayoutColumn(ui_context* Context, int N_Columns, const 
     Layout->ColumnSizes = Columns;
 }
 
+internal void
+UI_PushNextLayoutPadding(ui_context* Context, vec2 Padding) {
+    assert(!StackIsEmpty(&Context->Layouts));
+
+    ui_layout* Layout = &StackGetFront(&Context->Layouts);
+    Layout->Padding    = Padding;
+}
 
 internal void
 UI_SetNextTheme(ui_context* Context, object_theme Theme) {
@@ -1148,6 +1237,7 @@ UI_LastEvent(ui_context* Context) {
                 Context->CursorClick  = (vec2){ev.xbutton.x, ev.xbutton.y};
                 Context->CursorAction |= LeftClickRelease;
                 Context->LastInput = LeftClickPress;
+                //Context->FocusObject = &UI_NULL_OBJECT;
                 return LeftClickRelease;
                 break;
             }
