@@ -190,8 +190,8 @@ internal f32 F_GetPosYInBitmapFromIdx(FontCache* fc, ssize_t idx) {
     return fc->glyph[idx].y;
 }
 
-internal
-int F_TextWidth(FontCache* fc, const char* str, int str_len) {
+internal int
+F_TextWidth(FontCache* fc, const char* str, int str_len) {
     if (!fc || !str) return 0;
     if (str_len < 0) str_len = (int)strlen(str);
 
@@ -206,6 +206,10 @@ int F_TextWidth(FontCache* fc, const char* str, int str_len) {
         f_Glyph glyph = fc->glyph[g_idx];
         // Use advance (xadvance) to advance pen, not bitmap width
         width += (int)glyph.advance;
+        if( i < str_len - 1 ) {
+           u32 kern = F_GetKerningFromCodepoint( fc, (int)g_idx, (int) str[i+1] - 32 );
+            width += kern;
+        }
     }
     return width;
 }

@@ -32,8 +32,9 @@ typedef unsigned char bool;
 #endif
 #endif
 
-#define internal static
-#define global   static
+#define internal      static
+#define global        static
+#define local_persist static
 
 #define ArrayCount(Array) (sizeof(Array) / sizeof((Array)[0]))
 
@@ -172,7 +173,7 @@ if((Element)->Next)                                  \
 	if( (Node)->FirstSon == NULL_OBJ ) {             \
 		(Node)->FirstSon = Son;                      \
 		(Son)->Left = (Son)->Right = NULL_OBJ;       \
-		(Son)->Parent = Node;                        \ 
+		(Son)->Parent = Node;                        \
 		(Node)->Last  = Son;                         \
 	} else {                                         \
 		typeof(Node) p = (Node)->Last;               \

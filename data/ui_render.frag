@@ -7,6 +7,8 @@ layout( location = 3 ) in vec2 in_dst_center;
 layout( location = 4 ) in vec2 in_dst_pos;
 layout( location = 5 ) in vec2 in_corner_coord;
 layout( location = 6 ) in float in_corner_radius;
+layout( location = 7 ) in float in_border_thickess;
+
 
 layout( location = 0 ) out vec4 out_color;
 
@@ -22,6 +24,11 @@ float RoundedRectSDF(
  return min(max(d2.x, d2.y), 0.0) + length(max(d2, 0.0)) - r;
 }
 
+float RectSDF(vec2 sample_pos, vec2 rect_half_size, float r)
+{
+ return normalize(distance(sample_pos, rect_half_size) - r);
+}
+
 void main()
 {
 	if( uv == vec2(-2.0, -2.0) ) {
@@ -31,8 +38,36 @@ void main()
                               in_corner_radius);
 		// map distance => a blend factor
 		float sdf_factor = 1.f - smoothstep(0, 2, dist);
-		out_color = color * sdf_factor;
-		
+		float border_factor = 1.f;
+
+	  if( in_border_thickess != 0)
+	  {
+	   vec2 interior_half_size =
+	    in_dst_half_size - vec2(in_border_thickess, in_border_thickess);
+
+	   float interior_radius_reduce_f =
+	    min(interior_half_size.x/in_dst_half_size.x,
+	        interior_half_size.y/in_dst_half_size.y);
+
+	   float interior_corner_radius =
+	   (in_corner_radius *
+	    interior_radius_reduce_f *
+	    interior_radius_reduce_f);
+
+	   // calculate sample distance from "interior"
+	   float inside_d = RoundedRectSDF(in_dst_pos,
+	                                   in_dst_center,
+	                                   interior_half_size,
+	                                   interior_corner_radius);
+
+	   // map distance => factor
+	   float inside_f = smoothstep(0, 2, inside_d);
+	   border_factor = inside_f;
+	  }
+
+	  out_color = color;
+	  out_color *= sdf_factor * border_factor;
+
 	} else {
 		float text = texture(display_texture, uv).r;
 		out_color = color * text;

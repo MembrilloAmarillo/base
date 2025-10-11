@@ -7,6 +7,7 @@ layout( location = 2 ) in vec2 in_uv;
 layout( location = 3 ) in vec2 in_uv_size;
 layout( location = 4 ) in vec4 in_color;
 layout( location = 5 ) in float in_corner_radius;
+layout( location = 6 ) in float in_border_width;
 
 // Outputs
 layout( location = 0 ) out vec4 out_color;
@@ -16,6 +17,7 @@ layout( location = 3 ) out vec2 out_dst_center;
 layout( location = 4 ) out vec2 out_dst_pos;
 layout( location = 5 ) out vec2 out_corner_coord;
 layout( location = 6 ) out float out_corner_radius;
+layout( location = 7 ) out float out_border_width;
 
 
 layout( binding = 1 ) uniform UniformBuffer {
@@ -42,8 +44,9 @@ void main() {
       { 1, 1},
       { 1, 0},
      };
-    
+
     out_corner_coord = pixel_vert[gl_VertexIndex];
+    out_border_width = in_border_width;
 
      vec2 top_left  = in_pos;
      vec2 bot_right = in_pos + in_size;

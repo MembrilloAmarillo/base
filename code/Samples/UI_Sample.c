@@ -19,57 +19,100 @@ int
 main( int argc, char *argv[] )
 {
     vulkan_base VkBase = VulkanInit();
-
-    Arena* main_arena = VkBase.Arena;
-    Temp   arena_temp = TempBegin( main_arena );
-
+    
+    Arena *main_arena = VkBase.Arena;
+    Temp arena_temp = TempBegin(main_arena);
+    
     Stack_Allocator Allocator;
     Stack_Allocator TempAllocator;
-    u8* Buffer     = PushArray(main_arena, u8, gigabyte(1));
-    u8* TempBuffer = PushArray(main_arena, u8, mebibyte(256));
+    u8 *Buffer = PushArray(main_arena, u8, gigabyte(1));
+    u8 *TempBuffer = PushArray(main_arena, u8, mebibyte(256));
     stack_init(&Allocator, Buffer, gigabyte(1));
     stack_init(&TempAllocator, TempBuffer, mebibyte(256));
-
-    ui_context* UI_Context = PushArray(main_arena, ui_context, 1);
+    
+    ui_context *UI_Context = PushArray(main_arena, ui_context, 1);
 
     // @todo: Change how to add fonts this is highly inconvenient
     //
-    u8* BitmapArray = stack_push(&Allocator, u8, 2100 * 1200);
-    FontCache DefaultFont = F_BuildFont(22, 2100, 60, BitmapArray, "./data/RobotoMono.ttf");
-    FontCache TitleFont   = F_BuildFont(26, 2100, 60, BitmapArray + (2100*60), "./data/TinosNerdFontPropo.ttf");
+    u8 *BitmapArray = stack_push(&Allocator, u8, 2100 * 1200);
+    FontCache DefaultFont =
+        F_BuildFont(22, 2100, 60, BitmapArray, "./data/RobotoMono.ttf");
+    FontCache TitleFont = F_BuildFont(30, 2100, 60, BitmapArray + (2100 * 60),
+                                      "./data/LiterationMono.ttf");
+    FontCache TitleFont2 = F_BuildFont(30, 2100, 60, BitmapArray + (2100 * 120),
+                                       "./data/TinosNerdFontPropo.ttf");
+    FontCache BoldFont = F_BuildFont(22, 2100, 60, BitmapArray + (2100 * 180),
+                                     "./data/LiterationMonoBold.ttf");
+    FontCache ItalicFont = F_BuildFont(22, 2100, 60, BitmapArray + (2100 * 240),
+                                       "./data/LiterationMonoItalic.ttf");
+    DefaultFont.BitmapOffset = Vec2Zero();
     TitleFont.BitmapOffset = (vec2){0, 60};
+    TitleFont2.BitmapOffset = (vec2){0, 120};
+    BoldFont.BitmapOffset = (vec2){0, 180};
+    ItalicFont.BitmapOffset = (vec2){0, 240};
 
     UI_Graphics gfx = UI_GraphicsInit(&VkBase, BitmapArray, 2100, 1200);
 
     UI_Init(UI_Context, &gfx, &Allocator, &TempAllocator);
 
-    rgba bd  = RgbaNew(72,  127, 134, 255);
-    rgba bg  = RgbaNew(240, 236, 218, 255);
-    rgba fg  = RgbaNew(21,   39,  64, 255);
-    rgba bg2 = RgbaNew(19,  76, 101, 255);
+    rgba bd = HexToRGBA(0x2D2D2DFF);
+    rgba ib = HexToRGBA(0x2F2F2FFF);
+    rgba fd = RgbaNew(240, 236, 218, 255);
+    rgba fg = RgbaNew(21, 39, 64, 255);
+    rgba bg2 = HexToRGBA(0xA13535FF);
+    rgba bc = HexToRGBA(0x3B764CFF);
 
-    object_theme DefaultTheme = {
-        .Border              = RgbaToNorm(bd),
-        .PanelBackground     = RgbaToNorm(bg),
-        .WindowBackground    = RgbaToNorm(bg),
-        .WindowForeground    = RgbaToNorm(fg),
-        .LabelForeground     = RgbaToNorm(fg),
-        .ButtonForeground    = RgbaToNorm(bg),
-        .ButtonBackground    = RgbaToNorm(bg2),
-        .ScrollForeground    = RgbaToNorm(bg),
-        .ScrollBackground    = RgbaToNorm(bg2),
-        .ButtonHoverBackground = RgbaToNorm(bd),
-        .ButtonPressBackground = RgbaToNorm(bg),
-        .TextInputForeground = RgbaToNorm(fg),
-        .TextInputBackground = RgbaToNorm(bg),
-        .TextInputCursor     = RgbaToNorm(fg),
-        .WindowRadius        = 10,
-        .ButtonRadius        = 6,
-        .InputTextRadius     = 0,
-        .Font = &DefaultFont
-    };
+    object_theme DefaultTheme = {.Border = RgbaToNorm(bc),
+                                 .Background = RgbaToNorm(bd),
+                                 .Foreground = RgbaToNorm(fd),
+                                 .Radius = 6,
+                                 .BorderThickness = 2,
+                                 .Font = &DefaultFont};
 
-    UI_Context->DefaultTheme = DefaultTheme;
+    object_theme TitleTheme = DefaultTheme;
+    TitleTheme.Font = &TitleFont;
+
+    object_theme ButtonTheme = {.Border = RgbaToNorm(bc),
+                                .Background = RgbaToNorm(bd),
+                                .Foreground = RgbaToNorm(fd),
+                                .Radius = 6,
+                                .BorderThickness = 0,
+                                .Font = &BoldFont};
+
+    object_theme PanelTheme = {.Border = RgbaToNorm(bc),
+                               .Background = RgbaToNorm(bg2),
+                               .Foreground = RgbaToNorm(fd),
+                               .Radius = 6,
+                               .BorderThickness = 0,
+                               .Font = &BoldFont};
+
+    object_theme InputTheme = {.Border = RgbaToNorm(bc),
+                               .Background = RgbaToNorm(ib),
+                               .Foreground = RgbaToNorm(fd),
+                               .Radius = 2,
+                               .BorderThickness = 2,
+                               .Font = &DefaultFont};
+
+    object_theme LabelTheme = {.Border = RgbaToNorm(bc),
+                               .Background = RgbaToNorm(bd),
+                               .Foreground = RgbaToNorm(fd),
+                               .Radius = 0,
+                               .BorderThickness = 0,
+                               .Font = &ItalicFont};
+
+    object_theme ScrollbarTheme = {.Border = RgbaToNorm(bc),
+                                   .Background = RgbaToNorm(fd),
+                                   .Foreground = RgbaToNorm(bc),
+                                   .Radius = 6,
+                                   .BorderThickness = 2,
+                                   .Font = NULL};
+
+    UI_Context->DefaultTheme = (ui_theme){.Window = TitleTheme,
+                                          .Button = ButtonTheme,
+                                          .Panel = PanelTheme,
+                                          .Input = InputTheme,
+                                          .Label = LabelTheme,
+                                          .Scrollbar = ScrollbarTheme};
 
     XEvent ev;
     bool running = true;
@@ -91,58 +134,33 @@ main( int argc, char *argv[] )
             break;
         }
 
-        UI_SetNextTheme(UI_Context, DefaultTheme);
-        UI_PushNextFont(UI_Context, &TitleFont);
-        UI_WindowBegin(UI_Context, (rect_2d){ {20, 20}, {400, 400} }, "Window Title", UI_AlignCenter | UI_Select | UI_Drag | UI_Resize);
-         UI_PopTheme(UI_Context);
-         UI_PushNextLayoutPadding(UI_Context, (vec2){10, 0});
-         if( UI_Button(UI_Context, "Hello Button 1")  & LeftClickPress  ) {
-         }
-         UI_Label(UI_Context, "This is my new label");
-         if( UI_Button(UI_Context, "Hello Button 2") & LeftClickPress ) {
-         }
-         if( UI_BeginTreeNode(UI_Context, "Tree Node") & ActiveObject ) {
-            UI_Label(UI_Context, "My Tree Node label 2!!");
-         }
-         UI_EndTreeNode(UI_Context);
-         if( UI_TextBox(UI_Context, "Input Text") & Return ) {
-            fprintf(stdout, "Text entered!\n");
-         }
-         UI_TextBox(UI_Context, "Second Input Text");
-         u8 buf[126] = {0};
-         sprintf(buf, "Refresh Rate (ms): %.2f", posix_dur);
-         UI_LabelWithKey(UI_Context, "Refresh Rate", buf);
-         UI_BeginScrollbarView(UI_Context);
-          for(int i = 0; i < 1000; i += 1 ) {
-           char buff[256] = {0};
-           snprintf(buff, 256, "label_%d_from_scroll_%d", i, i*2);
-           UI_Label(UI_Context, buff);
-          }
-         UI_EndScrollbarView(UI_Context);
-        UI_WindowEnd(UI_Context);
+        UI_WindowBegin(
+            UI_Context, 
+            (rect_2d){{5, 5}, {window_width - 10, window_height - 10}}, 
+            "Hello Title", 
+            UI_AlignCenter | UI_SetPosPersistent | UI_Drag | UI_Select | UI_Resize
+        ); 
+        {
+            if( UI_BeginTreeNode(UI_Context, "Tree") & ActiveObject ) {
+                UI_Label(UI_Context, "This is a label");
+                if( UI_Button(UI_Context, "This is a button") & LeftClickPress ) {
 
-        UI_SetNextTheme(UI_Context, DefaultTheme);
-        UI_PushNextFont(UI_Context, &TitleFont);
-        UI_WindowBegin(UI_Context, (rect_2d){ {100, 100}, {400, 400} }, "Another Window", UI_Select | UI_Drag | UI_Resize);
-         UI_PopTheme(UI_Context);
-         if( UI_Button(UI_Context, "Hello Button 3")  & LeftClickPress ) {
-         }
-         UI_Label(UI_Context, "This is my new label 2");
-         if( UI_Button(UI_Context, "Hello Button 4") & LeftClickPress ) {
-         }
-         if( UI_BeginTreeNode(UI_Context, "Tree Node 2") & ActiveObject ) {
-            UI_Label(UI_Context, "My Tree Node label!!");
-         }
-         UI_EndTreeNode(UI_Context);
-         if( UI_TextBox(UI_Context, "Input Text 2") & Return ) {
-            fprintf(stdout, "Text entered!\n");
-         }
-         UI_TextBox(UI_Context, "Second Input Text 3");
-         u8 buf2[126] = {0};
-         sprintf(buf2, "Refresh Rate (ms): %.2f", posix_dur);
-         UI_LabelWithKey(UI_Context, "Refresh Rate 2", buf2);
+                }
+                UI_TextBox(UI_Context, "This is a textbox");
+                UI_Label(UI_Context, "Here beloew we set a scrollbar view");
+                UI_BeginScrollbarView(UI_Context);
+                {
+                    for( i32 i = 0; i < 1000; i += 1 ) {
+                        char buf[64] = {0};
+                        snprintf(buf, 64, "Label number %d", i);
+                        UI_Label(UI_Context, buf);
+                    }
+                }
+                UI_EndScrollbarView(UI_Context);
+            }
+            UI_EndTreeNode(UI_Context);
+        }
         UI_WindowEnd(UI_Context);
-
 
         UI_End(UI_Context);
 

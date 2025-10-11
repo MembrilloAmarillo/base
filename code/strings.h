@@ -25,11 +25,18 @@ void StringCpy(U8_String* Dst, char* Src);
 void StringCpyStr(U8_String* Dst, U8_String* Src);
 
 void StringErase(U8_String* Str, u32 Idx);
+void StringEraseUntil(U8_String* Str, u32 Idx);
+
 void StringPop(U8_String* Str);
 
 U8_String SplitFirst(U8_String* Str, char val);
 
 u64 GetCountOfChar(U8_String* Str, char val);
+
+i32 GetFirstOcurrence(U8_String* Str, char val);
+i32 GetLastOcurrence(U8_String* Str, char val);
+
+u64* GetAllOcurrences(U8_String* Str, char val);
 
 void SplitMultiple(U8_String* Dst, u64 Size, const U8_String* Src, char val);
 
@@ -83,6 +90,25 @@ GetCountOfChar(U8_String* Str, char val) {
         }
     }
     return cnt;
+}
+
+i32 GetFirstOcurrence(U8_String* Str, char val) {
+    for( i32 i = 0; i < Str->idx; i += 1 ) {
+        if( Str->data[i] == val ) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+i32 GetLastOcurrence(U8_String* Str, char val) {
+    for( i32 i = Str->idx - 1; i >= 0; i -= 1 ) {
+        if( Str->data[i] == val ) {
+            return i;
+        }
+    }
+
+    return -1;
 }
 
 void
@@ -148,6 +174,12 @@ void StringErase(U8_String* Str, u32 Idx) {
     }
 }
 
+void StringEraseUntil(U8_String* Str, u32 Idx) {
+    if( Idx < Str->idx ) {
+        Str->idx = Idx;
+    }
+}
+
 void StringPop(U8_String* Str) {
     StringErase(Str, Str->idx);
 }
@@ -165,7 +197,7 @@ void
 StringCpyStr(U8_String* Dst, U8_String* Src) {
     if(Dst->len >= Src->idx) {
         memcpy(Dst->data, Src->data, Src->idx);
-        Dst->idx += Src->idx;
+        Dst->idx = Src->idx;
     }
 }
 
