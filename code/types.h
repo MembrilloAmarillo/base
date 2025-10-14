@@ -32,6 +32,12 @@ typedef unsigned char bool;
 #endif
 #endif
 
+// --- Add your chosen fix here ---
+#if defined(_MSC_VER) && !defined(__cplusplus)
+    typedef long double max_align_t;
+#endif
+
+
 #define internal      static
 #define global        static
 #define local_persist static
@@ -102,7 +108,7 @@ union vec2 {
 #define Vec2Add(v1, v2) (vec2){v1.x + v2.x, v1.y + v2.y}
 #define Vec2Sub(v1, v2) (vec2){v1.x - v2.x, v1.y - v2.y}
 #define Vec2Mul(v1, v2) (vec2){v1.x * v2.x, v1.y * v2.y}
-#define Vec2ScalarMul(scalar, v1) (vec2){scalar * v1.x, scalar, v1.y}
+#define Vec2ScalarMul(scalar, v1) (vec2){scalar * v1.x, scalar * v1.y}
 
 
 typedef struct DLL DLL;
@@ -167,7 +173,7 @@ if((Element)->Next)                                  \
 	(Root)->Last = NULL_OBJ;
 
 #define TreeClear(Root, NULL_OBJ) \
-	TreeInit(Root, NULL_OBJ)
+	TreeInit(Root, NULL_OBJ);
 
 #define TreePushSon(Node, Son, NULL_OBJ)             \
 	if( (Node)->FirstSon == NULL_OBJ ) {             \
@@ -176,9 +182,8 @@ if((Element)->Next)                                  \
 		(Son)->Parent = Node;                        \
 		(Node)->Last  = Son;                         \
 	} else {                                         \
-		typeof(Node) p = (Node)->Last;               \
-		p->Right = Son;                              \
-		(Son)->Left = p;                             \
+		(Node)->Last->Right = Son;                   \
+		(Son)->Left = (Node)->Last;                  \
 		(Son)->Parent = Node;                        \
 		(Son)->Right = (Son)->Last = NULL_OBJ;       \
 		(Node)->Last  = Son;                         \

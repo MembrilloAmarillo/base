@@ -1,24 +1,10 @@
 #ifndef _VK_RENDER_H_
 #define _VK_RENDER_H_
 
-#include <vulkan/vulkan.h>
-
-#if __linux__
-#include <X11/Xlib.h>
-#include <vulkan/vulkan_xlib.h>
-#endif
-
-#include "third-party/vk_mem_alloc.h"
-
-#include <stdlib.h>
-#include <stdio.h>
-
-#include "types.h"
-
 /* ----------------------------------------------------------------------------- */
 
-const char* VALIDATION_LAYERS[] = { "VK_LAYER_KHRONOS_validation" };
-const char* DEVICE_EXTENSIONS[] = {
+global const char* VALIDATION_LAYERS[] = { "VK_LAYER_KHRONOS_validation" };
+global const char* DEVICE_EXTENSIONS[] = {
     "VK_KHR_swapchain",
 	"VK_KHR_dynamic_rendering",
     "VK_EXT_descriptor_indexing",
@@ -29,14 +15,14 @@ const char* DEVICE_EXTENSIONS[] = {
 
 /* ---------- helper macros -------------------------------------------------- */
 
-#define VK_CHECK(expr)                                                         \
-do {                                                                       \
-VkResult _res = (expr);                                                \
-if (_res != VK_SUCCESS) {                                              \
-fprintf(stderr, "[ERROR] %s:%d VK_CHECK failed (%d)\n",            \
-__FILE__, __LINE__, _res);                                 \
-exit(EXIT_FAILURE);                                                \
-}                                                                      \
+#define VK_CHECK(expr)                                  \
+do {                                                    \
+VkResult _res = (expr);                                 \
+if (_res != VK_SUCCESS) {                               \
+fprintf(stderr, "[ERROR] %s:%d VK_CHECK failed (%d)\n", \
+__FILE__, __LINE__, _res);                              \
+exit(EXIT_FAILURE);                                     \
+}                                                       \
 } while (0)
 
 static inline uint32_t clamp_u32(uint32_t val, uint32_t min, uint32_t max) {
@@ -44,24 +30,6 @@ static inline uint32_t clamp_u32(uint32_t val, uint32_t min, uint32_t max) {
     if (val > max) return max;
     return val;
 }
-
-typedef struct api_clipboard api_clipboard;
-struct api_clipboard {
-    Atom Clipboard;
-    Atom Utf8;
-    Atom Paste;
-};
-
-typedef struct api_window api_window;
-struct api_window {
-    F64          Width;
-    F64          Height;
-    VkSurfaceKHR Surface;
-    Display     *Dpy;
-    Window       Win;
-    XIC          xic;
-    api_clipboard  Clipboard;
-};
 
 ///////////////////////////////////////////////////////////////////////////////
 // Pipeline builder structs
@@ -122,6 +90,8 @@ struct swapchain_support_details {
     VkSurfaceCapabilitiesKHR Capabilities;
     VkSurfaceFormatKHR      *Formats;
     VkPresentModeKHR        *PresentModes;
+    u32                      NFormats;
+    u32                      NPresentModes;
 };
 
 typedef struct swapchain swapchain;
@@ -294,17 +264,6 @@ struct vulkan_base{
     // Debugging
     VkDebugUtilsMessengerEXT DebugMessenger;
 };
-
-/** \brief Creates a new window with specified dimensions
- *
- *  Initializes and returns a window handle with the requested width and height.
- *  The window is configured for Vulkan rendering and appropriate event handling.
- *
- *  \param w Width of the window in pixels
- *  \param h Height of the window in pixels
- *  \return Handle to the created window
- */
-internal api_window CreateWindow(F64 w, F64 h);
 
 /** \brief Initializes the Vulkan subsystem
  *
@@ -1164,14 +1123,16 @@ QuerySwapchainSupport(vulkan_base* base, VkPhysicalDevice Device )
     vkGetPhysicalDeviceSurfaceFormatsKHR(Device, base->Window.Surface, &FormatCount, 0);
 
     if( FormatCount != 0 ) {
-        Details.Formats = stack_push(&base->Allocator, VkSurfaceFormatKHR, FormatCount);
+        Details.Formats = stack_push(&base->TempAllocator, VkSurfaceFormatKHR, FormatCount);
         vkGetPhysicalDeviceSurfaceFormatsKHR(Device, base->Window.Surface, &FormatCount, Details.Formats);
+        Details.NFormats = FormatCount;
     }
 
     vkGetPhysicalDeviceSurfacePresentModesKHR(Device, base->Window.Surface, &PresentModeCount, 0);
     if( PresentModeCount != 0 ) {
-        Details.PresentModes = stack_push(&base->Allocator, VkPresentModeKHR, FormatCount);
+        Details.PresentModes = stack_push(&base->TempAllocator, VkPresentModeKHR, FormatCount);
         vkGetPhysicalDeviceSurfacePresentModesKHR(Device, base->Window.Surface, &PresentModeCount, Details.PresentModes);
+        Details.NPresentModes = PresentModeCount;
     }
 
     return Details;
@@ -1187,7 +1148,7 @@ IsSuitableDevice(vulkan_base* base, VkPhysicalDevice Device) {
 
 	if( extensions_supported ) {
 		swapchain_support_details swapchain_support = QuerySwapchainSupport(base, Device);
-		swapchain_adequate = ArrayCount(swapchain_support.Formats) > 0 && ArrayCount(swapchain_support.PresentModes) > 0;
+		swapchain_adequate = swapchain_support.NFormats > 0 && swapchain_support.NPresentModes > 0;
 
 		//stack_free( &base->Allocator, swapchain_support.Formats      );
 		//stack_free( &base->Allocator, swapchain_support.PresentModes );
@@ -1198,81 +1159,20 @@ IsSuitableDevice(vulkan_base* base, VkPhysicalDevice Device) {
 
 ///////////////////////////////////////////////////////////////////////////////
 //
-internal api_window
-CreateWindow(F64 w, F64 h) {
-    api_window app;
-
-    app.Dpy = XOpenDisplay(NULL);
-    if (!app.Dpy) { fprintf(stderr, "Cannot open display\n"); exit(1); }
-
-    const int screen = DefaultScreen(app.Dpy);
-    app.Clipboard.Clipboard = XInternAtom(app.Dpy, "CLIPBOARD", false);
-    app.Clipboard.Utf8      = XInternAtom(app.Dpy, "UTF8_STRING", false);
-    app.Clipboard.Paste     = XInternAtom(app.Dpy, "X_PASTE_PROPERTY", False);
-
-    Atom wm_delete_window = XInternAtom(app.Dpy, "WM_DELETE_WINDOW", False);
-
-    Window win = XCreateSimpleWindow(
-                                     app.Dpy, RootWindow(app.Dpy, screen),
-                                     0, 0, w, h, 0,
-                                     BlackPixel(app.Dpy, screen),
-                                     WhitePixel(app.Dpy, screen)
-                                     );
-
-    XSelectInput(app.Dpy, win,
-                 ExposureMask     |
-                 PointerMotionMask|
-                 ButtonPressMask  |
-                 ButtonReleaseMask|
-                 KeyPressMask     |
-                 KeyReleaseMask   |
-                 FocusChangeMask
-                 );
-
-    app.Width = w;
-    app.Height = h;
-    XMapWindow(app.Dpy, win);
-    XStoreName(app.Dpy, win, "GFX Context");
-    XFlush(app.Dpy);
-
-    app.Win = win;
-
-    XIM xim = XOpenIM(app.Dpy, NULL, NULL, NULL);
-    if (!xim) {
-        /* Fallback: no IME support */
-        fprintf(stderr, "[ERROR] No IME Support\n");
-    }
-
-    /* 4. Create an XIC for each window that needs text input */
-    XIC xic = XCreateIC(xim,
-                        XNInputStyle,   XIMPreeditNothing | XIMStatusNothing,
-                        XNClientWindow, win,
-                        XNFocusWindow,  win,
-                        NULL);
-
-    app.xic = xic;
-
-    XSetWMProtocols(app.Dpy, app.Win, &wm_delete_window, 1);
-
-    return app;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-//
 internal vulkan_base
 VulkanInit() {
     vulkan_base Base = {0};
 
     Base.Arena = ArenaAllocDefault();
-    void* data   = PushArray(Base.Arena, void, gigabyte(1));
-    void* TempData = PushArray(Base.Arena, void, mebibyte(256));
+    u8* data     = PushArray(Base.Arena, u8, gigabyte(1));
+    u8* TempData = PushArray(Base.Arena, u8, mebibyte(256));
     stack_init(&Base.Allocator, data, gigabyte(1));
     stack_init(&Base.TempAllocator, TempData, mebibyte(256));
     VkDebugUtilsMessengerCreateInfoEXT DebugCreateInfo = {};
     char** ExtensionNames = NULL;
     u32 ExtensionCount = 0;
 
-    Base.Window = CreateWindow(1200, 1200);
+    Base.Window = SurfaceCreateWindow(1200, 1200);
 
     VkApplicationInfo appInfo = {};
 	appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
@@ -1290,7 +1190,7 @@ VulkanInit() {
             exit(1);
         }
 
-        VkLayerProperties props[count];
+        VkLayerProperties* props = stack_push(&Base.TempAllocator, VkLayerProperties, count);
         vkEnumerateInstanceLayerProperties(&count, props);
 
         puts("Available layers:");
@@ -1302,7 +1202,7 @@ VulkanInit() {
     {
         vkEnumerateInstanceExtensionProperties(NULL, &ExtensionCount, NULL);
 
-        VkExtensionProperties props[ExtensionCount];
+        VkExtensionProperties* props = stack_push(&Base.TempAllocator, VkLayerProperties, ExtensionCount);
 
         /* 2. Get data */
         vkEnumerateInstanceExtensionProperties(NULL, &ExtensionCount, props);
@@ -1356,6 +1256,7 @@ VulkanInit() {
         VK_CHECK(vkCreateInstance(&InstanceInfo, 0, &Base.Instance));
     }
 
+#if __linux __
     VkXlibSurfaceCreateInfoKHR ci = {};
     ci.sType  = VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR;
     ci.dpy    = Base.Window.Dpy;
@@ -1368,6 +1269,22 @@ VulkanInit() {
     }
 
     Base.Window.Surface = surface;
+
+#elif _WIN32
+
+    VkWin32SurfaceCreateInfoKHR ci = {0};
+    ci.sType  = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
+    ci.hwnd   = Base.Window.Win;    // The HWND of your window
+    ci.hinstance = Base.Window.Instance; // The HINSTANCE of your application
+
+    VkSurfaceKHR surface;
+    if (vkCreateWin32SurfaceKHR(Base.Instance, &ci, NULL, &surface) != VK_SUCCESS) {
+        fprintf(stderr, "vkCreateWin32SurfaceKHR failed\n");
+        exit(EXIT_FAILURE);
+    }
+
+    Base.Window.Surface = surface;
+#endif 
 
 #ifndef NDEBUG
     PFN_vkCreateDebugUtilsMessengerEXT pfnCreateDebugUtilsMessengerEXT;
@@ -1554,7 +1471,8 @@ CreateSwapchain(vulkan_base* base) {
         ImageCount = Support.Capabilities.maxImageCount;
     }
 
-    for(u32 i = 0; i < ArrayCount(Support.Formats); i += 1) {
+    u32 NFormats = Support.NFormats;
+    for(u32 i = 0; i < NFormats; i += 1) {
         VkSurfaceFormatKHR format = Support.Formats[i];
         if( format.format == VK_FORMAT_B8G8R8A8_SRGB && format.colorSpace == VK_COLORSPACE_SRGB_NONLINEAR_KHR ) {
             SurfaceFormat = format;
@@ -1562,7 +1480,8 @@ CreateSwapchain(vulkan_base* base) {
         }
     }
 
-    for(u32 i = 0; i < ArrayCount(Support.PresentModes); i += 1) {
+    u32 NPresentModes = Support.NPresentModes;
+    for(u32 i = 0; i < NPresentModes; i += 1) {
         VkPresentModeKHR mode = Support.PresentModes[i];
         if( mode == VK_PRESENT_MODE_MAILBOX_KHR ) {
             VerticalBlank = true;
@@ -1577,12 +1496,9 @@ CreateSwapchain(vulkan_base* base) {
     if( Support.Capabilities.currentExtent.width != UINT32_MAX ) {
         Extent = Support.Capabilities.currentExtent;
     } else {
-        U32 width = 0, height = 0, snum = 0;
-        snum   = DefaultScreen(base->Window.Dpy);
-        width  = DisplayWidth(base->Window.Dpy, snum);
-        height = DisplayHeight(base->Window.Dpy, snum);
+        vec2 Size = SurfaceGetWindowSize(&base->Window);
 
-        Extent = (VkExtent2D){ .width = width, .height = height };
+        Extent = (VkExtent2D){ .width = Size.x, .height = Size.y };
 
         Extent.width  = u32_clamp(Extent.width, Support.Capabilities.minImageExtent.width, Support.Capabilities.maxImageExtent.width);
         Extent.height = u32_clamp(Extent.height, Support.Capabilities.minImageExtent.height, Support.Capabilities.maxImageExtent.height);
@@ -2143,13 +2059,17 @@ void SetColorAttachmentFormat(pipeline_builder* builder, VkFormat format) {
 internal bool
 LoadShaderModule(const char* filename, VkDevice device, VkShaderModule* outModule)
 {
-    f_file f = OpenFile(filename, RDONLY);
+    f_file f = F_OpenFile(filename, RDONLY);
 
-    i32 FileSize = FileLength(&f);
+    i32 FileSize = F_FileLength(&f);
 
+    #if __linux__ 
     void* data = mmap(NULL, FileSize, PROT_READ | PROT_WRITE, MAP_PRIVATE, f.Fd, 0);
-    SetFileData(&f, data);
-    i32 r_len = FileRead(&f);
+    #elif _WIN32
+    void* data = malloc(FileSize); 
+    #endif 
+    F_SetFileData(&f, data);
+    i32 r_len = F_FileRead(&f);
 
     if( r_len == -1 ) {
         fprintf( stderr, "[ERROR] Could not read file %s\n", filename);
@@ -2165,8 +2085,12 @@ LoadShaderModule(const char* filename, VkDevice device, VkShaderModule* outModul
 
 	VK_CHECK(vkCreateShaderModule(device, &CreateInfo, 0, outModule));
 
+    #if __linux__ 
     munmap(data, FileSize);
-    CloseFile(&f);
+    #elif _WIN32
+    free(data); 
+    #endif 
+    F_CloseFile(&f);
 
 	return true;
 }
@@ -2631,13 +2555,10 @@ RecreateSwapchain(vulkan_base* base) {
         vkDestroyImageView(base->Device, base->Swapchain.ImageViews[i], 0);
     }
 
-    U32 width = 0, height = 0, snum = 0;
-    snum   = DefaultScreen(base->Window.Dpy);
-    width  = DisplayWidth(base->Window.Dpy, snum);
-    height = DisplayHeight(base->Window.Dpy, snum);
+    vec2 Size = SurfaceGetWindowSize(&base->Window);
 
-    base->Window.Width = width;
-    base->Window.Height = height;
+    base->Window.Width = Size.x;
+    base->Window.Height = Size.y;
 
     CreateSwapchain(base);
     CreateImageViews(base);

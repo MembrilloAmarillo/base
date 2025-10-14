@@ -9,8 +9,6 @@
  * handle
  */
 
-#include "types.h"
-
 typedef struct vector vector;
 struct vector {
     void* data;

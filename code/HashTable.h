@@ -1,11 +1,6 @@
 #ifndef _HASH_TABLE_H_
 #define _HASH_TABLE_H_
 
-#include "types.h"
-#include "allocator.h"
-
-#include "third-party/xxhash.h"
-
 typedef struct entry entry;
 struct entry {
     entry* Root;

@@ -107,20 +107,21 @@ main( int argc, char *argv[] )
                                    .BorderThickness = 2,
                                    .Font = NULL};
 
-    UI_Context->DefaultTheme = (ui_theme){.Window = TitleTheme,
-                                          .Button = ButtonTheme,
-                                          .Panel = PanelTheme,
-                                          .Input = InputTheme,
-                                          .Label = LabelTheme,
-                                          .Scrollbar = ScrollbarTheme};
+    UI_Context->DefaultTheme = (ui_theme){
+        .Window = TitleTheme,
+        .Button = ButtonTheme,
+        .Panel = PanelTheme,
+        .Input = InputTheme,
+        .Label = LabelTheme,
+        .Scrollbar = ScrollbarTheme
+    };
 
-    XEvent ev;
     bool running = true;
     struct timespec ts2, ts1;
 
     double posix_dur = 0;
     while( running ) {
-        clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &ts1);
+        //clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &ts1);
         u32 window_width  = gfx.base->Swapchain.Extent.width;
         u32 window_height = gfx.base->Swapchain.Extent.height;
 
@@ -143,7 +144,7 @@ main( int argc, char *argv[] )
         {
             if( UI_BeginTreeNode(UI_Context, "Tree") & ActiveObject ) {
                 UI_Label(UI_Context, "This is a label");
-                if( UI_Button(UI_Context, "This is a button") & LeftClickPress ) {
+                if( UI_Button(UI_Context, "This is a button") & Input_LeftClickPress ) {
 
                 }
                 UI_TextBox(UI_Context, "This is a textbox");
@@ -197,11 +198,11 @@ main( int argc, char *argv[] )
 
         stack_free_all(UI_Context->TempAllocator);
         stack_free_all(&gfx.base->TempAllocator);
-        clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &ts2);
-        posix_dur = 1000.0 * ts2.tv_sec + 1e-6 * ts2.tv_nsec - (1000.0 * ts1.tv_sec + 1e-6 * ts1.tv_nsec);
+        //clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &ts2);
+        //posix_dur = 1000.0 * ts2.tv_sec + 1e-6 * ts2.tv_nsec - (1000.0 * ts1.tv_sec + 1e-6 * ts1.tv_nsec);
     }
 
-    XCloseDisplay(VkBase.Window.Dpy);
+    //XCloseDisplay(VkBase.Window.Dpy);
 
     TempEnd( arena_temp );
 

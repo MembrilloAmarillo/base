@@ -1,14 +1,6 @@
 #ifndef _UI_RENDER_H_
 #define _UI_RENDER_H_
 
-#include "types.h"
-#include "third-party/microui.h"
-#include "vk_render.h"
-#include "memory.h"
-#include "allocator.h"
-#include "vector.h"
-#include "load_font.h"
-
 /** LOG -- Information
   * 08/09/2025. Added a stop condition for gpu rendering and main thread computation while no event for the user is
                 being given or an unfocusing event was set.

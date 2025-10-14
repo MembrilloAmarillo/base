@@ -1,14 +1,6 @@
 #ifndef _UI_VIEWER_H_
 #define _UI_VIEWER_H_
 
-#include <stdio.h>
-#include <stdint.h>
-#include <time.h>
-
-#include "types.h"
-#include "allocator.h"
-#include "hk/hk.h"
-
 typedef struct hk_list hk_list;
 struct hk_list {
     U8_String String;

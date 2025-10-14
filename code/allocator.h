@@ -87,7 +87,7 @@ void buddy_allocator_free(Buddy_Allocator *b, void *data);
 
 typedef struct Stack_Allocator Stack_Allocator;
 struct Stack_Allocator {
-    void* data;
+    u8* data;
     i64   prev_offset;
     i64   curr_offset;
     i64   peak_used;
@@ -362,8 +362,8 @@ void buddy_allocator_free(Buddy_Allocator *b, void *data) {
     if (data != NULL) {
         Buddy_Block *block;
 
-        assert(b->head <= data);
-        assert(data < b->tail);
+        assert(b->head <= (uintptr_t)data);
+        assert((uintptr_t)data < b->tail);
 
         block = (Buddy_Block *)((char *)data - b->alignment);
         block->is_free = true;
@@ -435,15 +435,16 @@ stack_alloc_non_zeroed(Stack_Allocator* s, i64 size, i64 alignment) {
     i64 old_offset = s->prev_offset;
     s->prev_offset = s->curr_offset;
     s->curr_offset += padding;
-    void* next_addr = curr_addr + padding;
+    void* next_addr = (u8*)curr_addr + padding;
 
-    Stack_Allocation_Header* header = next_addr - sizeof(Stack_Allocation_Header);
+    Stack_Allocation_Header* header = (u8*)next_addr - sizeof(Stack_Allocation_Header);
     header->padding = padding;
     header->prev_offset = old_offset;
     s->curr_offset += size;
     s->peak_used = Max(s->peak_used, s->curr_offset);
 
-    return memset((void *)next_addr, 0, size);
+    memset(next_addr, 0, size);
+    return next_addr;
 }
 
 void*
@@ -535,7 +536,7 @@ stack_resize_non_zeroed(Stack_Allocator* s, void* old_memory, i64 old_size, i64 
     uintptr_t diff = size - (uintptr_t)old_size;
     s->curr_offset += diff;
     if( diff > 0 ) {
-        memset((void*)curr_addr + diff, 0, diff);
+        memset((u8*)curr_addr + diff, 0, diff);
     }
 
     return memset(old_memory, 0, size);

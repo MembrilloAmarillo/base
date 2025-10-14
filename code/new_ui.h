@@ -30,20 +30,6 @@
 #ifndef _SP_UI_H_
 #define _SP_UI_H_
 
-#include "types.h"
-#include "strings.h"
-#include "vector.h"
-#include "allocator.h"
-#include "HashTable.h"
-
-#include "vk_render.h"
-#include "load_font.h"
-
-#include "ui_render.h"
-
-#include "third-party/xxhash.h"
-
-
 #define HexToRGBA(val) ((rgba){.r = (val & 0xff000000) >> 24, .g = (val & 0x00ff0000) >> 16, .b = (val & 0x0000ff00) >> 8, .a = val & 0x000000ff})
 #define HexToU8_Vec4(val) {(val & 0xff000000) >> 24, (val & 0x00ff0000) >> 16, (val & 0x0000ff00) >> 8, val & 0x000000ff}
 
@@ -53,38 +39,6 @@
 
 #define MAX_STACK_SIZE  64
 #define MAX_LAYOUT_SIZE 256
-
-typedef enum ui_input ui_input;
-enum ui_input {
-    NoInput           = (1 << 0),
-    RightClickPress   = (1 << 1),
-    RightClickRelease = (1 << 2),
-    LeftClickPress    = (1 << 3),
-    LeftClickRelease  = (1 << 4),
-    DoubleLeftClick   = (1 << 5),
-    CursorHover       = (1 << 6),
-    Backspace         = (1 << 7),
-    Ctrl              = (1 << 8),
-    Shift             = (1 << 9),
-    Alt               = (1 << 10),
-    Return            = (1 << 11),
-    MiddleMouse       = (1 << 12),
-    MiddleMouseUp     = (1 << 13),
-    MiddleMouseDown   = (1 << 14),
-    F1                = (1 << 15),
-    F2                = (1 << 16),
-    F3                = (1 << 17),
-    F4                = (1 << 18),
-    F5                = (1 << 19),
-    Left              = (1 << 20),
-    Right             = (1 << 21),
-    Up                = (1 << 22),
-    Down              = (1 << 23),
-    ESC               = (1 << 24),
-    StopUI            = (1 << 25),
-    ActiveObject      = (1 << 26),
-    DeleteWord        = (1 << 27)
-};
 
 typedef enum ui_lay_opt ui_lay_opt;
 enum ui_lay_opt {
@@ -370,8 +324,8 @@ internal void
 UI_Begin(ui_context* Context) {
     Context->KeyPressed   = 0;
     Context->CursorClick  = (vec2){0, 0};
-    Context->CursorAction = NoInput;
-    Context->LastInput    = NoInput;
+    Context->CursorAction = Input_None;
+    Context->LastInput    = Input_None;
 
     Context->TextInput.idx = 0;
 
@@ -637,7 +591,7 @@ UI_WindowBegin(ui_context* Context, rect_2d Rect, const char* Title, ui_lay_opt 
     // Make it the focus object if clicking on title bar or
     // on the resize box on the bottom-left part of the window
     //
-    if( UI_ConsumeEvents(Context, Object) & LeftClickPress ) {
+    if( UI_ConsumeEvents(Context, Object) & Input_LeftClickPress ) {
         rect_2d TitleRect = (rect_2d){Object->Rect.Pos, {Object->Rect.Size.x, Object->Size.y}};
         vec2 CornerSize = (vec2){20, 20};
         rect_2d ResizeRect = (rect_2d){
@@ -659,7 +613,7 @@ UI_WindowBegin(ui_context* Context, rect_2d Rect, const char* Title, ui_lay_opt 
         }
     }
 
-    if( !( UI_ConsumeEvents(Context, Object) & LeftClickRelease) && Object == Context->FocusObject ) {
+    if( !( UI_ConsumeEvents(Context, Object) & Input_LeftClickRelease) && Object == Context->FocusObject ) {
         vec2 CornerSize = (vec2){20, 20};
         rect_2d ResizeRect = (rect_2d){
             Vec2Add(Object->Rect.Pos, Vec2Sub(Object->Rect.Size, CornerSize)),
@@ -673,7 +627,7 @@ UI_WindowBegin(ui_context* Context, rect_2d Rect, const char* Title, ui_lay_opt 
         if( Object->Option & UI_Drag && !IsCursorOnRect(Context, ResizeRect) ) {
             Object->Rect.Pos = Vec2Add(Object->Rect.Pos, Context->CursorDelta);
         }
-    } else if( UI_ConsumeEvents(Context, Object) & LeftClickRelease && Object == Context->FocusObject ) {
+    } else if( UI_ConsumeEvents(Context, Object) & Input_LeftClickRelease && Object == Context->FocusObject ) {
         Context->FocusObject = &UI_NULL_OBJECT;
     }
 
@@ -803,7 +757,7 @@ UI_BuildObjectWithParent(ui_context* Context, u8* Key, u8* Text, rect_2d Rect, u
             if( Context->TextInput.len > Object->Text.len ) {
                 Object->Text = StringCreate(Context->TextInput.len, Context->Allocator);
             }
-            if( Context->TextInput.idx > 0 && !(Context->LastInput & Backspace) && !(Context->LastInput & DeleteWord) ) {
+            if( Context->TextInput.idx > 0 && !(Context->LastInput & Input_Backspace) && !(Context->LastInput & DeleteWord) ) {
                 //StringAppndStr(&Object->Text, &Context->TextInput);
                 //Object->Text.data[Object->Text.idx] = '\0';
                 StringInsertStr(&Object->Text, Object->TextCursorIdx, &Context->TextInput);
@@ -857,7 +811,7 @@ UI_BuildObjectWithParent(ui_context* Context, u8* Key, u8* Text, rect_2d Rect, u
                     StringEraseUntil(&Context->TextInput, 0);
                 }
                 
-            } else if( Context->LastInput & Backspace ) {
+            } else if( Context->LastInput & Input_Backspace ) {
                 //Object->Text.idx = Object->Text.idx > 0 ? Object->Text.idx - 1 : 0;
                 StringErase(&Object->Text, Object->TextCursorIdx);
             }
@@ -935,11 +889,11 @@ internal ui_input
 UI_ConsumeEvents(ui_context* Context, ui_object* Object) {
     if( (Object->Option & UI_Select) && IsCursorOnRect(Context, Object->Rect) ) {
         if( UI_CheckBoxInsideScrollView(Context, Object)) {
-            return Context->CursorAction | CursorHover;
+            return Context->CursorAction | Input_CursorHover;
         }
     }
 
-    return NoInput;
+    return Input_None;
 }
 
 internal ui_input
@@ -963,13 +917,13 @@ UI_Button(ui_context* Context, const char* Title) {
     Button->LastInputSet = Input;
     Button->Type = UI_ButtonType;
 
-    if( Input & LeftClickPress ) {
+    if( Input & Input_LeftClickPress ) {
         Context->FocusObject = Button;
-    } else if ( Input & LeftClickRelease ) {
+    } else if ( Input & Input_LeftClickRelease ) {
         Context->FocusObject = &UI_NULL_OBJECT;
     }
 
-    if( Button->LastInputSet & CursorHover ) {
+    if( Button->LastInputSet & Input_CursorHover ) {
         Button->Theme = Context->DefaultTheme.Panel;
     }
 
@@ -1039,7 +993,7 @@ UI_TextBox(ui_context* Context, const char* text) {
     TextBox->LastInputSet = Input;
     TextBox->Type = UI_InputText;
 
-    if( Input & LeftClickPress ) {
+    if( Input & Input_LeftClickPress ) {
         Context->FocusObject = TextBox;
     }
 
@@ -1047,7 +1001,7 @@ UI_TextBox(ui_context* Context, const char* text) {
         TextBox->LastInputSet |= Context->LastInput;
     }
 
-    if( TextBox->LastInputSet & CursorHover ) {
+    if( TextBox->LastInputSet & Input_CursorHover ) {
         TextBox->Theme.Background.a *= 0.8;
     }
 
@@ -1075,20 +1029,20 @@ UI_BeginTreeNode(ui_context* Context, const char* text) {
     TreeNode->LastInputSet = Input | IsActive;
     TreeNode->Type = UI_Tree;
 
-    if( Input & LeftClickPress && Context->FocusObject != TreeNode && !(TreeNode->LastInputSet & ActiveObject) ) {
+    if( Input & Input_LeftClickPress && Context->FocusObject != TreeNode && !(TreeNode->LastInputSet & ActiveObject) ) {
         Context->FocusObject = TreeNode;
         TreeNode->LastInputSet |= ActiveObject;
     } else if( Context->FocusObject == TreeNode ) {
-        if (Input & LeftClickPress) {
+        if (Input & Input_LeftClickPress) {
             TreeNode->LastInputSet ^= ActiveObject;
         }
-    } else if( Input & LeftClickPress && TreeNode->LastInputSet & ActiveObject ) {
+    } else if( Input & Input_LeftClickPress && TreeNode->LastInputSet & ActiveObject ) {
         TreeNode->LastInputSet ^= ActiveObject;
     }
 
     Context->CurrentParent = TreeNode;
 
-    if( TreeNode->LastInputSet & CursorHover ) {
+    if( TreeNode->LastInputSet & Input_CursorHover ) {
         TreeNode->Theme.Background.a *= 0.8;
     }
 
@@ -1205,37 +1159,16 @@ UI_EndScrollbarView(ui_context* Context) {
     //    Child->Pos.y      -= Scrollable->ScrollRatio * Scrollable->LastDelta.y;
     //}
 
-    if( UI_ConsumeEvents(Context, Scrollable) & LeftClickPress ) {
+    if( UI_ConsumeEvents(Context, Scrollable) & Input_LeftClickPress ) {
         Context->FocusObject = Scrollable;
     }
 
-    if( UI_ConsumeEvents(Context, Scrollable) & LeftClickRelease && Context->FocusObject == Scrollable ) {
+    if( UI_ConsumeEvents(Context, Scrollable) & Input_LeftClickRelease && Context->FocusObject == Scrollable ) {
         Context->FocusObject = &UI_NULL_OBJECT;
-    } else if( Context->FocusObject == Scrollable && Context->CursorAction & LeftClickRelease ) {
+    } else if( Context->FocusObject == Scrollable && Context->CursorAction & Input_LeftClickRelease ) {
         Context->FocusObject = &UI_NULL_OBJECT;
     }
     Context->CurrentParent = Context->CurrentParent->Parent;
-}
-
-internal vec2
-UI_GetMousePosition(UI_Graphics* gfx) {
-    Window window_returned;
-    int root_x, root_y;
-    int win_x, win_y;
-    u32 mask_return;
-    XQueryPointer(
-                  gfx->base->Window.Dpy,
-                  gfx->base->Window.Win,
-                  &window_returned,
-                  &window_returned,
-                  &root_x, &root_y,
-                  &win_x, &win_y,
-                  &mask_return
-                  );
-
-    vec2 MousePosition = {.x = (f32)win_x, .y = (f32)win_y};
-
-    return MousePosition;
 }
 
 internal void
@@ -1344,262 +1277,73 @@ UI_EndColumn(ui_context* Context) {
 
 internal ui_input
 UI_LastEvent(ui_context* Context) {
-    ui_input Input = NoInput;
+    ui_input Input = Input_None;
     UI_Graphics* gfx = Context->Gfx;
-    XEvent ev = {0};
     u32 window_width  = gfx->base->Swapchain.Extent.width;
     u32 window_height = gfx->base->Swapchain.Extent.height;
+    Input = GetNextEvent(&gfx->base->Window);
+
     {
-        vec2 Mouse = UI_GetMousePosition(gfx);
+        vec2 Mouse = GetMousePosition(&gfx->base->Window);
         vec2 LastCursor = Context->CursorPos;
         Context->CursorPos = Mouse;
 
-        while( Context->LastCursorPos.x == Mouse.x && Context->LastCursorPos.y == Mouse.y && !XPending(gfx->base->Window.Dpy)) {
-            Mouse = UI_GetMousePosition(gfx);
+        while( Context->LastCursorPos.x == Mouse.x && Context->LastCursorPos.y == Mouse.y && (Input & Input_None) ) {
+            Mouse = GetMousePosition(&gfx->base->Window);
+            Input = GetNextEvent(&gfx->base->Window);
         }
 
         Context->LastCursorPos = LastCursor;
         Context->CursorDelta = Vec2Sub(Context->CursorPos, LastCursor);
     }
 
-    while (XPending(gfx->base->Window.Dpy)) {
-        XNextEvent(gfx->base->Window.Dpy, &ev);
+    if( Input & FrameBufferResized ) {
+        gfx->base->FramebufferResized = true;
+    }
+    if( Input & ClipboardPaste ) {
+        StringAppendStr(&Context->TextInput, &gfx->base->Window.ClipboardContent);
+    }
+    if( Input & Input_MiddleMouseUp ) {
+        Context->CursorDelta.y += 6;
+    }
+    if( Input & Input_MiddleMouseDown ) {
+        Context->CursorDelta.y -= 6;
+    }
+    if( Input & Input_LeftClickPress ) {
+        Context->CursorClick   = Context->LastCursorPos;
+        Context->CursorAction |= Input_LeftClickPress;
+        Context->LastInput = Input_LeftClickPress;
+    }
+    if( Input & Input_LeftClickRelease ) {
+        Context->CursorClick   = Context->LastCursorPos;
+        Context->CursorAction |= Input_LeftClickRelease;
+        Context->LastInput = Input_LeftClickRelease;
+    }
+    if( Input & Input_Left ) {
+        Context->FocusObject->TextCursorIdx = Max(0, Context->FocusObject->TextCursorIdx - 1);
+    }
+    if( Input & Input_Right ) {
+        Context->FocusObject->TextCursorIdx = Min(Context->FocusObject->Text.idx, Context->FocusObject->TextCursorIdx + 1);
+    }
+    if( Input & DeleteWord ) {
 
-        if( ev.type == FocusOut ) {
-            while( XNextEvent( gfx->base->Window.Dpy, &ev) && ev.type != FocusIn ) {
-                if( ev.type == FocusIn ) {
-                    break;
-                }
-            }
-        }
+    } else if( Input & Input_Backspace ) {
+        Context->FocusObject->TextCursorIdx = Max(0, Context->FocusObject->TextCursorIdx - 1 );
+        Context->TextInput.idx = Context->TextInput.idx > 0 ? Context->TextInput.idx - 1 : 0;
+    }
+    if( Input & ClipboardPaste ) {
+        StringAppend(&Context->TextInput, GetClipboard(&gfx->base->Window));
+    }
+    if( Input & Input_KeyChar ) {
+        Context->KeyPressed |= gfx->base->Window.KeyPressed;
+        Context->KeyDown    |= gfx->base->Window.KeyPressed;
+        char buffer[2] = {0};
+        buffer[0] = gfx->base->Window.KeyPressed;
+        StringAppend(&Context->TextInput, buffer);
+    }
 
-        typedef struct {
-            KeySym x_key;
-            ui_input input;
-        } KeyMap;
-
-        int mouse_button_pressed = 0;
-        static KeyMap keys_to_check[] = {
-            { XK_BackSpace, Backspace},
-            { XK_Return,    Return},
-            { XK_Shift_L,   Shift},
-            { XK_Shift_R,   Shift},
-            { XK_Control_L, Ctrl},
-            { XK_Control_R, Ctrl},
-            { XK_Meta_L,    Alt },
-            { XK_Meta_R,    Alt },
-            { XK_F1,        F1 },
-            { XK_F2,        F2 },
-            { XK_F3,        F3 },
-            { XK_F4,        F4 },
-            { XK_F5,        F5 },
-            { XK_Left,      Left},
-            { XK_Right,     Right},
-            { XK_Up,        Up},
-            { XK_Down,      Down},
-            { XK_Escape,    ESC},
-        };
-
-        switch (ev.type) {
-            // --- Window Events ---
-            case ConfigureNotify: {
-                XConfigureEvent* ce = (XConfigureEvent*)&ev;
-                if (ce->width != window_width || ce->height != window_height) {
-                    gfx->base->FramebufferResized = true;
-                }
-                break;
-            }
-
-            // --- Clipboard ---
-            case SelectionNotify: {
-                if (ev.xselection.property == None) {
-                    printf("Failed to get clipboard data. The owner did not respond or format is not supported.\n");
-                } else {
-                    unsigned char* data = NULL;
-                    Atom actual_type;
-                    int actual_format;
-                    unsigned long nitems, bytes_after;
-
-                    XGetWindowProperty(gfx->base->Window.Dpy,
-                                       ev.xselection.requestor, // Our window
-                                       ev.xselection.property,  // The property we asked for
-                                       0, 1024, False, AnyPropertyType,
-                                       &actual_type, &actual_format, &nitems, &bytes_after, &data);
-
-                    if (data && nitems > 0) {
-                        printf("Pasted content: %s\n", data);
-                        StringAppend(&Context->TextInput, data);
-                        XFree(data);
-                    } else {
-                        printf("Clipboard is empty or data could not be read.\n");
-                    }
-                    // Clean up the property
-                    XDeleteProperty(gfx->base->Window.Dpy, ev.xselection.requestor, ev.xselection.property);
-                }
-            }break;
-
-            // --- Mouse Events ---
-            case MotionNotify: {
-                XMotionEvent* me = (XMotionEvent*)&ev;
-                // Optional: handle mouse movement
-                break;
-            }
-
-            case ButtonPress: {
-                XButtonEvent* be = (XButtonEvent*)&ev;
-
-                if (be->button == Button4) {
-                    // wheel up -> positive scroll Y
-                    Context->CursorDelta.y += 6;
-                } else if (be->button == Button5) {
-                    // wheel down -> negative scroll Y
-                    Context->CursorDelta.y -= 6;
-                } else {
-                    Context->CursorClick  = (vec2){ev.xbutton.x, ev.xbutton.y};
-                    Context->CursorAction |= LeftClickPress;
-                    Context->LastInput = LeftClickPress;
-                    return LeftClickPress;
-                }
-                break;
-            }
-
-            case ButtonRelease: {
-                XButtonEvent* be = (XButtonEvent*)&ev;
-                Context->CursorClick  = (vec2){ev.xbutton.x, ev.xbutton.y};
-                Context->CursorAction |= LeftClickRelease;
-                Context->LastInput = LeftClickPress;
-                //Context->FocusObject = &UI_NULL_OBJECT;
-                return LeftClickRelease;
-                break;
-            }
-
-            case KeyPress: {
-                char buffer[256] = {0};
-                KeySym keysym_from_utf8 = NoSymbol;
-                int num_bytes = Xutf8LookupString(gfx->base->Window.xic, &ev.xkey, buffer, sizeof(buffer), &keysym_from_utf8, NULL);
-
-                int key = 0;
-                for (size_t i = 0; i < ArrayCount(keys_to_check); ++i) {
-                    if (keysym_from_utf8 == keys_to_check[i].x_key) {
-                        key = keys_to_check[i].input;
-                        Input |= key;
-                    }
-                }
-                if (key) {
-                    Context->KeyPressed |= key;
-                    Context->KeyDown    |= key;
-                }
-
-                if (keysym_from_utf8 == XK_Escape) {
-                    Input = StopUI;
-                    Context->LastInput = Input;
-                    return Input; // This will now correctly exit the loop
-                }
-
-                if ( (ev.xkey.state & ControlMask) && (keysym_from_utf8 == XK_v || keysym_from_utf8 == XK_V)) {
-                    printf("Ctrl+V detected! Requesting clipboard content...\n");
-                    XConvertSelection(
-                                      gfx->base->Window.Dpy,
-                                      gfx->base->Window.Clipboard.Clipboard,
-                                      gfx->base->Window.Clipboard.Utf8,
-                                      gfx->base->Window.Clipboard.Paste,
-                                      gfx->base->Window.Win,
-                                      CurrentTime
-                                      );
-                    XFlush(gfx->base->Window.Dpy); // Ensure the request is sent immediately
-                    break;
-                }
-
-                if (num_bytes > 0 && !key) {
-                    //buffer[num_bytes] = '\0';
-                    StringAppend(&Context->TextInput, buffer);
-                }
-
-                switch( keysym_from_utf8 ) {
-                    case XK_F1: {
-                        gfx->UI_EnableDebug = !gfx->UI_EnableDebug;
-                        Input |= F1;
-                    }break;
-                    case XK_F2: {
-                        Input |= F2;
-                    }break;
-                    case XK_F3: {
-                        Input |= F3;
-                    }break;
-                    case XK_F4: {
-                        Input |= F4;
-                    }break;
-                    case XK_F5: {
-                        Input |= F5;
-                    }break;
-                    case XK_Left: {
-                        Input |= Left;
-                        Context->FocusObject->TextCursorIdx = Max(0, Context->FocusObject->TextCursorIdx - 1);
-                    }break;
-                    case XK_Right: {
-                        Input |= Right;
-                        Context->FocusObject->TextCursorIdx = Min(Context->FocusObject->Text.idx, Context->FocusObject->TextCursorIdx + 1);
-                    }break;
-                    case XK_Up: {
-                        Input |= Up;
-                    }break;
-                    case XK_Down: {
-                        Input |= Down;
-                    }break;
-                    case XK_Return: {
-                        Input |= Return;
-                    } break;
-                    case XK_Control_L:
-                    case XK_Control_R: {
-                        Input |= Ctrl;
-                    } break;
-                    case XK_Shift_L:
-                    case XK_Shift_R: {
-                        Input |= Shift;
-                    } break;
-                    case XK_Meta_L:
-                    case XK_Meta_R: {
-                        Input |= Alt;
-                    } break;
-                    case XK_BackSpace: {
-                        Input |= Backspace;
-                        unsigned int state = ev.xkey.state;
-                        bool is_ctrl_pressed  = (state & ControlMask)  != 0;
-                        if(is_ctrl_pressed) {
-                            Input |= DeleteWord;
-                        } else {
-                            Context->FocusObject->TextCursorIdx = Max(0, Context->FocusObject->TextCursorIdx - 1 );
-                            Context->TextInput.idx = Context->TextInput.idx > 0 ? Context->TextInput.idx - 1 : 0;
-                        }
-                    } break;
-                    default: {}break;
-                }
-
-                break;
-            }
-
-            case KeyRelease: {
-                KeySym keysym = XkbKeycodeToKeysym(gfx->base->Window.Dpy, ev.xkey.keycode, 0, 0);
-                for (size_t i = 0; i < sizeof(keys_to_check)/sizeof(keys_to_check[0]); ++i) {
-                    if (keysym == keys_to_check[i].x_key) {
-                        Context->KeyDown &= ~keysym;
-                        break;
-                    }
-                }
-                break;
-            }
-
-            // --- Quit on window close ---
-            case ClientMessage: {
-                //if ((Atom)ev.xclient.data.l[0] == wm_delete_window) {
-                //    //running = false;
-                //}
-                break;
-            }
-
-            default:
-            break;
-        }
+    if( Input & Input_F1 ) {
+        gfx->UI_EnableDebug = !gfx->UI_EnableDebug;
     }
 
     Context->LastInput = Input;
