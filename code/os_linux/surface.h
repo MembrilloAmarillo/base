@@ -1,6 +1,12 @@
 #ifndef _SURFACE_LINUX_H_
 #define _SURFACE_LINUX_H_
 
+#include <X11/Xlib.h>
+#include <X11/keysymdef.h>
+#include <X11/Xutil.h>
+#include <X11/XKBlib.h>
+#include <X11/keysym.h>
+
 typedef struct api_clipboard api_clipboard;
 struct api_clipboard {
     Atom Clipboard;
@@ -103,9 +109,9 @@ SurfaceCreateWindow(F64 w, F64 h) {
 
 internal vec2 
 SurfaceGetWindowSize(api_window* window) {
-    u32 snum   = DefaultScreen(Window->Dpy);
-    u32 width  = DisplayWidth(Window->Dpy, snum);
-    u32 height = DisplayHeight(Window->Dpy, snum);
+    u32 snum   = DefaultScreen(window->Dpy);
+    u32 width  = DisplayWidth(window->Dpy, snum);
+    u32 height = DisplayHeight(window->Dpy, snum);
 
     return (vec2){width, height};
 }

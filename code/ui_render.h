@@ -50,8 +50,6 @@ struct UI_Graphics {
     VkDescriptorSetLayout BG_DescriptorLayout;
     vk_image              BG_TextureImage;
 
-
-
     vec2 LastMousePosition;
     bool UI_EnableDebug;
 };

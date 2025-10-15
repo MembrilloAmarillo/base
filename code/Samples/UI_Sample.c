@@ -57,7 +57,7 @@ main( int argc, char *argv[] )
 
     rgba bd = HexToRGBA(0x2D2D2DFF);
     rgba ib = HexToRGBA(0x2F2F2FFF);
-    rgba fd = RgbaNew(240, 236, 218, 255);
+    rgba fd = HexToRGBA(0x3D3D3DFF);
     rgba fg = RgbaNew(21, 39, 64, 255);
     rgba bg2 = HexToRGBA(0xA13535FF);
     rgba bc = HexToRGBA(0x3B764CFF);
@@ -138,7 +138,7 @@ main( int argc, char *argv[] )
         UI_WindowBegin(
             UI_Context, 
             (rect_2d){{5, 5}, {window_width - 10, window_height - 10}}, 
-            "Hello Title", 
+            "Hello Title",
             UI_AlignCenter | UI_SetPosPersistent | UI_Drag | UI_Select | UI_Resize
         ); 
         {
@@ -148,7 +148,35 @@ main( int argc, char *argv[] )
 
                 }
                 UI_TextBox(UI_Context, "This is a textbox");
-                UI_Label(UI_Context, "Here beloew we set a scrollbar view");
+                UI_Label(UI_Context, "Here below we set a scrollbar view");
+                UI_BeginScrollbarView(UI_Context);
+                {
+                    for( i32 i = 0; i < 1000; i += 1 ) {
+                        char buf[64] = {0};
+                        snprintf(buf, 64, "Label number %d", i);
+                        UI_Label(UI_Context, buf);
+                    }
+                }
+                UI_EndScrollbarView(UI_Context);
+            }
+            UI_EndTreeNode(UI_Context);
+        }
+        UI_WindowEnd(UI_Context);
+
+        UI_WindowBegin(
+            UI_Context, 
+            (rect_2d){{15, 15}, {window_width - 10, window_height - 10}}, 
+            "Hello Title 2",
+            UI_AlignCenter | UI_SetPosPersistent | UI_Drag | UI_Select | UI_Resize
+        ); 
+        {
+            if( UI_BeginTreeNode(UI_Context, "Tree") & ActiveObject ) {
+                UI_Label(UI_Context, "This is a label");
+                if( UI_Button(UI_Context, "This is a button") & Input_LeftClickPress ) {
+
+                }
+                UI_TextBox(UI_Context, "This is a textbox");
+                UI_Label(UI_Context, "Here below we set a scrollbar view");
                 UI_BeginScrollbarView(UI_Context);
                 {
                     for( i32 i = 0; i < 1000; i += 1 ) {

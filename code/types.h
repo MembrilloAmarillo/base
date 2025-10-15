@@ -17,7 +17,6 @@
 
 #define U64_MAX ((u64)(1ULL << 63) - 1)
 
-
 #if !defined(__cplusplus)
 #if (defined(_MSC_VER) && _MSC_VER < 1800) || (!defined(_MSC_VER) && !defined(__STDC_VERSION__))
 #ifndef true

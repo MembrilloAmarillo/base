@@ -9,11 +9,6 @@
 */
 
 /**
- * @todo Implement Window API for window creation and Event handling
- * @todo Abstract X11 handling to better support OS-specific API
- */
-
-/**
  * 2025/10/02. Added linked listing for box creation, in debug mode, ~1000 objects in 3ms, in release ~1.7 ms.
                Still have to be more efficient.
  * 2025/10/01. Added xxhash for faster hashing, and parent-dependent hashing.
@@ -294,6 +289,8 @@ internal void ui_EndScrollbarView(ui_context* Context);
 
 internal bool IsCursorOnRect(ui_context* Context, rect_2d Rect);
 
+internal void UI_SortWindowByDepth(ui_win_stack* window);
+
 #endif // _SP_UI_H_
 
 #ifdef SP_UI_IMPL
@@ -361,6 +358,8 @@ UI_End(ui_context* UI_Context) {
     void* I_Buffer = stack_push(TempAllocator, u32, kibibyte(256));
     gfx->ui_indxs  = VectorNew(I_Buffer, 0, kibibyte(256), u32);
 
+
+    UI_SortWindowByDepth(&UI_Context->Windows);
 
     i32 N_Windows = UI_Context->Windows.Current;
     for( i32 i = 0 ; i < N_Windows; i += 1) {
@@ -470,7 +469,7 @@ UI_End(ui_context* UI_Context) {
                 u8* p = Object->Text.data;
                 float pen_x = (float)Object->Pos.x;
                 float pen_y = (float)Object->Pos.y; // baseline or top depending on your coordinate convention
-                for ( u32 _it = 0; *p && _it < Object->Text.idx; ++p, ++_it) {
+                for ( u32 _it = 0; *p && _it < Object->Text.idx && pen_x; ++p, ++_it) {
                     // Skip UTF-8 continuation bytes (0b10xxxxxx)
                     if ( (*p & 0xC0) == 0x80 ) continue;
 
@@ -534,8 +533,8 @@ UI_End(ui_context* UI_Context) {
             } else if( Object->Text.idx == 0 && Object->Type == UI_InputText ) {
                 float Start = Object->Pos.x + F_TextWidth(Object->Theme.Font, Object->Text.data, Object->TextCursorIdx);
                 v_2d v1 = {
-                    .LeftCorner = { Start, Object->Pos.y },
-                    .Size = {3, Object->Size.y} ,
+                    .LeftCorner = { Start, Object->Rect.Pos.y },
+                    .Size = {3, Object->Rect.Size.y} ,
                     .UV = { -2, -2 },
                     .UVSize = { 0, 0 },
                     .Color = {Color.r, Color.g, Color.b, 1},
@@ -598,12 +597,12 @@ UI_WindowBegin(ui_context* Context, rect_2d Rect, const char* Title, ui_lay_opt 
             Vec2Add(Object->Rect.Pos, Vec2Sub(Object->Rect.Size, CornerSize)),
             {20, 20}
         };
-        if(IsCursorOnRect(Context, TitleRect) && Context->FocusObject == &UI_NULL_OBJECT ) {
+        if(IsCursorOnRect(Context, TitleRect) && Context->FocusObject == &UI_NULL_OBJECT && (Options & UI_Select) ) {
             if( Context->FocusObject != Object ) {
                 Object->DepthIdx += 1;
             }
             Context->FocusObject = Object;
-        } else if( Object->Option & UI_Resize  && Context->FocusObject == &UI_NULL_OBJECT )  {
+        } else if( Object->Option & UI_Resize  && Context->FocusObject == &UI_NULL_OBJECT  && (Options & UI_Select) )  {
             if( IsCursorOnRect(Context, ResizeRect) ) {
                 if( Context->FocusObject != Object ) {
                     Object->DepthIdx += 1;
@@ -631,7 +630,7 @@ UI_WindowBegin(ui_context* Context, rect_2d Rect, const char* Title, ui_lay_opt 
         Context->FocusObject = &UI_NULL_OBJECT;
     }
 
-    UI_PushNextLayout(Context, Object->Rect, Options);
+    UI_PushNextLayout(Context, Object->Rect, 0);
     ui_layout* Layout = &StackGetFront(&Context->Layouts);
     Layout->BoxSize = (vec2){Object->Rect.Size.x, F_TextHeight(Object->Theme.Font)};
     Layout->ContentSize.v[Layout->AxisDirection] += Object->Size.v[Layout->AxisDirection];
@@ -639,8 +638,6 @@ UI_WindowBegin(ui_context* Context, rect_2d Rect, const char* Title, ui_lay_opt 
     Context->CurrentParent = Object;
 
     NewWin->WindowRect = Object->Rect;
-
-    UI_SortWindowByDepth(&Context->Windows);
 }
 
 internal void
@@ -675,8 +672,7 @@ internal ui_object*
 UI_BuildObjectWithParent(ui_context* Context, u8* Key, u8* Text, rect_2d Rect, ui_lay_opt Options, ui_object* Parent )
 {
     ui_object* Object = &UI_NULL_OBJECT;
-    // @TODO For now it does not compute the hash with the parent
-    //
+
     ui_object* IdParent = Context->CurrentParent;
     if( HashTableContains(&Context->TableObject, Key, Parent->HashId) ) {
         entry* StoredWindowEntry = HashTableFindPointer(&Context->TableObject, Key, Parent->HashId);
@@ -715,16 +711,6 @@ UI_BuildObjectWithParent(ui_context* Context, u8* Key, u8* Text, rect_2d Rect, u
 
     if( !StackIsEmpty(&Context->Layouts) ) {
         ui_layout* Layout    = &StackGetFront(&Context->Layouts);
-        if( Layout->N_Rows > 0 ) {
-            if( Layout->CurrentRow > 0 ) {
-                //Object->Rect.Pos.y += Layout->RowSizes[Layout->CurrentRow - 1];
-            }
-        }
-        if( Layout->N_Columns > 0 ) {
-            if( Layout->CurrentColumn > 0 ) {
-                //Object->Rect.Pos.x += Layout->ColumnSizes[Layout->CurrentColumn - 1];
-            }
-        }
 
         Object->Rect.Pos = Vec2Add(Object->Rect.Pos, Layout->Padding);
         vec2 RightPadding = Vec2ScalarMul(2, Layout->Padding);
@@ -941,7 +927,7 @@ UI_Label(ui_context* Context, const char* text) {
     Rect.Pos         = Vec2Add(Rect.Pos, Layout.ContentSize);
     Rect.Size        = Layout.BoxSize;
 
-    ui_lay_opt Options = UI_DrawText | UI_AlignVertical | UI_Interact | UI_Select;
+    ui_lay_opt Options = UI_DrawText | UI_AlignVertical | UI_Interact | UI_Select | Layout.Option;
     UI_SetNextTheme( Context, Context->DefaultTheme.Label );
     ui_object* Label = UI_BuildObjectWithParent(Context, text, text, Rect, Options, Parent);
 

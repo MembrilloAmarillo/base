@@ -1,11 +1,14 @@
-#if __linux__
+#ifndef _UI_SAMPLE_H_
+#define _UI_SAMPLE_H_
 
+#if __linux__
 #include <X11/Xlib.h>
 #include <X11/keysymdef.h>
 #include <X11/Xutil.h>
 #include <X11/XKBlib.h>
 #include <X11/keysym.h>
 #include <unistd.h>
+#define VK_USE_PLATFORM_XLIB_KHR
 
 #elif _WIN32
 #define VK_USE_PLATFORM_WIN32_KHR
@@ -20,7 +23,6 @@
 #include <errno.h>
 #include <time.h>
 #include <stddef.h>
-
 
 #include "../third-party/xxhash.h"
 #include "../third-party/stb_image.h"
@@ -83,3 +85,5 @@
 
 #define UI_RENDER_IMPL
 #include "../ui_render.h"
+
+#endif

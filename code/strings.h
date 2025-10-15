@@ -1,6 +1,9 @@
 #ifndef _STRINGS_H_
 #define _STRINGS_H_
 
+#include "types.h"
+#include "allocator.h"
+
 typedef struct U8_String U8_String;
 struct U8_String {
     u8* data;

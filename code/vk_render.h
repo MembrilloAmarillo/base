@@ -1,6 +1,15 @@
 #ifndef _VK_RENDER_H_
 #define _VK_RENDER_H_
 
+#if __linux__
+#include <X11/Xlib.h>
+#define VK_USE_PLATFORM_XLIB_KHR
+#elif _WIN32
+#define VK_USE_PLATFORM_WIN32_KHR
+#endif 
+
+#include <vulkan/vulkan.h>
+
 /* ----------------------------------------------------------------------------- */
 
 global const char* VALIDATION_LAYERS[] = { "VK_LAYER_KHRONOS_validation" };
@@ -1256,7 +1265,7 @@ VulkanInit() {
         VK_CHECK(vkCreateInstance(&InstanceInfo, 0, &Base.Instance));
     }
 
-#if __linux __
+#if __linux__
     VkXlibSurfaceCreateInfoKHR ci = {};
     ci.sType  = VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR;
     ci.dpy    = Base.Window.Dpy;

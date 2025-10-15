@@ -1,7 +1,7 @@
 # === VARIABLES DE USUARIO ===
 CC   := clang
 CXX  := g++
-CFLAGS  := -g -ggdb -DDEBUG -Wall -Wno-unused-function -std=gnu11 -D_GNU_SOURCE
+CFLAGS  := -g -ggdb -DDEBUG -Wall -Wno-unused-function -std=gnu11 -D_GNU_SOURCE -DVK_USE_PLATFORM_XLIB_KHR
 CXXFLAGS:= -g -ggdb -std=c++17 -Wall
 CPPFLAGS:= -D_POSIX_PTHREAD_SEMANTICS
 INC     := -Icode
@@ -10,6 +10,7 @@ LIBS    := -lzmq -lsocketcan -lm -lpthread -ldl -lrt -lX11 -lvulkan -lstdc++
 CFLAGS_OPT := -Wall -Wno-unused-function -std=gnu11 -D_GNU_SOURCE -O3
 CXXFLAGS_OPT := -std=c++17 -Wall -O3
 
+XXHASH := code/third-party/xxhash.c
 SRC_C := code/Samples/UI_Sample.c
 VMA   := code/third-party/vk_mem_alloc.c
 
@@ -21,11 +22,17 @@ vma_impl.o: $(VMA)
 vma_impl_release.o: $(VMA)
 	$(CXX) $(CXXFLAGS_OPT) -c $< -o $@
 
-UI_Sample_Release: $(SRC_C) vma_impl_release.o
+xxhash.o: $(XXHASH)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+xxhash_release.o: $(XXHASH)
+	$(CC) $(CFLAGS_OPT) -c $< -o $@
+
+UI_Sample_Release: $(SRC_C) vma_impl_release.o xxhash.o
 	@echo "Compiling $@..."
 	$(CC) $(CFLAGS_OPT) $(CPPFLAGS) $(INC) -o $@ $^ $(LIBS)
 
-UI_Sample: $(SRC_C) vma_impl.o
+UI_Sample: $(SRC_C) vma_impl.o xxhash_release.o
 	@echo "Compiling $@..."
 	$(CC) $(CFLAGS) $(CPPFLAGS) $(INC) -o $@ $^ $(LIBS)
 
