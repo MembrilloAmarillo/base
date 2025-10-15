@@ -72,6 +72,25 @@ internal void UI_CreateComputeBG_DescriptorSet( UI_Graphics* gfx );
 internal void
 UI_Render(UI_Graphics* gfx, VkCommandBuffer cmd) {
 
+	{
+		gfx->UniformData.ScreenWidth   = gfx->base->Swapchain.Extent.width;
+		gfx->UniformData.ScreenHeight  = gfx->base->Swapchain.Extent.height;
+		gfx->UniformData.TextureWidth  = gfx->UI_TextureImage.Width;
+		gfx->UniformData.TextureHeight = gfx->UI_TextureImage.Height;
+		VkMappedMemoryRange flushRange = {0};
+		flushRange.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
+		// Get the VkDeviceMemory from your buffer's allocation info
+		flushRange.memory = gfx->UniformBuffer.Info.deviceMemory;
+		flushRange.offset = 0;
+		flushRange.size = VK_WHOLE_SIZE; // Or sizeof(ui_uniform)
+		vkFlushMappedMemoryRanges(gfx->base->Device, 1, &flushRange);
+		memcpy(
+			gfx->UniformBuffer.Info.pMappedData,
+			&gfx->UniformData,
+			sizeof(ui_uniform)
+		);
+	}
+
     {
         memcpy(
                gfx->ui_vertex_staging[gfx->base->CurrentFrame].Info.pMappedData,

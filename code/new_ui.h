@@ -202,6 +202,8 @@ struct ui_context {
 
     ui_input KeyPressed;
     ui_input KeyDown;
+	
+	u32 MaxDepth;
 
     vec2 TextCursorPos;
     vec2 CursorClick;
@@ -289,7 +291,7 @@ internal void ui_EndScrollbarView(ui_context* Context);
 
 internal bool IsCursorOnRect(ui_context* Context, rect_2d Rect);
 
-internal void UI_SortWindowByDepth(ui_win_stack* window);
+internal void UI_SortWindowByDepth(ui_win_stack* window, Stack_Allocator* Allocator );
 
 #endif // _SP_UI_H_
 
@@ -313,6 +315,8 @@ UI_Init(ui_context* Context, UI_Graphics* Gfx, Stack_Allocator* Allocator, Stack
     Context->TextInput = StringCreate(1024, Allocator);
     Context->FocusObject = &UI_NULL_OBJECT;
     Context->CurrentParent = &UI_NULL_OBJECT;
+
+	Context->MaxDepth = 1;
 
     HashTableInit(&Context->TableObject, Allocator, 4096, UI_CustomXXHash);
 }
@@ -359,7 +363,7 @@ UI_End(ui_context* UI_Context) {
     gfx->ui_indxs  = VectorNew(I_Buffer, 0, kibibyte(256), u32);
 
 
-    UI_SortWindowByDepth(&UI_Context->Windows);
+    UI_SortWindowByDepth(&UI_Context->Windows, UI_Context->TempAllocator);
 
     i32 N_Windows = UI_Context->Windows.Current;
     for( i32 i = 0 ; i < N_Windows; i += 1) {
@@ -548,17 +552,45 @@ UI_End(ui_context* UI_Context) {
 }
 
 internal void
-UI_SortWindowByDepth(ui_win_stack* window) {
-    ui_window* wind = window->Items[0];
-
-    for(i32 i = 1; i < window->Current; i += 1) {
-        u64 DepthIdx   = window->Items[i]->Objects.FirstSon->DepthIdx;
-        u64 PriorDepth = window->Items[i-1]->Objects.FirstSon->DepthIdx;
-        if(DepthIdx >= PriorDepth) {
-            window->Items[i-1] = window->Items[i];
-            window->Items[i]   = wind;
+TopDownMerge(ui_window** WorkBuffer, u32 Begin, u32 Middle, u32 End, ui_window** SrcWindows) {
+    u32 i = Begin, j = Middle;
+    for (u32 k = Begin; k < End; k++) {
+        if (i < Middle && (j >= End || SrcWindows[i]->Objects.FirstSon->DepthIdx >= SrcWindows[j]->Objects.FirstSon->DepthIdx)) {
+            WorkBuffer[k] = SrcWindows[i];
+            i++;
+        } else {
+            WorkBuffer[k] = SrcWindows[j];
+            j++;
         }
     }
+}
+
+internal void
+TopDownSplitMerge(ui_window** WorkBuffer, u32 Begin, u32 End, ui_window** SrcWindows) {
+	if (End - Begin <= 1) {
+		return;
+	}
+
+	u32 Middle = (End + Begin) / 2;
+	TopDownSplitMerge(SrcWindows, Begin, Middle, WorkBuffer);
+	TopDownSplitMerge(SrcWindows, Middle, End, WorkBuffer);
+	TopDownMerge(SrcWindows, Begin, Middle, End, WorkBuffer);
+}
+
+internal void
+TopDownMergeSort(ui_window** WorkBuffer, ui_window** SrcWindows, u32 N) {
+	
+	TopDownSplitMerge(WorkBuffer, 0, N, SrcWindows);
+}
+
+internal void
+UI_SortWindowByDepth(ui_win_stack* window, Stack_Allocator* Alloc ) {
+	
+	ui_window** WorkBuffer = stack_push(Alloc, ui_window**, window->Current);
+	for (u32 i = 0; i < window->Current; i += 1) {
+		WorkBuffer[i] = (window->Items[i]);
+	}
+	TopDownMergeSort(WorkBuffer, window->Items, window->Current);
 }
 
 internal void
@@ -598,18 +630,20 @@ UI_WindowBegin(ui_context* Context, rect_2d Rect, const char* Title, ui_lay_opt 
             {20, 20}
         };
         if(IsCursorOnRect(Context, TitleRect) && Context->FocusObject == &UI_NULL_OBJECT && (Options & UI_Select) ) {
-            if( Context->FocusObject != Object ) {
-                Object->DepthIdx += 1;
-            }
+			if (Object->DepthIdx < Context->MaxDepth) {
+				Object->DepthIdx = Context->MaxDepth + 1;
+			}
             Context->FocusObject = Object;
         } else if( Object->Option & UI_Resize  && Context->FocusObject == &UI_NULL_OBJECT  && (Options & UI_Select) )  {
             if( IsCursorOnRect(Context, ResizeRect) ) {
-                if( Context->FocusObject != Object ) {
-                    Object->DepthIdx += 1;
-                }
+                if (Object->DepthIdx <= Context->MaxDepth) {
+					//Object->DepthIdx += 1;
+				}
                 Context->FocusObject = Object;
             }
         }
+
+		Context->MaxDepth = Max(Context->MaxDepth, Object->DepthIdx);
     }
 
     if( !( UI_ConsumeEvents(Context, Object) & Input_LeftClickRelease) && Object == Context->FocusObject ) {

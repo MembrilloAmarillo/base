@@ -37,13 +37,13 @@ main( int argc, char *argv[] )
     u8 *BitmapArray = stack_push(&Allocator, u8, 2100 * 1200);
     FontCache DefaultFont =
         F_BuildFont(22, 2100, 60, BitmapArray, "./data/RobotoMono.ttf");
-    FontCache TitleFont = F_BuildFont(30, 2100, 60, BitmapArray + (2100 * 60),
+    FontCache TitleFont = F_BuildFont(22, 2100, 60, BitmapArray + (2100 * 60),
                                       "./data/LiterationMono.ttf");
-    FontCache TitleFont2 = F_BuildFont(30, 2100, 60, BitmapArray + (2100 * 120),
+    FontCache TitleFont2 = F_BuildFont(22, 2100, 60, BitmapArray + (2100 * 120),
                                        "./data/TinosNerdFontPropo.ttf");
-    FontCache BoldFont = F_BuildFont(22, 2100, 60, BitmapArray + (2100 * 180),
+    FontCache BoldFont = F_BuildFont(18, 2100, 60, BitmapArray + (2100 * 180),
                                      "./data/LiterationMonoBold.ttf");
-    FontCache ItalicFont = F_BuildFont(22, 2100, 60, BitmapArray + (2100 * 240),
+    FontCache ItalicFont = F_BuildFont(18, 2100, 60, BitmapArray + (2100 * 240),
                                        "./data/LiterationMonoItalic.ttf");
     DefaultFont.BitmapOffset = Vec2Zero();
     TitleFont.BitmapOffset = (vec2){0, 60};
@@ -137,7 +137,7 @@ main( int argc, char *argv[] )
 
         UI_WindowBegin(
             UI_Context, 
-            (rect_2d){{5, 5}, {window_width - 10, window_height - 10}}, 
+            (rect_2d){{5, 5}, {window_width / 2 - 10, window_height / 2 - 10}}, 
             "Hello Title",
             UI_AlignCenter | UI_SetPosPersistent | UI_Drag | UI_Select | UI_Resize
         ); 
@@ -165,12 +165,40 @@ main( int argc, char *argv[] )
 
         UI_WindowBegin(
             UI_Context, 
-            (rect_2d){{15, 15}, {window_width - 10, window_height - 10}}, 
+            (rect_2d){{15, 15}, {window_width / 2 - 30, window_height / 2 - 30}}, 
             "Hello Title 2",
             UI_AlignCenter | UI_SetPosPersistent | UI_Drag | UI_Select | UI_Resize
         ); 
         {
-            if( UI_BeginTreeNode(UI_Context, "Tree") & ActiveObject ) {
+            if( UI_BeginTreeNode(UI_Context, "Tree 2") & ActiveObject ) {
+                UI_Label(UI_Context, "This is a label");
+                if( UI_Button(UI_Context, "This is a button") & Input_LeftClickPress ) {
+
+                }
+                UI_TextBox(UI_Context, "This is a textbox");
+                UI_Label(UI_Context, "Here below we set a scrollbar view");
+                UI_BeginScrollbarView(UI_Context);
+                {
+                    for( i32 i = 0; i < 1000; i += 1 ) {
+                        char buf[64] = {0};
+                        snprintf(buf, 64, "Label number %d", i);
+                        UI_Label(UI_Context, buf);
+                    }
+                }
+                UI_EndScrollbarView(UI_Context);
+            }
+            UI_EndTreeNode(UI_Context);
+        }
+        UI_WindowEnd(UI_Context);
+
+		UI_WindowBegin(
+            UI_Context, 
+            (rect_2d){{45, 15}, {window_width / 2 - 30, window_height / 2 - 30}}, 
+            "Hello Title 3",
+            UI_AlignCenter | UI_SetPosPersistent | UI_Drag | UI_Select | UI_Resize
+        ); 
+        {
+            if( UI_BeginTreeNode(UI_Context, "Tree 2") & ActiveObject ) {
                 UI_Label(UI_Context, "This is a label");
                 if( UI_Button(UI_Context, "This is a button") & Input_LeftClickPress ) {
 
@@ -197,22 +225,6 @@ main( int argc, char *argv[] )
         if( do_resize ) {
             UI_ExternalRecreateSwapchain(&gfx);
         } else {
-            gfx.UniformData.ScreenWidth   = gfx.base->Swapchain.Extent.width;
-           	gfx.UniformData.ScreenHeight  = gfx.base->Swapchain.Extent.height;
-           	gfx.UniformData.TextureWidth  = gfx.UI_TextureImage.Width;
-           	gfx.UniformData.TextureHeight = gfx.UI_TextureImage.Height;
-            VkMappedMemoryRange flushRange = {0};
-            flushRange.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
-            // Get the VkDeviceMemory from your buffer's allocation info
-            flushRange.memory = gfx.UniformBuffer.Info.deviceMemory;
-            flushRange.offset = 0;
-            flushRange.size = VK_WHOLE_SIZE; // Or sizeof(ui_uniform)
-            vkFlushMappedMemoryRanges(gfx.base->Device, 1, &flushRange);
-           	memcpy(
-           		gfx.UniformBuffer.Info.pMappedData,
-           		&gfx.UniformData,
-           		sizeof(ui_uniform)
-           	);
             VkCommandBuffer cmd = BeginRender(gfx.base);
 
             UI_Render(&gfx, cmd);
