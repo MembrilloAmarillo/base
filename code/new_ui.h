@@ -25,6 +25,8 @@
 #ifndef _SP_UI_H_
 #define _SP_UI_H_
 
+#include "draw.h"
+
 #define HexToRGBA(val) ((rgba){.r = (val & 0xff000000) >> 24, .g = (val & 0x00ff0000) >> 16, .b = (val & 0x0000ff00) >> 8, .a = val & 0x000000ff})
 #define HexToU8_Vec4(val) {(val & 0xff000000) >> 24, (val & 0x00ff0000) >> 16, (val & 0x0000ff00) >> 8, val & 0x000000ff}
 
@@ -51,12 +53,6 @@ enum ui_lay_opt {
     UI_DrawText    = (1 << 11),
     UI_SetPosPersistent = (1 << 12 ),
     UI_DrawShadow       = (1 << 13)
-};
-
-typedef struct rect_2d rect_2d;
-struct rect_2d {
-    vec2 Pos;
-    vec2 Size;
 };
 
 typedef enum object_type object_type;
@@ -273,7 +269,6 @@ internal void UI_PushNextLayoutColumn(ui_context* Context, int N_Columns, const 
 internal void UI_PushNextLayoutBoxSize(ui_context* Context, vec2 BoxSize);
 internal void UI_PushNextLayoutPadding(ui_context* Context, vec2 Padding);
 internal void UI_PushNextLayoutOption(ui_context* Context, ui_lay_opt Options);
-
 
 internal U8_String*  UI_GetTextFromBox(ui_context* Context, const char* Key);
 
@@ -660,8 +655,19 @@ UI_WindowBegin(ui_context* Context, rect_2d Rect, const char* Title, ui_lay_opt 
         if( Object->Option & UI_Drag && !IsCursorOnRect(Context, ResizeRect) ) {
             Object->Rect.Pos = Vec2Add(Object->Rect.Pos, Context->CursorDelta);
         }
-    } else if( UI_ConsumeEvents(Context, Object) & Input_LeftClickRelease && Object == Context->FocusObject ) {
-        Context->FocusObject = &UI_NULL_OBJECT;
+    } 
+	if( UI_ConsumeEvents(Context, Object) & Input_LeftClickRelease ) {
+        rect_2d TitleRect = (rect_2d){Object->Rect.Pos, {Object->Rect.Size.x, Object->Size.y}};
+        vec2 CornerSize = (vec2){20, 20};
+        rect_2d ResizeRect = (rect_2d){
+            Vec2Add(Object->Rect.Pos, Vec2Sub(Object->Rect.Size, CornerSize)),
+            {20, 20}
+        };
+		if (IsCursorOnRect(Context, TitleRect)) {
+			Context->FocusObject = &UI_NULL_OBJECT;
+		} else if (IsCursorOnRect(Context, ResizeRect)) {
+			Context->FocusObject = &UI_NULL_OBJECT;
+		}
     }
 
     UI_PushNextLayout(Context, Object->Rect, 0);
@@ -961,7 +967,7 @@ UI_Label(ui_context* Context, const char* text) {
     Rect.Pos         = Vec2Add(Rect.Pos, Layout.ContentSize);
     Rect.Size        = Layout.BoxSize;
 
-    ui_lay_opt Options = UI_DrawText | UI_AlignVertical | UI_Interact | UI_Select | Layout.Option;
+    ui_lay_opt Options = UI_DrawText | UI_AlignVertical | UI_Interact | Layout.Option;
     UI_SetNextTheme( Context, Context->DefaultTheme.Label );
     ui_object* Label = UI_BuildObjectWithParent(Context, text, text, Rect, Options, Parent);
 
@@ -983,7 +989,7 @@ UI_LabelWithKey(ui_context* Context, const char* Key, const char* text) {
     Rect.Pos         = Vec2Add(Rect.Pos, Layout.ContentSize);
     Rect.Size        = Layout.BoxSize;
 
-    ui_lay_opt Options = UI_DrawText | UI_AlignVertical | UI_Interact | UI_Select;
+    ui_lay_opt Options = UI_DrawText | UI_AlignVertical | UI_Interact;
     UI_SetNextTheme( Context, Context->DefaultTheme.Input );
     ui_object* Label = UI_BuildObjectWithParent(Context, Key, text, Rect, Options, Parent);
 
@@ -1013,13 +1019,14 @@ UI_TextBox(ui_context* Context, const char* text) {
     TextBox->LastInputSet = Input;
     TextBox->Type = UI_InputText;
 
-    if( Input & Input_LeftClickPress ) {
-        Context->FocusObject = TextBox;
-    }
+	if( Input & Input_LeftClickPress ) {
+		Context->FocusObject = TextBox;
+	}
 
-    if( TextBox == Context->FocusObject ) {
-        TextBox->LastInputSet |= Context->LastInput;
-    }
+	if( TextBox == Context->FocusObject ) {
+		TextBox->LastInputSet |= Context->LastInput;
+	}
+
 
     if( TextBox->LastInputSet & Input_CursorHover ) {
         TextBox->Theme.Background.a *= 0.8;
@@ -1058,7 +1065,9 @@ UI_BeginTreeNode(ui_context* Context, const char* text) {
         }
     } else if( Input & Input_LeftClickPress && TreeNode->LastInputSet & ActiveObject ) {
         TreeNode->LastInputSet ^= ActiveObject;
-    }
+	} else if (Input & Input_LeftClickRelease) {
+		Context->FocusObject = &UI_NULL_OBJECT;
+	}
 
     Context->CurrentParent = TreeNode;
 
@@ -1332,13 +1341,11 @@ UI_LastEvent(ui_context* Context) {
     if( Input & Input_LeftClickPress ) {
         Context->CursorClick   = Context->LastCursorPos;
         Context->CursorAction |= Input_LeftClickPress;
-        Context->LastInput = Input_LeftClickPress;
     }
     if( Input & Input_LeftClickRelease ) {
         Context->CursorClick   = Context->LastCursorPos;
         Context->CursorAction |= Input_LeftClickRelease;
-        Context->LastInput = Input_LeftClickRelease;
-    }
+	}
     if( Input & Input_Left ) {
         Context->FocusObject->TextCursorIdx = Max(0, Context->FocusObject->TextCursorIdx - 1);
     }

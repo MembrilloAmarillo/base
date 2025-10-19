@@ -42,6 +42,7 @@
 #include "../third-party/vk_mem_alloc.h"
 #include "../vk_render.h"
 #include "../ui_render.h"
+#include "../draw.h"
 #include "../new_ui.h"
 
 #define MEMORY_IMPL
@@ -85,5 +86,9 @@
 
 #define UI_RENDER_IMPL
 #include "../ui_render.h"
+
+#define DRAW_IMPL
+#include "../draw.h"
+
 
 #endif

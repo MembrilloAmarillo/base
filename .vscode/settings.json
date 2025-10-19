@@ -1,8 +1,0 @@
-{
-    "files.associations": {
-        "types.h": "c",
-        "memory.h": "c",
-        "stb_truetype.h": "c",
-        "ui_sample.h": "c"
-    }
-}

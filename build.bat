@@ -8,8 +8,8 @@ set CC=cl
 set CXX=cl
 
 :: Debug flags
-set CFLAGS_DEBUG=/nologo /std:c11 /FC /Z7 /DDEBUG /W3 /wd4996 /Od /Ob1 /TC
-set CXXFLAGS_DEBUG=/nologo /std:c++14 /FC /Z7 /W3 /Od /Ob1 /TP
+set CFLAGS_DEBUG=/nologo /std:c11 /FC /Z7 /DDEBUG /W3 /wd4996 /Od /Ob1 /TC /fsanitize=address
+set CXXFLAGS_DEBUG=/nologo /std:c++14 /FC /Z7 /W3 /Od /Ob1 /TP /fsanitize=address
 set INC=/Icode /I"C:\VulkanSDK\1.4.328.1\Include"
 
 :: Release flags

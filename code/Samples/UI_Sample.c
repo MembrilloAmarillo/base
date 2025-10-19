@@ -151,7 +151,7 @@ main( int argc, char *argv[] )
                 UI_Label(UI_Context, "Here below we set a scrollbar view");
                 UI_BeginScrollbarView(UI_Context);
                 {
-                    for( i32 i = 0; i < 1000; i += 1 ) {
+                    for( i32 i = 0; i < 20; i += 1 ) {
                         char buf[64] = {0};
                         snprintf(buf, 64, "Label number %d", i);
                         UI_Label(UI_Context, buf);
@@ -179,7 +179,7 @@ main( int argc, char *argv[] )
                 UI_Label(UI_Context, "Here below we set a scrollbar view");
                 UI_BeginScrollbarView(UI_Context);
                 {
-                    for( i32 i = 0; i < 1000; i += 1 ) {
+                    for( i32 i = 0; i < 20; i += 1 ) {
                         char buf[64] = {0};
                         snprintf(buf, 64, "Label number %d", i);
                         UI_Label(UI_Context, buf);
@@ -207,7 +207,7 @@ main( int argc, char *argv[] )
                 UI_Label(UI_Context, "Here below we set a scrollbar view");
                 UI_BeginScrollbarView(UI_Context);
                 {
-                    for( i32 i = 0; i < 1000; i += 1 ) {
+                    for( i32 i = 0; i < 20; i += 1 ) {
                         char buf[64] = {0};
                         snprintf(buf, 64, "Label number %d", i);
                         UI_Label(UI_Context, buf);
