@@ -29,6 +29,7 @@ main( int argc, char *argv[] )
     u8 *TempBuffer = PushArray(main_arena, u8, mebibyte(256));
     stack_init(&Allocator, Buffer, gigabyte(1));
     stack_init(&TempAllocator, TempBuffer, mebibyte(256));
+
     
     ui_context *UI_Context = PushArray(main_arena, ui_context, 1);
 
@@ -120,6 +121,7 @@ main( int argc, char *argv[] )
     struct timespec ts2, ts1;
 
     double posix_dur = 0;
+
     while( running ) {
         //clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &ts1);
         u32 window_width  = gfx.base->Swapchain.Extent.width;

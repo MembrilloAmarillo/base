@@ -44,6 +44,7 @@
 #include "../ui_render.h"
 #include "../draw.h"
 #include "../new_ui.h"
+#include "../render.h"
 
 #define MEMORY_IMPL
 #include "../memory.h"
@@ -89,6 +90,8 @@
 
 #define DRAW_IMPL
 #include "../draw.h"
+
+#include "../render.c"
 
 
 #endif

@@ -510,7 +510,7 @@ UI_CreateUI_Pipeline( UI_Graphics* gfx, u8* Bitmap, u32 Width, u32 Height ) {
     gfx->UI_DescriptorSet = DescriptorSetAllocate(&gfx->UI_DescriptorPool, gfx->base->Device, &gfx->UI_DescriptorLayout);
 
     descriptor_writer writer = DescriptorWriterInit(2, &gfx->base->TempAllocator);
-
+	
     WriteImage(
                &writer, 0,
                gfx->UI_TextureImage.ImageView,
@@ -518,6 +518,7 @@ UI_CreateUI_Pipeline( UI_Graphics* gfx, u8* Bitmap, u32 Width, u32 Height ) {
                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
                VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
                );
+	
 
     gfx->UniformBuffer = CreateBuffer(
         gfx->base->GPUAllocator,
@@ -529,7 +530,7 @@ UI_CreateUI_Pipeline( UI_Graphics* gfx, u8* Bitmap, u32 Width, u32 Height ) {
     WriteBuffer(&writer, 1, gfx->UniformBuffer.Buffer, sizeof(ui_uniform), 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
     UpdateDescriptorSet(&writer, gfx->base->Device, gfx->UI_DescriptorSet);
 
-    SetDescriptorLayout(&p_Build, &gfx->UI_DescriptorLayout, 2);
+    SetDescriptorLayout(&p_Build, &gfx->UI_DescriptorLayout, 1);
     gfx->UI_Pipeline = AddPipeline(
                                    gfx->base,
                                    &p_Build,

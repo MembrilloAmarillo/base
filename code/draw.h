@@ -56,8 +56,6 @@ internal void D_BeginDraw2D( draw_bucket_instance* Instance );
 
 internal void D_EndDraw2D( draw_bucket_instance* Instance );
 
-internal void D_RenderDraw( draw_bucket_instance* Instance, vulkan_base* Renderer, Stack_Allocator* Allocator );
-
 internal void D_DrawRect2D( draw_bucket_instance* Instance, rect_2d rect, f32 CornerRadius, f32 BorderSize, vec4 RgbaColor );
 
 internal void D_DrawText2D( draw_bucket_instance* Instance, rect_2d rect, U8_String* Text, FontCache* FC, vec4 Color );
@@ -98,16 +96,11 @@ D_EndDraw2D( draw_bucket_instance* D_Instance ) {
 }
 
 internal void 
-D_RenderDraw( draw_bucket_instance* D_Instance, vulkan_base* Renderer, Stack_Allocator* Allocator ) {
-
-}
-
-internal void 
 D_DrawRect2D(draw_bucket_instance* Instance, rect_2d rect, f32 CornerRadius, f32 BorderSize, vec4 RgbaColor) {
 	v_2d Vertex = {
 		.LeftCorner = rect.Pos,
 		.Size       = rect.Size,
-		.UV         = { -1, -1 },
+		.UV         = { -2, -2 },
 		.Color      = RgbaColor,
 		.CornerRadius = CornerRadius,
 		.Border       = BorderSize

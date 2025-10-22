@@ -1081,6 +1081,8 @@ UI_BeginTreeNode(ui_context* Context, const char* text) {
 internal ui_input
 UI_EndTreeNode(ui_context* Context) {
     Context->CurrentParent = Context->CurrentParent->Parent;
+
+	return Input_None;
 }
 
 internal void

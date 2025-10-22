@@ -362,8 +362,8 @@ void buddy_allocator_free(Buddy_Allocator *b, void *data) {
     if (data != NULL) {
         Buddy_Block *block;
 
-        assert(b->head <= (uintptr_t)data);
-        assert((uintptr_t)data < b->tail);
+        assert((uintptr_t)b->head <= (uintptr_t)data);
+        assert((uintptr_t)data < (uintptr_t)b->tail);
 
         block = (Buddy_Block *)((char *)data - b->alignment);
         block->is_free = true;

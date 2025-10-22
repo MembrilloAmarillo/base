@@ -166,9 +166,33 @@ entry* HashTableFindPointer( hash_table *Table, char* Id, U64 parent ) {
 
     U64 EntryIdx = HashId % Table->Allocated;
 
+	if( Table->Entries[EntryIdx].HashId == 0 ) {
+        return NULL;
+    } else {
+        entry* it = Table->Entries[EntryIdx].Next;
+        for( ; it != &Table->Entries[EntryIdx]; it = it->Next ) {
+            if( it->HashId == HashId ) {
+                return it;
+            }
+        }
+		return NULL;
+    }
+}
+
+// --------------------------------------------------------------- //
+
+void* HashTableGet( hash_table *Table, u64 Id, U64 parent ) {
+    U64 EntryIdx = Id % Table->Allocated;
+
     if( Table->Entries[EntryIdx].HashId == 0 ) {
         return NULL;
     } else {
-        return &Table->Entries[EntryIdx];
+        entry* it = Table->Entries[EntryIdx].Next;
+        for( ; it != &Table->Entries[EntryIdx]; it = it->Next ) {
+            if( it->HashId == Id ) {
+                return it->Value;
+            }
+        }
+		return NULL;
     }
 }

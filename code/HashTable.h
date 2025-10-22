@@ -71,6 +71,14 @@ bool HashTableContains( hash_table *Table, char* Id, U64 parent );
  */
 entry* HashTableFindPointer( hash_table *Table, char* Id, U64 parent );
 
+/**
+* @brief Return the value of a given hash id
+* @param Table     hash_table pointer to the struct
+* @param Id        Hash Id value
+* @return void*    Pointer to parameter
+*/
+void* HashTableGet(hash_table *Table, u64 Id, U64 parent);
+
 // --------------------------------------------------------------- //
 
 static U64 UCF_Strlen( char* str );

@@ -20,52 +20,52 @@ layout( location = 6 ) out float out_corner_radius;
 layout( location = 7 ) out float out_border_width;
 
 
-layout( binding = 1 ) uniform UniformBuffer {
-	float AtlasWidth;
-	float AtlasHeight;
-	float ScreenWidth;
-	float ScreenHeight;
+layout( binding = 0 ) uniform UniformBuffer {
+ float AtlasWidth;
+ float AtlasHeight;
+ float ScreenWidth;
+ float ScreenHeight;
 } ubo;
 
 #define GAMMA_TO_LINEAR(Gamma) (pow(Gamma, 2.2))
 
 void main() {
-	vec2 vertices[4] =
-	{
-		{-1, -1},
-		{-1,  1},
-		{ 1, -1},
-		{ 1,  1},
-	};
-	vec2 pixel_vert[4] =
-	{
-		{ 0, 1},
-		{ 0, 0},
-		{ 1, 1},
-		{ 1, 0},
-	};
+     vec2 vertices[4] =
+     {
+      {-1, -1},
+      {-1,  1},
+      { 1, -1},
+      { 1,  1},
+     };
+     vec2 pixel_vert[4] =
+     {
+      { 0, 1},
+      { 0, 0},
+      { 1, 1},
+      { 1, 0},
+     };
 
     out_corner_coord = pixel_vert[gl_VertexIndex];
     out_border_width = in_border_width;
 
-	vec2 top_left  = in_pos;
-	vec2 bot_right = in_pos + in_size;
+     vec2 top_left  = in_pos;
+     vec2 bot_right = in_pos + in_size;
 
-	vec2 tex_top_left  = in_uv;
-	vec2 tex_bot_right = in_uv + in_uv_size;
+     vec2 tex_top_left  = in_uv;
+     vec2 tex_bot_right = in_uv + in_uv_size;
 
-	vec2 dst_half_size = (bot_right - top_left) / 2;
-	vec2 dst_center    = (bot_right + top_left) / 2;
-	vec2 dst_pos       = (vertices[gl_VertexIndex] * dst_half_size + dst_center);
+     vec2 dst_half_size = (bot_right - top_left) / 2;
+     vec2 dst_center    = (bot_right + top_left) / 2;
+     vec2 dst_pos       = (vertices[gl_VertexIndex] * dst_half_size + dst_center);
 
-	vec2 src_half_size = (tex_bot_right - tex_top_left) / 2;
-	vec2 src_center    = (tex_bot_right + tex_top_left) / 2;
-	vec2 src_pos       = (vertices[gl_VertexIndex] * src_half_size + src_center);
+     vec2 src_half_size = (tex_bot_right - tex_top_left) / 2;
+     vec2 src_center    = (tex_bot_right + tex_top_left) / 2;
+     vec2 src_pos       = (vertices[gl_VertexIndex] * src_half_size + src_center);
 
     gl_Position = vec4( 2 * dst_pos.x / ubo.ScreenWidth  - 1,
-					   2 * dst_pos.y / ubo.ScreenHeight - 1,
-					   0,
-					   1);
+            2 * dst_pos.y / ubo.ScreenHeight - 1,
+            0,
+            1);
 
     // UVs and Color
     if (in_uv.x == -2.0) {

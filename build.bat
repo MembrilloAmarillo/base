@@ -8,8 +8,8 @@ set CC=cl
 set CXX=cl
 
 :: Debug flags
-set CFLAGS_DEBUG=/nologo /std:c11 /FC /Z7 /DDEBUG /W3 /wd4996 /Od /Ob1 /TC /fsanitize=address
-set CXXFLAGS_DEBUG=/nologo /std:c++14 /FC /Z7 /W3 /Od /Ob1 /TP /fsanitize=address
+set CFLAGS_DEBUG=/nologo /std:c11 /FC /Z7 /DDEBUG /W3 /wd4996 /Od /Ob1 /TC
+set CXXFLAGS_DEBUG=/nologo /std:c++14 /FC /Z7 /W3 /Od /Ob1 /TP
 set INC=/Icode /I"C:\VulkanSDK\1.4.328.1\Include"
 
 :: Release flags
@@ -22,9 +22,11 @@ set LIBS=kernel32.lib user32.lib gdi32.lib /LIBPATH:"C:\VulkanSDK\1.4.328.1\Lib"
 :: Source files
 set XXHASH=code\third-party\xxhash.c
 set SRC_C=code\Samples\UI_Sample.c
+set SampleRender_SRC=code\Samples\RenderLibrary.c
 set VMA=code\third-party\vk_mem_alloc.c
 
 :: Output files
+set RenderLibraryExe=RenderLibrary.exe
 set DEBUG_EXE=UI_Sample.exe
 set RELEASE_EXE=UI_Sample_Release.exe
 
@@ -35,12 +37,16 @@ if /i "%1"=="shaders" goto shaders
 if /i "%1"=="clean" goto clean
 if /i "%1"=="debug" goto debug
 if /i "%1"=="release" goto release
+if /i "%1"=="RenderLibrary" goto render
+if /i "%1"=="DrawSample" goto draw_sample
 
 echo Usage: %0 [all^|debug^|release^|shaders^|clean]
 exit /b 1
 
 :all
 call :debug
+call :render
+call :draw_sample
 if errorlevel 1 exit /b 1
 call :shaders
 exit /b
@@ -58,6 +64,18 @@ if errorlevel 1 exit /b 1
 %CC% %CFLAGS_DEBUG% %INC% "%SRC_C%" /link xxhash.obj vk_mem_alloc.obj %LIBS% /OUT:"%DEBUG_EXE%"
 if errorlevel 1 exit /b 1
 echo Debug build completed.
+exit /b
+
+:render
+%CC% %CFLAGS_DEBUG% %INC% "%SampleRender_SRC%" /link xxhash.obj vk_mem_alloc.obj %LIBS% /OUT:"%RenderLibraryExe%"
+if errorlevel 1 exit /b 1
+echo Release build completed.
+exit /b
+
+:draw_sample
+%CC% %CFLAGS_DEBUG% %INC% ./code/Samples/DrawSample.c /link xxhash.obj vk_mem_alloc.obj %LIBS% /OUT:DrawSample.exe
+if errorlevel 1 exit /b 1
+echo Release build completed.
 exit /b
 
 :release
@@ -86,6 +104,8 @@ if not exist "%GLSLC_PATH%" (
 "%GLSLC_PATH%" ./data/ColoredTriangle.frag -o ./data/ColoredTriangle.frag.spv
 "%GLSLC_PATH%" ./data/ui_render.vert -o ./data/ui_render.vert.spv
 "%GLSLC_PATH%" ./data/ui_render.frag -o ./data/ui_render.frag.spv
+"%GLSLC_PATH%" ./data/Sample.vert -o ./data/Sample.vert.spv
+"%GLSLC_PATH%" ./data/Sample.frag -o ./data/Sample.frag.spv
 echo Shader compilation completed.
 exit /b
 

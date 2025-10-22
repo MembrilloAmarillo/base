@@ -16,7 +16,7 @@ global const char* VALIDATION_LAYERS[] = { "VK_LAYER_KHRONOS_validation" };
 global const char* DEVICE_EXTENSIONS[] = {
     "VK_KHR_swapchain",
 	"VK_KHR_dynamic_rendering",
-    "VK_EXT_descriptor_indexing",
+	VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME,
     VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME
 };
 
@@ -251,7 +251,7 @@ struct vulkan_base{
 
     /////////////////////////////////////////////
     // Command buffer details
-    VkCommandPool CommandPool[MAX_FRAMES_IN_FLIGHT];
+    VkCommandPool   CommandPool[MAX_FRAMES_IN_FLIGHT];
     VkCommandBuffer CommandBuffers[MAX_FRAMES_IN_FLIGHT];
     VkCommandBuffer ComputeCommandBuffers[MAX_FRAMES_IN_FLIGHT];
 
@@ -1211,7 +1211,7 @@ VulkanInit() {
     {
         vkEnumerateInstanceExtensionProperties(NULL, &ExtensionCount, NULL);
 
-        VkExtensionProperties* props = stack_push(&Base.TempAllocator, VkLayerProperties, ExtensionCount);
+        VkExtensionProperties* props = stack_push(&Base.TempAllocator, VkExtensionProperties, ExtensionCount);
 
         /* 2. Get data */
         vkEnumerateInstanceExtensionProperties(NULL, &ExtensionCount, props);
@@ -1314,7 +1314,6 @@ VulkanInit() {
     // SETUP PHYSICAL DEVICE
     //
     {
-        queue_family_indices qfi;
         u32 DeviceCount = 0;
         vkEnumeratePhysicalDevices(Base.Instance, &DeviceCount, 0);
         if( DeviceCount == 0 ) {
@@ -2071,6 +2070,9 @@ LoadShaderModule(const char* filename, VkDevice device, VkShaderModule* outModul
     f_file f = F_OpenFile(filename, RDONLY);
 
     i32 FileSize = F_FileLength(&f);
+	if (FileSize == -1) {
+		return false;
+	}
 
     #if __linux__ 
     void* data = mmap(NULL, FileSize, PROT_READ | PROT_WRITE, MAP_PRIVATE, f.Fd, 0);
@@ -2330,6 +2332,16 @@ CreateImageDefault(vulkan_base* base, VkExtent3D Size, VkFormat Format, VkImageU
     ViewInfo.subresourceRange.levelCount = ImgInfo.mipLevels;
 
     VK_CHECK(vkCreateImageView(base->Device, &ViewInfo, 0, &new_image.ImageView));
+	
+	VkCommandBuffer initCmd = ImmediateSubmitBegin(base);
+	TransitionImage(initCmd, new_image.Image, 
+					VK_IMAGE_LAYOUT_UNDEFINED, 
+					VK_IMAGE_LAYOUT_GENERAL,
+					VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, VK_ACCESS_2_NONE,
+					VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_WRITE_BIT);
+	ImmediateSubmitEnd(base, initCmd);
+	new_image.Layout = VK_IMAGE_LAYOUT_GENERAL;
+
 
     return new_image;
 }
