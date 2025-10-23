@@ -2570,13 +2570,13 @@ void CopyImageToImage(VkCommandBuffer cmd, VkImage source, VkImage destination,
 internal void
 RecreateSwapchain(vulkan_base* base) {
     vkDeviceWaitIdle(base->Device);
+	vec2 Size = SurfaceGetWindowSize(&base->Window);
 
     vkDestroySwapchainKHR(base->Device, base->Swapchain.Swapchain, 0);
     for( u32 i = 0; i < base->Swapchain.N_ImageViews; i += 1 ) {
         vkDestroyImageView(base->Device, base->Swapchain.ImageViews[i], 0);
     }
 
-    vec2 Size = SurfaceGetWindowSize(&base->Window);
 
     base->Window.Width = Size.x;
     base->Window.Height = Size.y;
@@ -2607,6 +2607,18 @@ PrepareFrame(vulkan_base* base) {
                                             );
 
 	if( result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR ) {
+		vec2 Size = SurfaceGetWindowSize(&base->Window);
+
+        if (Size.x == 0 || Size.y == 0) {
+            // The window is minimized.
+            // DO NOT try to recreate the swapchain.
+            // DO NOT try to render.
+            // Just skip the rest of this frame and go back to step 1.
+            // This allows the app to idle with 0% CPU/GPU use
+            // while still processing events (like the "un-minimize" event).
+            return false; 
+        }
+
 		if (result == VK_ERROR_OUT_OF_DATE_KHR) {
 			// Resize swapchain
 			RecreateSwapchain(base);
@@ -2700,8 +2712,17 @@ EndRender( vulkan_base* base, VkCommandBuffer cmd ) {
 
 	if( result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || base->FramebufferResized) {
 		base->FramebufferResized = false;
-		// Resize swapchain
-		ResizeSwapchain = true;
+		vec2 Size = SurfaceGetWindowSize(&base->Window);
+
+        if (Size.x == 0 || Size.y == 0) {
+            // The window is minimized.
+            // DO NOT try to recreate the swapchain.
+            // DO NOT try to render.
+            // Just skip the rest of this frame and go back to step 1.
+            // This allows the app to idle with 0% CPU/GPU use
+            // while still processing events (like the "un-minimize" event).
+            return true; 
+        }
 		RecreateSwapchain(base);
 
 		if( result == VK_ERROR_OUT_OF_DATE_KHR ) {
