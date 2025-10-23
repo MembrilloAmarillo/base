@@ -341,10 +341,10 @@ UI_End(ui_context* UI_Context, draw_bucket_instance* DrawInstance) {
     } ObjectStack;
 
     ObjectStack Stack = {
-        .N = 12 << 10,
+        .N = 8 << 20,
         .Current = 0
     };
-    Stack.Items = stack_push(TempAllocator, ui_object*, 12 << 10);
+    Stack.Items = stack_push(TempAllocator, ui_object*, 8 << 20);
 
     UI_SortWindowByDepth(&UI_Context->Windows, UI_Context->TempAllocator);
 
@@ -1020,9 +1020,9 @@ UI_EndScrollbarView(ui_context* Context) {
 
     rect_2d ScrollableSize = Scrollbar->Rect;
 
-	float TotalScrollableDistance = ContentHeight - ViewportContent;
-
     ContentHeight = Max(1.0f, ContentHeight);
+
+	float TotalScrollableDistance = ContentHeight - ViewportContent;
 
     ScrollableSize.Size.y = (ViewportContent / ContentHeight) * ViewportContent;
 

@@ -111,7 +111,7 @@ exit /b
 
 :clean
 echo Cleaning build artifacts...
-del /q UI_Sample.exe UI_Sample_Release.exe vk_mem_alloc.obj vk_mem_alloc_release.obj 2>nul
+del /q *.exe *.pdb *.obj *.ilk 2>nul
 del /q .\data\*.spv 2>nul
 echo Clean completed.
 exit /b
