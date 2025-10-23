@@ -34,17 +34,17 @@
 		<ConfigProperties>
 			<ConfigAndPlatform>
 				<Name>Debug:x64</Name>
-				<BuildCommand>build.bat DrawSample</BuildCommand>
+				<BuildCommand>build.bat debug</BuildCommand>
 				<RebuildCommand>build.bat</RebuildCommand>
 				<BuildFileCommand></BuildFileCommand>
 				<CleanCommand>build.bat clean</CleanCommand>
 				<BuildWorkingDirectory>$(RootWorkspaceDirectory)</BuildWorkingDirectory>
 				<CancelBuild></CancelBuild>
-				<Exe>DrawSample.exe</Exe>
+				<Exe>UI_Sample.exe</Exe>
 				<Args></Args>
 				<WorkingDirectory>$(RootWorkspaceDirectory)</WorkingDirectory>
-				<DebugCommand>DrawSample.exe</DebugCommand>
-				<DebuggerExe>C:\devel\remedybg\remedybg.exe DrawSample.exe</DebuggerExe>
+				<DebugCommand>UI_Sample.exe</DebugCommand>
+				<DebuggerExe>C:\devel\remedybg\remedybg.exe UI_Sample.exe</DebuggerExe>
 				<DebugSln></DebugSln>
 				<Defines></Defines>
 				<ForceIncludes></ForceIncludes>

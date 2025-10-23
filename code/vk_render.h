@@ -1173,9 +1173,9 @@ VulkanInit() {
     vulkan_base Base = {0};
 
     Base.Arena = ArenaAllocDefault();
-    u8* data     = PushArray(Base.Arena, u8, gigabyte(1));
+    u8* data     = PushArray(Base.Arena, u8, mebibyte(256));
     u8* TempData = PushArray(Base.Arena, u8, mebibyte(256));
-    stack_init(&Base.Allocator, data, gigabyte(1));
+    stack_init(&Base.Allocator, data, mebibyte(256));
     stack_init(&Base.TempAllocator, TempData, mebibyte(256));
     VkDebugUtilsMessengerCreateInfoEXT DebugCreateInfo = {};
     char** ExtensionNames = NULL;

@@ -14,7 +14,7 @@
 #include "window_creation.h"
 #include "vk_render.h"
 
-#define MinVec2D_Size (8 << 10)
+#define MinVec2D_Size (1 << 20)
 #define MinVec3D_Size (1 << 20)
 
 typedef struct rect_2d rect_2d;
@@ -90,9 +90,9 @@ D_BeginDraw2D( draw_bucket_instance* D_Instance ) {
 
 internal void 
 D_EndDraw2D( draw_bucket_instance* D_Instance ) {
-    draw_bucket_2d* Bucket = stack_push(D_Instance->Allocator, draw_bucket_2d, 1);
-    DLIST_INIT(Bucket);
-    DLIST_INSERT(&D_Instance->Instance2D, Bucket);
+    //draw_bucket_2d* Bucket = stack_push(D_Instance->Allocator, draw_bucket_2d, 1);
+    //DLIST_INIT(Bucket);
+    //DLIST_INSERT(&D_Instance->Instance2D, Bucket);
 }
 
 internal void 

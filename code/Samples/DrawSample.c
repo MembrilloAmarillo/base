@@ -287,7 +287,7 @@ int main()
 				R_BindVertexBuffer(&Render, VBuffer[Render.VulkanBase->CurrentFrame]);
 				R_BindIndexBuffer(&Render, IBuffer[Render.VulkanBase->CurrentFrame]);
 				R_SetPipeline(&Render, Pipeline);
-				R_DrawIndexed(&Render, 6, DrawInstance.Current2DBuffer.offset);
+				R_DrawIndexed(&Render, 6, DrawInstance.Current2DBuffer.len);
 			}
 			R_RenderPassEnd(&Render);
 			R_RenderEnd(&Render);

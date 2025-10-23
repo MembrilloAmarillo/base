@@ -214,8 +214,6 @@ struct ui_context {
 
     Stack_Allocator* Allocator;
     Stack_Allocator* TempAllocator;
-
-    UI_Graphics* Gfx;
 };
 
 ui_object UI_NULL_OBJECT = {
@@ -229,17 +227,17 @@ ui_object UI_NULL_OBJECT = {
     .Rect     = {{0, 0}, {0, 0}}
 };
 
-internal void UI_Init(ui_context* Context, UI_Graphics* Gfx, Stack_Allocator* Allocator, Stack_Allocator* TempAllocator);
+internal void UI_Init(ui_context* Context, Stack_Allocator* Allocator, Stack_Allocator* TempAllocator);
 
 internal void UI_Begin(ui_context* Context);
 
-internal void UI_End(ui_context* Context);
+internal void UI_End( ui_context* Context, draw_bucket_instance* DrawInstance );
 
 internal void UI_WindowBegin(ui_context* Context, rect_2d Rect, const char* Title, ui_lay_opt Options);
 
 internal void UI_WindowEnd(ui_context* Context);
 
-internal ui_input UI_LastEvent(ui_context* Context);
+internal ui_input UI_LastEvent(ui_context* Context, api_window* Window);
 
 internal ui_object* UI_BuildObjectWithParent(
                                              ui_context* Context,
@@ -298,16 +296,15 @@ UI_CustomXXHash( const u8* buffer, u64 len, u64 seed ) {
 }
 
 internal void
-UI_Init(ui_context* Context, UI_Graphics* Gfx, Stack_Allocator* Allocator, Stack_Allocator* TempAllocator) {
+UI_Init(ui_context* Context, Stack_Allocator* Allocator, Stack_Allocator* TempAllocator) {
     Context->Allocator = Allocator;
     Context->TempAllocator = TempAllocator;
-    Context->Gfx = Gfx;
 
     Context->Themes.N  = MAX_STACK_SIZE;
     Context->Layouts.N = MAX_LAYOUT_SIZE;
     Context->Windows.N = MAX_STACK_SIZE;
 
-    Context->TextInput = StringCreate(1024, Allocator);
+    Context->TextInput = StringCreate(2048, Allocator);
     Context->FocusObject = &UI_NULL_OBJECT;
     Context->CurrentParent = &UI_NULL_OBJECT;
 
@@ -331,10 +328,7 @@ UI_Begin(ui_context* Context) {
 }
 
 internal void
-UI_End(ui_context* UI_Context) {
-    UI_Graphics* gfx = UI_Context->Gfx;
-    F64 window_width  = gfx->base->Swapchain.Extent.width;
-    F64 window_height = gfx->base->Swapchain.Extent.height;
+UI_End(ui_context* UI_Context, draw_bucket_instance* DrawInstance) {
 
     Stack_Allocator* TempAllocator = UI_Context->TempAllocator;
     Stack_Allocator* Allocator     = UI_Context->Allocator;
@@ -347,20 +341,15 @@ UI_End(ui_context* UI_Context) {
     } ObjectStack;
 
     ObjectStack Stack = {
-        .N = 24 << 10,
+        .N = 12 << 10,
         .Current = 0
     };
-    Stack.Items = stack_push(TempAllocator, ui_object*, 24 << 10);
-
-    void* V_Buffer = stack_push(TempAllocator, v_2d, kibibyte(256));
-    gfx->ui_rects  = VectorNew(V_Buffer, 0, kibibyte(256), v_2d);
-    void* I_Buffer = stack_push(TempAllocator, u32, kibibyte(256));
-    gfx->ui_indxs  = VectorNew(I_Buffer, 0, kibibyte(256), u32);
-
+    Stack.Items = stack_push(TempAllocator, ui_object*, 12 << 10);
 
     UI_SortWindowByDepth(&UI_Context->Windows, UI_Context->TempAllocator);
 
     i32 N_Windows = UI_Context->Windows.Current;
+
     for( i32 i = 0 ; i < N_Windows; i += 1) {
         ui_window* win = StackGetFront(&UI_Context->Windows);
         StackPop(&UI_Context->Windows);
@@ -376,10 +365,7 @@ UI_End(ui_context* UI_Context) {
             for( ui_object* Child = Object->FirstSon; Child != &UI_NULL_OBJECT && Child != NULL; Child = Child->Right ) {
                 StackPush(&Stack, Child);
             }
-            u32 BaseVertexIdx = gfx->ui_rects.len;
-            u32 idx[6] = {
-                BaseVertexIdx + 0, BaseVertexIdx + 1, BaseVertexIdx + 3, BaseVertexIdx + 3, BaseVertexIdx + 2, BaseVertexIdx + 0
-            };
+
             vec2 Pos  = Object->Rect.Pos;
             vec2 Size = Object->Rect.Size;
 
@@ -410,137 +396,68 @@ UI_End(ui_context* UI_Context) {
             {
                 vec2 BorderWidth = {Object->Theme.BorderThickness, Object->Theme.BorderThickness};
 
-                // Now, create the vertex data with the correct size
-                v_2d v1 = {
-                    .LeftCorner   = Pos,
-                    .Size         = Size, // <-- Pass the correct width and height
-                    .UV           = { -2, -2 },
-                    .UVSize       = { 0, 0 },
-                    .Color        = {(f32)PanelBg.r, (f32)PanelBg.g, (f32)PanelBg.b, (f32)PanelBg.a},
-                    .CornerRadius = Radius,
-                    .Border       = 0
-                };
-
-                if( gfx->ui_rects.len > gfx->ui_rects.capacity - 3 || gfx->ui_indxs.len > gfx->ui_indxs.capacity - 3 ) {
-                    stack_free(TempAllocator, I_Buffer);
-                    stack_free(TempAllocator, V_Buffer);
-                    V_Buffer = stack_push(TempAllocator, v_2d, gfx->ui_rects.capacity * 2);
-                    I_Buffer = stack_push(TempAllocator, u32, gfx->ui_indxs.capacity  * 2);
-                    VectorResize(&gfx->ui_rects, V_Buffer, gfx->ui_rects.capacity     * 2);
-                    VectorResize(&gfx->ui_indxs, I_Buffer, gfx->ui_indxs.capacity     * 2);
-                }
+				vec4 BgColor = {PanelBg.r, PanelBg.g, PanelBg.b, PanelBg.a};
+				D_DrawRect2D(
+					DrawInstance,
+					Object->Rect,
+					Radius,
+					0,
+					BgColor
+				);
 
                 if( Object->Type == UI_Window && Object->Option & UI_DrawShadow ) {
                     vec2 ShadowSize = {10, 10};
-                    v_2d v2 = {
-                        .LeftCorner   = Vec2Add(Pos, ShadowSize),
-                        .Size         = Size, // <-- Pass the correct width and height
-                        .UV           = { -2, -2 },
-                        .UVSize       = { 0, 0 },
-                        .Color        = {(f32)PanelBg.r * 0.2, (f32)PanelBg.g * 0.2, (f32)PanelBg.b * 0.2, (f32)PanelBg.a * 0.5},
-                        .CornerRadius = Radius
-                    };
-                    VectorAppend(&gfx->ui_rects, &v2);
+					D_DrawRect2D(
+						DrawInstance,
+						(rect_2d){Vec2Add(Pos, ShadowSize), Size},
+						Radius,
+						0,
+						(vec4){(f32)PanelBg.r * 0.2, (f32)PanelBg.g * 0.2, (f32)PanelBg.b * 0.2, (f32)PanelBg.a * 0.5}
+					);
                 }
-
-                VectorAppend(&gfx->ui_rects, &v1);
 
                 if( Object->Theme.BorderThickness > 0 ) {
-                    v_2d v2 = {
-                        .LeftCorner   = Pos,
-                        .Size         = Size,
-                        .UV           = { -2, -2 },
-                        .UVSize       = { 0, 0 },
-                        .Color        = {(f32)Object->Theme.Border.r, (f32)Object->Theme.Border.g, (f32)Object->Theme.Border.b, (f32)Object->Theme.Border.a},
-                        .CornerRadius = Radius,
-                        .Border       = Object->Theme.BorderThickness
-                    };
-                    VectorAppend(&gfx->ui_rects, &v2);
-                }
-                for(u32 i = 0 ; i < 6; i += 1 ) {
-                    VectorAppend(&gfx->ui_indxs, &idx[i]);
+					vec4 BdColor = {Object->Theme.Border.r, Object->Theme.Border.g, Object->Theme.Border.b, Object->Theme.Border.a};
+					D_DrawRect2D(
+						DrawInstance,
+						Object->Rect,
+						Radius,
+						Object->Theme.BorderThickness,
+						BdColor
+					);
                 }
             }
 
             if( Object->Text.data != NULL && Object->Text.idx > 0 ) {
-                f32 txt_offset = 0;
-                // Use unsigned char pointer to avoid signedness issues
-                u8* p = Object->Text.data;
-                float pen_x = (float)Object->Pos.x;
-                float pen_y = (float)Object->Pos.y; // baseline or top depending on your coordinate convention
-                for ( u32 _it = 0; *p && _it < Object->Text.idx && pen_x; ++p, ++_it) {
-                    // Skip UTF-8 continuation bytes (0b10xxxxxx)
-                    if ( (*p & 0xC0) == 0x80 ) continue;
-
-                    unsigned char ch = *p;
-                    //if (ch < 32 || ch > 126) {
-                    //    // handle fallback or skip
-                    //    continue;
-                    //}
-                    int gi = (int)ch - 32;
-                    FontCache* UI_Font = Object->Theme.Font;
-                    f_Glyph g = UI_Font->glyph[gi];
-                    vec2 BitmapOffset = UI_Font->BitmapOffset;
-
-
-                    // UVs: add half-texel offset to avoid bleeding when sampling with linear filter
-                    float _u0 = (g.x + BitmapOffset.x);
-                    float _v0 = (g.y + BitmapOffset.y);
-                    float _u1 = (g.width);
-                    float _v1 = (g.height);
-
-                    float x0 = pen_x + g.x_off;
-                    float y0 = pen_y + g.y_off + UI_Font->line_height;
-
-                    vec4 ColorVec = {Color.r, Color.g, Color.b, Color.a};
-                    // Create quad vertices in the same winding you use for indices
-                    v_2d v1 = {
-                        .LeftCorner = { x0, y0 },
-                        .Size = {g.width, g.height} ,
-                        .UV = { _u0, _v0 },
-                        .UVSize = { _u1, _v1 },
-                        .Color = ColorVec,
-                        .CornerRadius = 0
-                    };
-
-                    // Append verts & indices (use your existing capacity logic)
-                    u32 base = gfx->ui_rects.len;
-                    VectorAppend(&gfx->ui_rects, &v1);
-
-                    u32 idx[6] = { base+0, base+1, base+2, base+2, base+3, base+0 };
-                    for (int k=0;k<6;k++) VectorAppend(&gfx->ui_indxs, &idx[k]);
-
-                    // Advance pen by glyph advance (use xadvance from packing)
-                    pen_x += g.advance;
-                    if( _it < Object->Text.idx - 1 ) {
-                       pen_x += F_GetKerningFromCodepoint( UI_Font, (int)gi, (int)*(p + 1) - 32 );
-                    }
-                }
+                
+				D_DrawText2D(
+					DrawInstance,
+					Object->Rect,
+					&Object->Text,
+					Object->Theme.Font,
+					(vec4){Color.r, Color.g, Color.b, Color.a}
+				);
+                
                 if( Object->TextCursorIdx != -1 ) {
                     float Start = Object->Pos.x + F_TextWidth(Object->Theme.Font, Object->Text.data, Object->TextCursorIdx);
-                    v_2d v1 = {
-                        .LeftCorner = { Start, Object->Pos.y },
-                        .Size = {3, Object->Size.y} ,
-                        .UV = { -2, -2 },
-                        .UVSize = { 0, 0 },
-                        .Color = {Color.r, Color.g, Color.b, 1},
-                        .CornerRadius = 4,
-                        .Border = 0
-                    };
-                    VectorAppend(&gfx->ui_rects, &v1);
+                    
+					D_DrawRect2D(
+						DrawInstance,
+						(rect_2d) { {Start, Object->Pos.y}, {3, Object->Size.y} },
+						4, 
+						0,
+						(vec4){Color.r, Color.g, Color.b, Color.a} 
+					);
                 }
             } else if( Object->Text.idx == 0 && Object->Type == UI_InputText ) {
                 float Start = Object->Pos.x + F_TextWidth(Object->Theme.Font, Object->Text.data, Object->TextCursorIdx);
-                v_2d v1 = {
-                    .LeftCorner = { Start, Object->Rect.Pos.y },
-                    .Size = {3, Object->Rect.Size.y} ,
-                    .UV = { -2, -2 },
-                    .UVSize = { 0, 0 },
-                    .Color = {Color.r, Color.g, Color.b, 1},
-                    .CornerRadius = 4,
-                    .Border = 0
-                };
-                VectorAppend(&gfx->ui_rects, &v1);
+                D_DrawRect2D(
+					DrawInstance,
+					(rect_2d) { {Start, Object->Pos.y}, {3, Object->Size.y} },
+					4, 
+					0,
+					(vec4){Color.r, Color.g, Color.b, Color.a}  
+				);
             }
         }
     }
@@ -561,7 +478,7 @@ TopDownMerge(ui_window** WorkBuffer, u32 Begin, u32 Middle, u32 End, ui_window**
 }
 
 internal void
-TopDownSplitMerge(ui_window** WorkBuffer, u32 Begin, u32 End, ui_window** SrcWindows) {
+	TopDownSplitMerge(ui_window** WorkBuffer, u32 Begin, u32 End, ui_window** SrcWindows) {
 	if (End - Begin <= 1) {
 		return;
 	}
@@ -573,13 +490,13 @@ TopDownSplitMerge(ui_window** WorkBuffer, u32 Begin, u32 End, ui_window** SrcWin
 }
 
 internal void
-TopDownMergeSort(ui_window** WorkBuffer, ui_window** SrcWindows, u32 N) {
+	TopDownMergeSort(ui_window** WorkBuffer, ui_window** SrcWindows, u32 N) {
 	
 	TopDownSplitMerge(WorkBuffer, 0, N, SrcWindows);
 }
 
 internal void
-UI_SortWindowByDepth(ui_win_stack* window, Stack_Allocator* Alloc ) {
+	UI_SortWindowByDepth(ui_win_stack* window, Stack_Allocator* Alloc ) {
 	
 	ui_window** WorkBuffer = stack_push(Alloc, ui_window**, window->Current);
 	for (u32 i = 0; i < window->Current; i += 1) {
@@ -655,19 +572,8 @@ UI_WindowBegin(ui_context* Context, rect_2d Rect, const char* Title, ui_lay_opt 
         if( Object->Option & UI_Drag && !IsCursorOnRect(Context, ResizeRect) ) {
             Object->Rect.Pos = Vec2Add(Object->Rect.Pos, Context->CursorDelta);
         }
-    } 
-	if( UI_ConsumeEvents(Context, Object) & Input_LeftClickRelease ) {
-        rect_2d TitleRect = (rect_2d){Object->Rect.Pos, {Object->Rect.Size.x, Object->Size.y}};
-        vec2 CornerSize = (vec2){20, 20};
-        rect_2d ResizeRect = (rect_2d){
-            Vec2Add(Object->Rect.Pos, Vec2Sub(Object->Rect.Size, CornerSize)),
-            {20, 20}
-        };
-		if (IsCursorOnRect(Context, TitleRect)) {
-			Context->FocusObject = &UI_NULL_OBJECT;
-		} else if (IsCursorOnRect(Context, ResizeRect)) {
-			Context->FocusObject = &UI_NULL_OBJECT;
-		}
+    } else if( UI_ConsumeEvents(Context, Object) & Input_LeftClickRelease && Object == Context->FocusObject ) {
+        Context->FocusObject = &UI_NULL_OBJECT;
     }
 
     UI_PushNextLayout(Context, Object->Rect, 0);
@@ -695,15 +601,8 @@ UI_GetTextFromBox(ui_context* Context, const char* Key) {
     ui_object* parent = Context->CurrentParent;
     if( HashTableContains(&Context->TableObject, Key, parent->HashId) ) {
         entry* StoredWindowEntry = HashTableFindPointer(&Context->TableObject, Key, parent->HashId);
-        for( entry* it = StoredWindowEntry->Next; it != StoredWindowEntry; it = it->Next ) {
-            ui_object* Value = (ui_object*)it->Value;
-            if( Value == NULL ) {
-            } else {
-                if( Value->HashId == UI_CustomXXHash(Key, UCF_Strlen(Key), parent->HashId) ) {
-                    return &Value->Text;
-                }
-            }
-        }
+        ui_object* Value = (ui_object*)StoredWindowEntry->Value;
+        return &Value->Text;
     }
     return NULL;
 }
@@ -716,17 +615,7 @@ UI_BuildObjectWithParent(ui_context* Context, u8* Key, u8* Text, rect_2d Rect, u
     ui_object* IdParent = Context->CurrentParent;
     if( HashTableContains(&Context->TableObject, Key, Parent->HashId) ) {
         entry* StoredWindowEntry = HashTableFindPointer(&Context->TableObject, Key, Parent->HashId);
-        for( entry* it = StoredWindowEntry->Next; it != StoredWindowEntry; it = it->Next ) {
-            ui_object* Value = (ui_object*)it->Value;
-            if( Value == NULL ) {
-            } else {
-                if( Value->HashId == UI_CustomXXHash(Key, UCF_Strlen(Key), Parent->HashId) ) {
-                    Object = Value;
-                    break;
-                }
-            }
-        }
-
+		Object = StoredWindowEntry->Value;
     } else {
         Object = stack_push(Context->Allocator, ui_object, 1);
         memset(Object, 0, sizeof(ui_object));
@@ -880,7 +769,7 @@ UI_BuildObjectWithParent(ui_context* Context, u8* Key, u8* Text, rect_2d Rect, u
 }
 
 internal bool
-IsCursorOnRect(ui_context* Context, rect_2d Rect) {
+	IsCursorOnRect(ui_context* Context, rect_2d Rect) {
     vec2 Cursor = Context->CursorPos;
     if( Cursor.x >= Rect.Pos.x && Cursor.x <= Rect.Pos.x + Rect.Size.x ) {
         if( Cursor.y >= Rect.Pos.y && Cursor.y <= Rect.Pos.y + Rect.Size.y ) {
@@ -891,7 +780,7 @@ IsCursorOnRect(ui_context* Context, rect_2d Rect) {
 }
 
 internal bool
-UI_CheckBoxInsideScrollView(ui_context* Context, ui_object* Object) {
+	UI_CheckBoxInsideScrollView(ui_context* Context, ui_object* Object) {
     if(Object->Parent != &UI_NULL_OBJECT && Object->Parent->Type == UI_ScrollbarType) {
         if( Object->Type == UI_ScrollbarTypeButton ) {
             return true;
@@ -912,7 +801,7 @@ UI_CheckBoxInsideScrollView(ui_context* Context, ui_object* Object) {
 }
 
 internal ui_input
-UI_ConsumeEvents(ui_context* Context, ui_object* Object) {
+	UI_ConsumeEvents(ui_context* Context, ui_object* Object) {
     if( (Object->Option & UI_Select) && IsCursorOnRect(Context, Object->Rect) ) {
         if( UI_CheckBoxInsideScrollView(Context, Object)) {
             return Context->CursorAction | Input_CursorHover;
@@ -923,7 +812,7 @@ UI_ConsumeEvents(ui_context* Context, ui_object* Object) {
 }
 
 internal ui_input
-UI_Button(ui_context* Context, const char* Title) {
+	UI_Button(ui_context* Context, const char* Title) {
 
     ui_window* Win = &StackGetFront(&Context->Windows);
 
@@ -957,7 +846,7 @@ UI_Button(ui_context* Context, const char* Title) {
 }
 
 internal ui_input
-UI_Label(ui_context* Context, const char* text) {
+	UI_Label(ui_context* Context, const char* text) {
     ui_window* Win = &StackGetFront(&Context->Windows);
 
     ui_object* Parent = Context->CurrentParent;
@@ -967,7 +856,7 @@ UI_Label(ui_context* Context, const char* text) {
     Rect.Pos         = Vec2Add(Rect.Pos, Layout.ContentSize);
     Rect.Size        = Layout.BoxSize;
 
-    ui_lay_opt Options = UI_DrawText | UI_AlignVertical | UI_Interact | Layout.Option;
+    ui_lay_opt Options = UI_DrawText | UI_AlignVertical | UI_Interact | UI_Select | Layout.Option;
     UI_SetNextTheme( Context, Context->DefaultTheme.Label );
     ui_object* Label = UI_BuildObjectWithParent(Context, text, text, Rect, Options, Parent);
 
@@ -979,7 +868,7 @@ UI_Label(ui_context* Context, const char* text) {
 }
 
 internal ui_input
-UI_LabelWithKey(ui_context* Context, const char* Key, const char* text) {
+	UI_LabelWithKey(ui_context* Context, const char* Key, const char* text) {
     ui_window* Win = &StackGetFront(&Context->Windows);
 
     ui_object* Parent = Context->CurrentParent;
@@ -989,7 +878,7 @@ UI_LabelWithKey(ui_context* Context, const char* Key, const char* text) {
     Rect.Pos         = Vec2Add(Rect.Pos, Layout.ContentSize);
     Rect.Size        = Layout.BoxSize;
 
-    ui_lay_opt Options = UI_DrawText | UI_AlignVertical | UI_Interact;
+    ui_lay_opt Options = UI_DrawText | UI_AlignVertical | UI_Interact | UI_Select;
     UI_SetNextTheme( Context, Context->DefaultTheme.Input );
     ui_object* Label = UI_BuildObjectWithParent(Context, Key, text, Rect, Options, Parent);
 
@@ -1019,14 +908,13 @@ UI_TextBox(ui_context* Context, const char* text) {
     TextBox->LastInputSet = Input;
     TextBox->Type = UI_InputText;
 
-	if( Input & Input_LeftClickPress ) {
-		Context->FocusObject = TextBox;
-	}
+    if( Input & Input_LeftClickPress ) {
+        Context->FocusObject = TextBox;
+    }
 
-	if( TextBox == Context->FocusObject ) {
-		TextBox->LastInputSet |= Context->LastInput;
-	}
-
+    if( TextBox == Context->FocusObject ) {
+        TextBox->LastInputSet |= Context->LastInput;
+    }
 
     if( TextBox->LastInputSet & Input_CursorHover ) {
         TextBox->Theme.Background.a *= 0.8;
@@ -1065,7 +953,9 @@ UI_BeginTreeNode(ui_context* Context, const char* text) {
         }
     } else if( Input & Input_LeftClickPress && TreeNode->LastInputSet & ActiveObject ) {
         TreeNode->LastInputSet ^= ActiveObject;
-	} else if (Input & Input_LeftClickRelease) {
+    }
+
+	if ((Input & Input_LeftClickRelease) && Context->FocusObject == TreeNode) {
 		Context->FocusObject = &UI_NULL_OBJECT;
 	}
 
@@ -1079,14 +969,12 @@ UI_BeginTreeNode(ui_context* Context, const char* text) {
 }
 
 internal ui_input
-UI_EndTreeNode(ui_context* Context) {
+	UI_EndTreeNode(ui_context* Context) {
     Context->CurrentParent = Context->CurrentParent->Parent;
-
-	return Input_None;
 }
 
 internal void
-UI_BeginScrollbarViewEx(ui_context* Context, vec2 Size) {
+	UI_BeginScrollbarViewEx(ui_context* Context, vec2 Size) {
 
     char name[] = "ScrollBarView";
 
@@ -1132,12 +1020,13 @@ UI_EndScrollbarView(ui_context* Context) {
 
     rect_2d ScrollableSize = Scrollbar->Rect;
 
+	float TotalScrollableDistance = ContentHeight - ViewportContent;
+
     ContentHeight = Max(1.0f, ContentHeight);
 
-    ScrollableSize.Size.y = ContentHeight / ViewportContent;
+    ScrollableSize.Size.y = (ViewportContent / ContentHeight) * ViewportContent;
 
     f32 ScrollRatio = 1;
-    ScrollRatio = ContentHeight / ViewportContent;
 
     ScrollableSize.Size.y = Max(ScrollableSize.Size.y, 20.0f);
 
@@ -1161,6 +1050,8 @@ UI_EndScrollbarView(ui_context* Context) {
     Layout->Padding = Padding;
 
     Layout->ContentSize.y -= Max(0, ContentHeight - ViewportContent + Scrollable->Rect.Size.y);
+
+	ScrollRatio = Scrollable->Rect.Pos.y / TotalScrollableDistance;
 
     vec2 VerticalDelta = Vec2Zero();
     if( Context->FocusObject == Scrollable ) {
@@ -1203,17 +1094,17 @@ UI_EndScrollbarView(ui_context* Context) {
 }
 
 internal void
-UI_SetNextParent(ui_context* Context, ui_object* Object) {
+	UI_SetNextParent(ui_context* Context, ui_object* Object) {
     Context->CurrentParent = Object;
 }
 
 internal void
-UI_PopLastParent(ui_context* Context) {
+	UI_PopLastParent(ui_context* Context) {
     Context->CurrentParent = Context->CurrentParent->Parent;
 }
 
 internal void
-UI_PushNextLayout(ui_context* Context, rect_2d Rect, ui_lay_opt Options) {
+	UI_PushNextLayout(ui_context* Context, rect_2d Rect, ui_lay_opt Options) {
     StackPush(&Context->Layouts, (ui_layout){});
     ui_layout* Layout = &StackGetFront(&Context->Layouts);
 
@@ -1226,7 +1117,7 @@ UI_PushNextLayout(ui_context* Context, rect_2d Rect, ui_lay_opt Options) {
 
 
 internal void
-UI_PushNextLayoutRow(ui_context* Context, int N_Rows, const int* Rows ) {
+	UI_PushNextLayoutRow(ui_context* Context, int N_Rows, const int* Rows ) {
 
     assert(!StackIsEmpty(&Context->Layouts));
 
@@ -1237,7 +1128,7 @@ UI_PushNextLayoutRow(ui_context* Context, int N_Rows, const int* Rows ) {
 }
 
 internal void
-UI_PushNextLayoutColumn(ui_context* Context, int N_Columns, const int* Columns ) {
+	UI_PushNextLayoutColumn(ui_context* Context, int N_Columns, const int* Columns ) {
     assert(!StackIsEmpty(&Context->Layouts));
 
     ui_layout* Layout = &StackGetFront(&Context->Layouts);
@@ -1247,7 +1138,7 @@ UI_PushNextLayoutColumn(ui_context* Context, int N_Columns, const int* Columns )
 }
 
 internal void
-UI_PushNextLayoutPadding(ui_context* Context, vec2 Padding) {
+	UI_PushNextLayoutPadding(ui_context* Context, vec2 Padding) {
     assert(!StackIsEmpty(&Context->Layouts));
 
     ui_layout* Layout = &StackGetFront(&Context->Layouts);
@@ -1255,7 +1146,7 @@ UI_PushNextLayoutPadding(ui_context* Context, vec2 Padding) {
 }
 
 internal void
-UI_PushNextLayoutOption(ui_context* Context, ui_lay_opt Options) {
+	UI_PushNextLayoutOption(ui_context* Context, ui_lay_opt Options) {
     assert(!StackIsEmpty(&Context->Layouts));
 
     ui_layout* Layout = &StackGetFront(&Context->Layouts);
@@ -1263,7 +1154,7 @@ UI_PushNextLayoutOption(ui_context* Context, ui_lay_opt Options) {
 }
 
 internal void
-UI_PushNextLayoutDisableOption(ui_context* Context, ui_lay_opt Options) {
+	UI_PushNextLayoutDisableOption(ui_context* Context, ui_lay_opt Options) {
     assert(!StackIsEmpty(&Context->Layouts));
 
     ui_layout* Layout = &StackGetFront(&Context->Layouts);
@@ -1272,18 +1163,18 @@ UI_PushNextLayoutDisableOption(ui_context* Context, ui_lay_opt Options) {
 
 
 internal void
-UI_SetNextTheme(ui_context* Context, object_theme Theme) {
+	UI_SetNextTheme(ui_context* Context, object_theme Theme) {
     StackPush(&Context->Themes, Theme);
 }
 
 internal void
-UI_PushNextFont(ui_context* Context, FontCache* Font) {
+	UI_PushNextFont(ui_context* Context, FontCache* Font) {
     object_theme* Theme = &StackGetFront(&Context->Themes);
     Theme->Font = Font;
 }
 
 internal void
-UI_PopTheme(ui_context* Context) {
+	UI_PopTheme(ui_context* Context) {
     StackPop(&Context->Themes);
 }
 
@@ -1307,21 +1198,20 @@ UI_EndColumn(ui_context* Context) {
 
 
 internal ui_input
-UI_LastEvent(ui_context* Context) {
+UI_LastEvent(ui_context* Context, api_window* Window) {
     ui_input Input = Input_None;
-    UI_Graphics* gfx = Context->Gfx;
-    u32 window_width  = gfx->base->Swapchain.Extent.width;
-    u32 window_height = gfx->base->Swapchain.Extent.height;
-    Input = GetNextEvent(&gfx->base->Window);
+    u32 window_width  = Window->Width;
+    u32 window_height = Window->Height;
+    Input = GetNextEvent(Window);
 
     {
-        vec2 Mouse = GetMousePosition(&gfx->base->Window);
+        vec2 Mouse = GetMousePosition(Window);
         vec2 LastCursor = Context->CursorPos;
         Context->CursorPos = Mouse;
 
         while( Context->LastCursorPos.x == Mouse.x && Context->LastCursorPos.y == Mouse.y && (Input & Input_None) ) {
-            Mouse = GetMousePosition(&gfx->base->Window);
-            Input = GetNextEvent(&gfx->base->Window);
+            Mouse = GetMousePosition(Window);
+            Input = GetNextEvent(Window);
         }
 
         Context->LastCursorPos = LastCursor;
@@ -1329,10 +1219,10 @@ UI_LastEvent(ui_context* Context) {
     }
 
     if( Input & FrameBufferResized ) {
-        gfx->base->FramebufferResized = true;
+        //gfx->base->FramebufferResized = true;
     }
     if( Input & ClipboardPaste ) {
-        StringAppendStr(&Context->TextInput, &gfx->base->Window.ClipboardContent);
+        StringAppendStr(&Context->TextInput, &Window->ClipboardContent);
     }
     if( Input & Input_MiddleMouseUp ) {
         Context->CursorDelta.y += 6;
@@ -1361,18 +1251,17 @@ UI_LastEvent(ui_context* Context) {
         Context->TextInput.idx = Context->TextInput.idx > 0 ? Context->TextInput.idx - 1 : 0;
     }
     if( Input & ClipboardPaste ) {
-        StringAppend(&Context->TextInput, GetClipboard(&gfx->base->Window));
+        StringAppend(&Context->TextInput, GetClipboard(Window));
     }
     if( Input & Input_KeyChar ) {
-        Context->KeyPressed |= gfx->base->Window.KeyPressed;
-        Context->KeyDown    |= gfx->base->Window.KeyPressed;
+        Context->KeyPressed |= Window->KeyPressed;
+        Context->KeyDown    |= Window->KeyPressed;
         char buffer[2] = {0};
-        buffer[0] = gfx->base->Window.KeyPressed;
+        buffer[0] = Window->KeyPressed;
         StringAppend(&Context->TextInput, buffer);
     }
 
     if( Input & Input_F1 ) {
-        gfx->UI_EnableDebug = !gfx->UI_EnableDebug;
     }
 
     Context->LastInput = Input;

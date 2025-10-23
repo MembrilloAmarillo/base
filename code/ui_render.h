@@ -2,9 +2,9 @@
 #define _UI_RENDER_H_
 
 /** LOG -- Information
-  * 08/09/2025. Added a stop condition for gpu rendering and main thread computation while no event for the user is
-                being given or an unfocusing event was set.
-  */
+	* 08/09/2025. Added a stop condition for gpu rendering and main thread computation while no event for the user is
+	being given or an unfocusing event was set.
+	*/
 
 
 typedef struct ui_uniform ui_uniform;
@@ -70,42 +70,38 @@ internal void UI_CreateComputeBG_DescriptorSet( UI_Graphics* gfx );
 #ifdef UI_RENDER_IMPL
 
 internal void
-UI_Render(UI_Graphics* gfx, VkCommandBuffer cmd) {
+	UI_Render(UI_Graphics* gfx, VkCommandBuffer cmd) {
 
-	{
-		gfx->UniformData.ScreenWidth   = gfx->base->Swapchain.Extent.width;
-		gfx->UniformData.ScreenHeight  = gfx->base->Swapchain.Extent.height;
-		gfx->UniformData.TextureWidth  = gfx->UI_TextureImage.Width;
-		gfx->UniformData.TextureHeight = gfx->UI_TextureImage.Height;
-		VkMappedMemoryRange flushRange = {0};
-		flushRange.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
-		// Get the VkDeviceMemory from your buffer's allocation info
-		flushRange.memory = gfx->UniformBuffer.Info.deviceMemory;
-		flushRange.offset = 0;
-		flushRange.size = VK_WHOLE_SIZE; // Or sizeof(ui_uniform)
-		vkFlushMappedMemoryRanges(gfx->base->Device, 1, &flushRange);
-		memcpy(
-			gfx->UniformBuffer.Info.pMappedData,
-			&gfx->UniformData,
-			sizeof(ui_uniform)
-		);
-	}
+    {
+        gfx->UniformData.ScreenWidth = gfx->base->Swapchain.Extent.width;
+        gfx->UniformData.ScreenHeight = gfx->base->Swapchain.Extent.height;
+        gfx->UniformData.TextureWidth = gfx->UI_TextureImage.Width;
+        gfx->UniformData.TextureHeight = gfx->UI_TextureImage.Height;
+        VkMappedMemoryRange flushRange = {0};
+        flushRange.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
+        // Get the VkDeviceMemory from your buffer's allocation info
+        flushRange.memory = gfx->UniformBuffer.Info.deviceMemory;
+        flushRange.offset = 0;
+        flushRange.size = VK_WHOLE_SIZE; // Or sizeof(ui_uniform)
+        vkFlushMappedMemoryRanges(gfx->base->Device, 1, &flushRange);
+        memcpy(gfx->UniformBuffer.Info.pMappedData, &gfx->UniformData, sizeof(ui_uniform));
+    }
 
     {
         memcpy(
-               gfx->ui_vertex_staging[gfx->base->CurrentFrame].Info.pMappedData,
-               gfx->ui_rects.data,
-               gfx->ui_rects.offset
-               );
+            gfx->ui_vertex_staging[gfx->base->CurrentFrame].Info.pMappedData,
+            gfx->ui_rects.data,
+            gfx->ui_rects.offset
+        );
 
         void* data = gfx->ui_vertex_staging[gfx->base->CurrentFrame].Info.pMappedData;
         void* data_offset = (u8*)data + gfx->ui_rects.offset;
 
         memcpy(
-               data_offset,
-               gfx->ui_indxs.data,
-               gfx->ui_indxs.offset
-               );
+			data_offset,
+			gfx->ui_indxs.data,
+			gfx->ui_indxs.offset
+		);
 
         VkBufferCopy vertexCopy = {0};
         vertexCopy.dstOffset = 0;
@@ -113,12 +109,12 @@ UI_Render(UI_Graphics* gfx, VkCommandBuffer cmd) {
         vertexCopy.size = gfx->ui_rects.offset;
 
         vkCmdCopyBuffer(
-                        cmd,
-                        gfx->ui_vertex_staging[gfx->base->CurrentFrame].Buffer,
-                        gfx->ui_buffer[gfx->base->CurrentFrame].Buffer,
-                        1,
-                        &vertexCopy
-                        );
+			cmd,
+			gfx->ui_vertex_staging[gfx->base->CurrentFrame].Buffer,
+			gfx->ui_buffer[gfx->base->CurrentFrame].Buffer,
+			1,
+			&vertexCopy
+		);
 
         VkBufferCopy indexCopy = {0};
         indexCopy.dstOffset = 0;
@@ -130,12 +126,12 @@ UI_Render(UI_Graphics* gfx, VkCommandBuffer cmd) {
         }
 
         vkCmdCopyBuffer(
-                        cmd,
-                        gfx->ui_vertex_staging[gfx->base->CurrentFrame].Buffer,
-                        gfx->ui_buffer_idx[gfx->base->CurrentFrame].Buffer,
-                        1,
-                        &indexCopy
-                        );
+			cmd,
+			gfx->ui_vertex_staging[gfx->base->CurrentFrame].Buffer,
+			gfx->ui_buffer_idx[gfx->base->CurrentFrame].Buffer,
+			1,
+			&indexCopy
+		);
 
         // Add pipeline barrier before vertex input
         VkMemoryBarrier barrier = {
@@ -151,52 +147,52 @@ UI_Render(UI_Graphics* gfx, VkCommandBuffer cmd) {
     }
     {
         TransitionImage(
-                        cmd,
-                        gfx->BG_TextureImage.Image,
-                        VK_IMAGE_LAYOUT_UNDEFINED,
-                        VK_IMAGE_LAYOUT_GENERAL,
-                        VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
-                        VK_ACCESS_2_SHADER_READ_BIT,
-                        VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                        VK_ACCESS_2_SHADER_WRITE_BIT
-                        );
+			cmd,
+			gfx->BG_TextureImage.Image,
+			VK_IMAGE_LAYOUT_UNDEFINED,
+			VK_IMAGE_LAYOUT_GENERAL,
+			VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
+			VK_ACCESS_2_SHADER_READ_BIT,
+			VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+			VK_ACCESS_2_SHADER_WRITE_BIT
+		);
 
         // bind the gradient drawing compute pipeline
         vkCmdBindPipeline(
-                          cmd,
-                          VK_PIPELINE_BIND_POINT_COMPUTE,
-                          gfx->BG_Pipeline.Pipeline
-                          );
+			cmd,
+			VK_PIPELINE_BIND_POINT_COMPUTE,
+			gfx->BG_Pipeline.Pipeline
+		);
 
         // bind the descriptor set containing the draw image for the compute pipeline
         vkCmdBindDescriptorSets(
-                                cmd,
-                                VK_PIPELINE_BIND_POINT_COMPUTE,
-                                gfx->BG_Pipeline.Layout,
-                                0, 1,
-                                &gfx->BG_DescriptorSet,
-                                0, 0
-                                );
+			cmd,
+			VK_PIPELINE_BIND_POINT_COMPUTE,
+			gfx->BG_Pipeline.Layout,
+			0, 1,
+			&gfx->BG_DescriptorSet,
+			0, 0
+		);
 
         VkExtent3D Extent = gfx->BG_TextureImage.Extent;
         // execute the compute pipeline dispatch. We are using 16x16 workgroup size so we need to divide by it
         vkCmdDispatch(
-                      cmd,
-                      ceil((f32)Extent.width / 32.0),
-                      ceil((f32)Extent.height / 32.0),
-                      1
-                      );
+			cmd,
+			ceil((f32)Extent.width / 32.0),
+			ceil((f32)Extent.height / 32.0),
+			1
+		);
 
         TransitionImage(
-                        cmd,
-                        gfx->BG_TextureImage.Image,
-                        VK_IMAGE_LAYOUT_GENERAL,
-                        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                        VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                        VK_ACCESS_2_SHADER_WRITE_BIT,
-                        VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
-                        VK_ACCESS_2_SHADER_READ_BIT
-                        );
+			cmd,
+			gfx->BG_TextureImage.Image,
+			VK_IMAGE_LAYOUT_GENERAL,
+			VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+			VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+			VK_ACCESS_2_SHADER_WRITE_BIT,
+			VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
+			VK_ACCESS_2_SHADER_READ_BIT
+		);
     }
 
     VkClearValue clear_value = (VkClearValue){
@@ -209,18 +205,18 @@ UI_Render(UI_Graphics* gfx, VkCommandBuffer cmd) {
     vkCmdBeginRendering(cmd, &renderInfo);
     {
         vkCmdBindPipeline(
-                          cmd,
-                          VK_PIPELINE_BIND_POINT_GRAPHICS,
-                          gfx->BG_RenderPipeline.Pipeline
-                          );
+			cmd,
+			VK_PIPELINE_BIND_POINT_GRAPHICS,
+			gfx->BG_RenderPipeline.Pipeline
+		);
         vkCmdBindDescriptorSets(
-                                cmd,
-                                VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                gfx->BG_RenderPipeline.Layout,
-                                0, 1,
-                                &gfx->BG_RenderDescriptorSet,
-                                0, 0
-                                );
+			cmd,
+			VK_PIPELINE_BIND_POINT_GRAPHICS,
+			gfx->BG_RenderPipeline.Layout,
+			0, 1,
+			&gfx->BG_RenderDescriptorSet,
+			0, 0
+		);
         VkViewport viewport = {0};
         viewport.x = 0;
         viewport.y = 0;
@@ -244,31 +240,31 @@ UI_Render(UI_Graphics* gfx, VkCommandBuffer cmd) {
     {
         VkExtent2D Extent = gfx->base->Swapchain.Extent;
         vkCmdBindPipeline(
-                          cmd,
-                          VK_PIPELINE_BIND_POINT_GRAPHICS,
-                          gfx->UI_Pipeline.Pipeline
-                          );
+			cmd,
+			VK_PIPELINE_BIND_POINT_GRAPHICS,
+			gfx->UI_Pipeline.Pipeline
+		);
 
         vkCmdBindDescriptorSets(
-                                cmd,
-                                VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                gfx->UI_Pipeline.Layout, 0, 1,
-                                &gfx->UI_DescriptorSet, 0, 0
-                                );
+			cmd,
+			VK_PIPELINE_BIND_POINT_GRAPHICS,
+			gfx->UI_Pipeline.Layout, 0, 1,
+			&gfx->UI_DescriptorSet, 0, 0
+		);
 
         VkBuffer Buffers[] = {gfx->ui_buffer[gfx->base->CurrentFrame].Buffer};
         VkDeviceSize offsets[] = {0};
         vkCmdBindVertexBuffers(
-                               cmd, 0, 1,
-                               Buffers,
-                               offsets
-                               );
+			cmd, 0, 1,
+			Buffers,
+			offsets
+		);
         vkCmdBindIndexBuffer(
-                             cmd,
-                             gfx->ui_buffer_idx[gfx->base->CurrentFrame].Buffer,
-                             0,
-                             VK_INDEX_TYPE_UINT32
-                             );
+			cmd,
+			gfx->ui_buffer_idx[gfx->base->CurrentFrame].Buffer,
+			0,
+			VK_INDEX_TYPE_UINT32
+		);
 
         // set dynamic viewport and scissor
         VkViewport viewport = {0};
@@ -294,29 +290,29 @@ UI_Render(UI_Graphics* gfx, VkCommandBuffer cmd) {
     vkCmdEndRendering(cmd);
 
     TransitionImageDefault(
-                           cmd,
-                           gfx->base->Swapchain.Images[gfx->base->SwapchainImageIdx],
-                           VK_IMAGE_LAYOUT_UNDEFINED,
-                           VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
-                           );
+		cmd,
+		gfx->base->Swapchain.Images[gfx->base->SwapchainImageIdx],
+		VK_IMAGE_LAYOUT_UNDEFINED,
+		VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
+	);
     VectorClear(&gfx->ui_rects);
     VectorClear(&gfx->ui_indxs);
 }
 
 internal void
-UI_CreateComputeBG_DescriptorSet( UI_Graphics* gfx ) {
+	UI_CreateComputeBG_DescriptorSet( UI_Graphics* gfx ) {
     // Create storage image for background texture
     gfx->BG_TextureImage = CreateImageDefault(
-                                              gfx->base,
-                                              (VkExtent3D){
-                                                  .width = gfx->base->Swapchain.Extent.width,
-                                                  .height = gfx->base->Swapchain.Extent.height,
-                                                  .depth = 1
-                                              },
-                                              VK_FORMAT_R32G32B32A32_SFLOAT,
-                                              VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-                                              false
-                                              );
+		gfx->base,
+		(VkExtent3D){
+		.width = gfx->base->Swapchain.Extent.width,
+		.height = gfx->base->Swapchain.Extent.height,
+		.depth = 1
+	},
+	VK_FORMAT_R32G32B32A32_SFLOAT,
+	VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+	false
+	);
 
     // Setup descriptor set for background texture
     vk_descriptor_set builder;
@@ -330,9 +326,9 @@ UI_CreateComputeBG_DescriptorSet( UI_Graphics* gfx ) {
                                                   0);
 
     gfx->BG_DescriptorSet = DescriptorSetAllocate(
-                                                  &gfx->base->GlobalDescriptorAllocator,
-                                                  gfx->base->Device,
-                                                  &gfx->BG_DescriptorLayout);
+		&gfx->base->GlobalDescriptorAllocator,
+		gfx->base->Device,
+		&gfx->BG_DescriptorLayout);
 
     descriptor_writer writer = DescriptorWriterInit(1, &gfx->base->TempAllocator);
 
@@ -350,7 +346,7 @@ UI_CreateComputeBG_DescriptorSet( UI_Graphics* gfx ) {
 ///////////////////////////////////////////////////////////////////////
 // Create compute pipeline for grid
 internal void
-UI_CreateComputePipeline( UI_Graphics* gfx ) {
+	UI_CreateComputePipeline( UI_Graphics* gfx ) {
 
     UI_CreateComputeBG_DescriptorSet(gfx);
 
@@ -400,7 +396,7 @@ UI_CreateComputePipeline( UI_Graphics* gfx ) {
 ///////////////////////////////////////////////////////////////////////
 // Create graphic pipeline for ui rendering
 internal void
-UI_CreateUI_Pipeline( UI_Graphics* gfx, u8* Bitmap, u32 Width, u32 Height ) {
+	UI_CreateUI_Pipeline( UI_Graphics* gfx, u8* Bitmap, u32 Width, u32 Height ) {
     pipeline_builder p_Build = InitPipelineBuilder(2, &gfx->base->Allocator);
     SetInputTopology(&p_Build, VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
     SetPolygonMode(&p_Build, VK_POLYGON_MODE_FILL);
@@ -467,13 +463,13 @@ UI_CreateUI_Pipeline( UI_Graphics* gfx, u8* Bitmap, u32 Width, u32 Height ) {
         SetVertexInputBindingDescription(&p_Build, &binding_description, 1);
 
         gfx->UI_TextureImage = CreateImageData(
-                                               gfx->base,
-                                               Bitmap,
-                                               (VkExtent3D){Width, Height, 1},
-                                               VK_FORMAT_R8_UNORM,
-                                               VK_IMAGE_USAGE_SAMPLED_BIT,
-                                               false
-                                               );
+			gfx->base,
+			Bitmap,
+			(VkExtent3D){Width, Height, 1},
+			VK_FORMAT_R8_UNORM,
+			VK_IMAGE_USAGE_SAMPLED_BIT,
+			false
+		);
     }
 
     VkSamplerCreateInfo sampler = {0};
@@ -510,15 +506,14 @@ UI_CreateUI_Pipeline( UI_Graphics* gfx, u8* Bitmap, u32 Width, u32 Height ) {
     gfx->UI_DescriptorSet = DescriptorSetAllocate(&gfx->UI_DescriptorPool, gfx->base->Device, &gfx->UI_DescriptorLayout);
 
     descriptor_writer writer = DescriptorWriterInit(2, &gfx->base->TempAllocator);
-	
+
     WriteImage(
-               &writer, 0,
-               gfx->UI_TextureImage.ImageView,
-               gfx->UI_TextureImage.Sampler,
-               VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-               VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
-               );
-	
+		&writer, 0,
+		gfx->UI_TextureImage.ImageView,
+		gfx->UI_TextureImage.Sampler,
+		VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+		VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
+	);
 
     gfx->UniformBuffer = CreateBuffer(
         gfx->base->GPUAllocator,
@@ -530,17 +525,17 @@ UI_CreateUI_Pipeline( UI_Graphics* gfx, u8* Bitmap, u32 Width, u32 Height ) {
     WriteBuffer(&writer, 1, gfx->UniformBuffer.Buffer, sizeof(ui_uniform), 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
     UpdateDescriptorSet(&writer, gfx->base->Device, gfx->UI_DescriptorSet);
 
-    SetDescriptorLayout(&p_Build, &gfx->UI_DescriptorLayout, 1);
+    SetDescriptorLayout(&p_Build, &gfx->UI_DescriptorLayout, 2);
     gfx->UI_Pipeline = AddPipeline(
-                                   gfx->base,
-                                   &p_Build,
-                                   "./data/ui_render.vert.spv",
-                                   "./data/ui_render.frag.spv"
-                                   );
+		gfx->base,
+		&p_Build,
+		"./data/ui_render.vert.spv",
+		"./data/ui_render.frag.spv"
+	);
 }
 
 internal void
-UI_CreateRenderDescriptorSet( UI_Graphics* gfx )
+	UI_CreateRenderDescriptorSet( UI_Graphics* gfx )
 {
     vk_descriptor_set builder;
     InitDescriptorSet(&builder, 1, &gfx->base->Allocator);
@@ -557,12 +552,12 @@ UI_CreateRenderDescriptorSet( UI_Graphics* gfx )
 
     descriptor_writer Writer = DescriptorWriterInit(1, &gfx->base->Allocator);
     WriteImage(
-               &Writer, 0,
-               gfx->BG_TextureImage.ImageView,
-               gfx->BG_TextureImage.Sampler,
-               VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-               VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
-               );
+		&Writer, 0,
+		gfx->BG_TextureImage.ImageView,
+		gfx->BG_TextureImage.Sampler,
+		VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+		VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
+	);
 
     UpdateDescriptorSet(&Writer, gfx->base->Device, gfx->BG_RenderDescriptorSet);
 }
@@ -571,7 +566,7 @@ UI_CreateRenderDescriptorSet( UI_Graphics* gfx )
 // Initialize the pipeline for rendering the computed texture
 //
 internal void
-UI_CreateRenderComputePipeline( UI_Graphics* gfx ) {
+	UI_CreateRenderComputePipeline( UI_Graphics* gfx ) {
 
     pipeline_builder p_Build = InitPipelineBuilder(2, &gfx->base->Allocator);
     SetInputTopology(&p_Build, VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
@@ -588,7 +583,7 @@ UI_CreateRenderComputePipeline( UI_Graphics* gfx ) {
 }
 
 internal void
-UI_ExternalRecreateSwapchain( UI_Graphics* gfx )
+	UI_ExternalRecreateSwapchain( UI_Graphics* gfx )
 {
 	//vkResetDescriptorPool(gfx->base->Device, gfx->base->GlobalDescriptorAllocator, 0);
 	vkDestroyDescriptorSetLayout(gfx->base->Device, gfx->BG_DescriptorLayout, 0);
@@ -601,7 +596,7 @@ UI_ExternalRecreateSwapchain( UI_Graphics* gfx )
 }
 
 internal UI_Graphics
-UI_GraphicsInit(vulkan_base* VkBase, u8* Bitmap, u32 Width, u32 Height) {
+	UI_GraphicsInit(vulkan_base* VkBase, u8* Bitmap, u32 Width, u32 Height) {
     UI_Graphics gfx = {0};
     gfx.base = VkBase;
 
