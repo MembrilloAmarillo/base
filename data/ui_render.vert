@@ -1,8 +1,7 @@
 #version 450
 
-// Per-instance data (ALL NORMALIZED)
-layout( location = 0 ) in vec2 in_pos;      // NDC [-1, 1] for the top-left corner
-layout( location = 1 ) in vec2 in_size;     // NDC [0, 2] for the width and height
+layout( location = 0 ) in vec2 in_pos;      
+layout( location = 1 ) in vec2 in_size;
 layout( location = 2 ) in vec2 in_uv;
 layout( location = 3 ) in vec2 in_uv_size;
 layout( location = 4 ) in vec4 in_color;

@@ -165,15 +165,26 @@ internal VkDescriptorSetLayout R_CreateDescriptorSetLayout(
 	* @param DescriptorSetLayout The layout expected on the pipeline
 	* @return An `R_Handle` to the newly created pipeline. Returns `R_HANDLE_INVALID` on failure.
 	*/
-internal R_Handle R_CreatePipeline(
+internal R_Handle R_CreatePipelineEx(
 	r_render* Render, 
 	const char* Id,
 	const char* VertPath, 
 	const char* FragPath, 
-	r_vertex_input_description* Description, 
+	r_vertex_input_description* Description,
+	VkPrimitiveTopology Topology,
 	VkDescriptorSetLayout* DescriptorSetLayout, 
 	u32 LayoutCount
 );
+
+#define R_CreatePipeline(Render, Id, VertPath, FragPath, Description, DescriptorLayout, LayoutCount) \
+R_CreatePipelineEx(Render, Id, VertPath, FragPath, Description, VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, DescriptorLayout, LayoutCount)
+
+#define R_CreatePipelineLine(Render, Id, VertPath, FragPath, Description, DescriptorLayout, LayoutCount) \
+R_CreatePipelineEx(Render, Id, VertPath, FragPath, Description, VK_PRIMITIVE_TOPOLOGY_LINE_LIST, DescriptorLayout, LayoutCount)
+
+#define R_CreatePipelinePoint(Render, Id, VertPath, FragPath, Description, DescriptorLayout, LayoutCount) \
+R_CreatePipelineEx(Render, Id, VertPath, FragPath, Description, VK_PRIMITIVE_TOPOLOGY_POINT_LIST, DescriptorLayout, LayoutCount)
+
 
 internal R_Handle R_CreateComputePipeline(
 	r_render* Render, 

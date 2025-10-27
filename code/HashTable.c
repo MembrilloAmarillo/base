@@ -1,7 +1,7 @@
 #include "HashTable.h"
 // --------------------------------------------------------------- //
 
-static U64 UCF_Strlen( char* str ) {
+static U64 UCF_Strlen( const char* str ) {
     U64 i = 0;
 
     if( str == NULL ) { return i; }
@@ -13,7 +13,7 @@ static U64 UCF_Strlen( char* str ) {
 
 // --------------------------------------------------------------- //
 
-static u32 UCF_Streq( char* a, char* b ) {
+static u32 UCF_Streq( const char* a, const char* b ) {
     char* a1 = a, *b1 = b;
 
     while( (*a1 && *b1) && (*a1 == *b1) ) {
@@ -33,7 +33,7 @@ static u32 UCF_Streq( char* a, char* b ) {
 
 // --------------------------------------------------------------- //
 
-static u32 UCF_Streqn( char* a, char* b, u32 n ) {
+static u32 UCF_Streqn( const char* a, const char* b, u32 n ) {
     char* a1 = a, *b1 = b;
 
     u32 i = 0;

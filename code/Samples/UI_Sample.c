@@ -68,12 +68,12 @@ main( int argc, char *argv[] )
 
 		UI_Init(UI_Context, &UI_Allocator, &UI_TempAllocator);
 	}
-    rgba bd = HexToRGBA(0x2D2D2DFF);
-    rgba ib = HexToRGBA(0x2F2F2FFF);
-    rgba fd = HexToRGBA(0x3D3D3DFF);
-    rgba fg = RgbaNew(21, 39, 64, 255);
+    rgba bd  = HexToRGBA(0x2D2D2DFF);
+    rgba ib  = HexToRGBA(0x2F2F2FFF);
+    rgba fd  = HexToRGBA(0x3D3D3DFF);
+    rgba fg  = RgbaNew(21, 39, 64, 255);
     rgba bg2 = HexToRGBA(0xA13535FF);
-    rgba bc = HexToRGBA(0x3B764CFF);
+    rgba bc  = HexToRGBA(0x3B764CFF);
 
     object_theme DefaultTheme = {
 		.Border = RgbaToNorm(bc),
@@ -205,7 +205,7 @@ main( int argc, char *argv[] )
 		);
 
 		ComputeImageHandle = R_PushTexture(&Render, "Compute Texture", &ComputeImage);
-	};
+	}
 
 	ui_uniform UniformData;
 
@@ -246,7 +246,7 @@ main( int argc, char *argv[] )
             if( UI_BeginTreeNode(UI_Context, "Tree") & ActiveObject ) {
                 UI_Label(UI_Context, "This is a label");
                 if( UI_Button(UI_Context, "This is a button") & Input_LeftClickPress ) {
-
+					printf("Button clicked");
                 }
                 UI_TextBox(UI_Context, "This is a textbox");
                 UI_Label(UI_Context, "Here below we set a scrollbar view");

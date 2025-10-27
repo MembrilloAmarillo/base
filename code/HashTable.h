@@ -81,10 +81,10 @@ void* HashTableGet(hash_table *Table, u64 Id, U64 parent);
 
 // --------------------------------------------------------------- //
 
-static U64 UCF_Strlen( char* str );
+static U64 UCF_Strlen(const char* str );
 
-static u32 UCF_Streq( char* a, char* b );
+static u32 UCF_Streq( const char* a, const char* b );
 
-static u32 UCF_Streqn( char* a, char* b, u32 n );
+static u32 UCF_Streqn( const char* a, const char* b, u32 n );
 
 #endif

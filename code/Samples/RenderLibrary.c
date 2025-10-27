@@ -110,41 +110,41 @@ int main()
 		VertexDescription.Stride = sizeof(v_2d);
 		VertexDescription.Rate = VK_VERTEX_INPUT_RATE_INSTANCE;
 		VertexDescription.AttributeCount = 7;
-		VertexDescription.Attributes = stack_push(&TempAllocator, r_vertex_attribute, 7);
-		VertexDescription.Attributes[0] = (r_vertex_attribute){
+		VertexDescription.Attributes     = stack_push(&TempAllocator, r_vertex_attribute, 7);
+		VertexDescription.Attributes[0]  = (r_vertex_attribute){
 			.Location = 0,
 			.Format   = R_FORMAT_VEC2,
-			.Offset    = 0
+			.Offset   = 0
 		};
 		VertexDescription.Attributes[1] = (r_vertex_attribute){
 			.Location = 1,
 			.Format   = R_FORMAT_VEC2,
-			.Offset    = sizeof(vec2)
+			.Offset   = sizeof(vec2)
 		};
 		VertexDescription.Attributes[2] = (r_vertex_attribute){
 			.Location = 2,
 			.Format   = R_FORMAT_VEC2,
-			.Offset    = 2 * sizeof(vec2)
+			.Offset   = 2 * sizeof(vec2)
 		};
 		VertexDescription.Attributes[3] = (r_vertex_attribute){
 			.Location = 3,
 			.Format   = R_FORMAT_VEC2,
-			.Offset    = 3 * sizeof(vec2)
+			.Offset   = 3 * sizeof(vec2)
 		};
 		VertexDescription.Attributes[4] = (r_vertex_attribute){
 			.Location = 4,
 			.Format   = R_FORMAT_VEC4,
-			.Offset    = 4 * sizeof(vec2)
+			.Offset   = 4 * sizeof(vec2)
 		};
 		VertexDescription.Attributes[5] = (r_vertex_attribute){
 			.Location = 5,
 			.Format   = R_FORMAT_FLOAT,
-			.Offset    = 4 * sizeof(vec2) + sizeof(vec4)
+			.Offset   = 4 * sizeof(vec2) + sizeof(vec4)
 		};
 		VertexDescription.Attributes[6] = (r_vertex_attribute){
 			.Location = 6,
 			.Format   = R_FORMAT_FLOAT,
-			.Offset    = 4 * sizeof(vec2) + sizeof(vec4) + sizeof(float)
+			.Offset   = 4 * sizeof(vec2) + sizeof(vec4) + sizeof(float)
 		};
 
 		VkDescriptorSetLayout Layouts[] = { Layout };

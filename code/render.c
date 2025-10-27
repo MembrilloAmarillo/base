@@ -150,17 +150,18 @@ R_CreateDescriptorSetLayout(r_render* Render, u32 NSets, VkDescriptorType* Types
 }
 
 internal R_Handle 
-R_CreatePipeline(
+R_CreatePipelineEx(
 	r_render* Render, 
 	const char* Id,
 	const char* VertPath, 
 	const char* FragPath, 
 	r_vertex_input_description* Description,
+	VkPrimitiveTopology Topology,
 	VkDescriptorSetLayout* DescriptorSetLayout,
 	u32 LayoutCount
 ) {
 	pipeline_builder p_Build = InitPipelineBuilder(2, &Render->PerFrameAllocator);
-    SetInputTopology(&p_Build, VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+    SetInputTopology(&p_Build, Topology);
     SetPolygonMode(&p_Build, VK_POLYGON_MODE_FILL);
     SetCullMode(&p_Build, 0, VK_FRONT_FACE_CLOCKWISE);
     EnableBlendingAlphaBlend(&p_Build);

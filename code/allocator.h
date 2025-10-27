@@ -375,7 +375,7 @@ void buddy_allocator_free(Buddy_Allocator *b, void *data) {
 
 void
 stack_init(Stack_Allocator* s, void* data, i64 len) {
-    s->data        = data;
+    s->data        = (u8*)data;
 	s->prev_offset = 0;
 	s->curr_offset = 0;
 	s->peak_used   = 0;
@@ -437,7 +437,7 @@ stack_alloc_non_zeroed(Stack_Allocator* s, i64 size, i64 alignment) {
     s->curr_offset += padding;
     void* next_addr = (u8*)curr_addr + padding;
 
-    Stack_Allocation_Header* header = (u8*)next_addr - sizeof(Stack_Allocation_Header);
+    Stack_Allocation_Header* header = (Stack_Allocation_Header*)((u8*)next_addr - sizeof(Stack_Allocation_Header));
     header->padding = padding;
     header->prev_offset = old_offset;
     s->curr_offset += size;
@@ -511,7 +511,7 @@ stack_resize_non_zeroed(Stack_Allocator* s, void* old_memory, i64 old_size, i64 
     if( curr_addr >= start + (uintptr_t)s->curr_offset ) {
 		return NULL;
 	}
-    if( (uintptr_t)old_memory & (uintptr_t)(alignment - 1) != 0 ) {
+    if( ((uintptr_t)old_memory) & ((uintptr_t)(alignment - 1)) != 0 ) {
         void* data = stack_alloc_non_zeroed(s, size, alignment);
 
         if(data != NULL) {

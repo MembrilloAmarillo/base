@@ -82,7 +82,7 @@ F_BuildFont(f32 FontSize, u32 Width, u32 Height, u8* BitmapArray, const char* pa
     #if __linux__  
     data = mmap(NULL, FileSize, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, File.Fd, 0);
     #elif _WIN32
-    data = malloc(FileSize);  
+    data = (u8*)malloc(FileSize);  
     #endif 
     F_SetFileData(&File, data);
     i32 r_len = F_FileRead(&File);
@@ -101,7 +101,7 @@ F_BuildFont(f32 FontSize, u32 Width, u32 Height, u8* BitmapArray, const char* pa
     stbtt_GetFontVMetrics(&info, &fc.ascent, &fc.descent, &line_gap);
     fc.line_height = (f32)(fc.ascent - fc.descent + line_gap) * fc.scale;
 
-    u8* codepoint = malloc(96);
+    u8* codepoint = (u8*)malloc(96);
     codepoint[0] = 32;
     for( u32 i = 0; i < 95; i += 1 ) {
         codepoint[i+1] = i + 32;
@@ -141,8 +141,8 @@ F_BuildFont(f32 FontSize, u32 Width, u32 Height, u8* BitmapArray, const char* pa
 
     int table_len   = stbtt_GetKerningTableLength(&info);
     fc.kerning_size = (u32)table_len;
-    fc.kerning      = malloc(sizeof(f_kerning) * table_len);
-    stbtt_kerningentry* table = malloc(sizeof(stbtt_kerningentry) * table_len);
+    fc.kerning      = (f_kerning*)malloc(sizeof(f_kerning) * table_len);
+    stbtt_kerningentry* table = (stbtt_kerningentry*)malloc(sizeof(stbtt_kerningentry) * table_len);
 
     stbtt_GetKerningTable(&info, table, table_len);
 

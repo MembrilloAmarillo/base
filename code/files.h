@@ -53,7 +53,7 @@ internal u32    F_FileOffset(f_file* f);
 #ifdef FILES_IMPL
 
 internal f_file
-F_OpenFile(const char* c, i32 o_flags) {
+F_OpenFile(const char* c, f_flags o_flags) {
     f_file f = {0};
     f.Path = c;
     f.Flags = o_flags;
@@ -97,7 +97,7 @@ F_OpenFile(const char* c, i32 o_flags) {
     }
 
     f.Fd = CreateFileA(
-        (WCHAR *)c,
+        (LPCSTR)c,
         dwDesiredAccess,
         FILE_SHARE_WRITE | FILE_SHARE_READ,
         &security_attributes,

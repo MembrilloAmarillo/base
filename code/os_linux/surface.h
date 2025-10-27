@@ -109,11 +109,11 @@ SurfaceCreateWindow(F64 w, F64 h) {
 
 internal vec2 
 SurfaceGetWindowSize(api_window* window) {
-    u32 snum   = DefaultScreen(window->Dpy);
-    u32 width  = DisplayWidth(window->Dpy, snum);
-    u32 height = DisplayHeight(window->Dpy, snum);
+    XWindowAttributes attr;
 
-    return (vec2){width, height};
+    XGetWindowAttributes(window->Dpy, window->Win, &attr);
+
+    return (vec2){(float)attr.width, (float)attr.height};
 }
 
 #endif

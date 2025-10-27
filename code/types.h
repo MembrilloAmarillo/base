@@ -103,11 +103,30 @@ union vec2 {
 	f32 v[2];
 };
 
-#define Vec2Zero()      (vec2){0, 0}
-#define Vec2Add(v1, v2) (vec2){v1.x + v2.x, v1.y + v2.y}
-#define Vec2Sub(v1, v2) (vec2){v1.x - v2.x, v1.y - v2.y}
-#define Vec2Mul(v1, v2) (vec2){v1.x * v2.x, v1.y * v2.y}
-#define Vec2ScalarMul(scalar, v1) (vec2){scalar * v1.x, scalar * v1.y}
+internal inline vec2 Vec2Zero() {
+	vec2 x = {0, 0};
+	return x;
+}
+
+internal inline vec2 Vec2Add(vec2 v1, vec2 v2) {
+	vec2 x = { v1.x + v2.x, v1.y + v2.y };
+	return x;
+}
+
+internal inline vec2 Vec2Sub(vec2 v1, vec2 v2) {
+	vec2 x = { v1.x - v2.x, v1.y - v2.y };
+	return x;
+}
+
+internal inline vec2 Vec2Mul(vec2 v1, vec2 v2) {
+	vec2 x = { v1.x * v2.x, v1.y * v2.y };
+	return x;
+}
+
+internal inline vec2 Vec2ScalarMul(f32 scalar, vec2 v1) {
+	vec2 x = { scalar * v1.x, scalar * v1.y };
+	return x;
+}
 
 
 typedef struct DLL DLL;

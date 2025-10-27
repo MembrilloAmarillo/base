@@ -1,26 +1,26 @@
 /**
-* Copyright (c) 20225 Sascha Paez
-*
-* @author Sascha Paez
-* @version 0.4
-*
-* This library is free software; you can redistribute it and/or modify it
-* under the terms of the MIT license. See `microui.c` for details.
-*/
+	* Copyright (c) 20225 Sascha Paez
+	*
+	* @author Sascha Paez
+	* @version 0.4
+	*
+	* This library is free software; you can redistribute it and/or modify it
+	* under the terms of the MIT license. See `microui.c` for details.
+	*/
 
 /**
- * 2025/10/02. Added linked listing for box creation, in debug mode, ~1000 objects in 3ms, in release ~1.7 ms.
-               Still have to be more efficient.
- * 2025/10/01. Added xxhash for faster hashing, and parent-dependent hashing.
-               Also improved better scrolling and greater quantity of objects per frame.
- * 2025/09/24. Fixed drag, movement and resize. Also ordered windows by depth index.
- * 2025/09/23. Added Clipboard pasting.
- * 2025/09/23. Fixed Input declaration taking garbage values creating buggy responses
- * 2025/09/22. Better handling for input text when submiting on return
- * 2025/09/22. Input Text fixed.
- * 2025/09/22. Drag and resize added on Windows. Improvements still to be made.
- * 2025/09/19. First somewhat working version. Added tree node implementation
- */
+	* 2025/10/02. Added linked listing for box creation, in debug mode, ~1000 objects in 3ms, in release ~1.7 ms.
+	Still have to be more efficient.
+	* 2025/10/01. Added xxhash for faster hashing, and parent-dependent hashing.
+	Also improved better scrolling and greater quantity of objects per frame.
+	* 2025/09/24. Fixed drag, movement and resize. Also ordered windows by depth index.
+	* 2025/09/23. Added Clipboard pasting.
+	* 2025/09/23. Fixed Input declaration taking garbage values creating buggy responses
+	* 2025/09/22. Better handling for input text when submiting on return
+	* 2025/09/22. Input Text fixed.
+	* 2025/09/22. Drag and resize added on Windows. Improvements still to be made.
+	* 2025/09/19. First somewhat working version. Added tree node implementation
+	*/
 
 #ifndef _SP_UI_H_
 #define _SP_UI_H_
@@ -52,7 +52,9 @@ enum ui_lay_opt {
     UI_AlignVertical = (1 << 10),
     UI_DrawText    = (1 << 11),
     UI_SetPosPersistent = (1 << 12 ),
-    UI_DrawShadow       = (1 << 13)
+    UI_DrawShadow       = (1 << 13),
+	UI_DrawRect         = (1 << 14),
+	UI_DrawBorder       = (1 << 15)
 };
 
 typedef enum object_type object_type;
@@ -73,13 +75,7 @@ enum object_type {
     UI_ScrollbarTypeButton
 };
 
-typedef struct ui_color ui_color;
-struct ui_color {
-    f32 r;
-    f32 g;
-    f32 b;
-    f32 a;
-};
+typedef vec4 ui_color;
 
 typedef struct object_theme object_theme;
 struct object_theme {
@@ -129,6 +125,7 @@ struct ui_object {
             vec2      Pos;
             vec2      Size;
             i32       TextCursorIdx;
+			i32       TextStartIdx;
         };
         struct {
             vec2 IconPos;
@@ -191,6 +188,7 @@ struct ui_context {
     ui_object       FreeList;
     ui_theme_stack  Themes;
 
+	ui_object RootObject;
     ui_object* CurrentParent;
     ui_object* FocusObject;
 
@@ -240,13 +238,13 @@ internal void UI_WindowEnd(ui_context* Context);
 internal ui_input UI_LastEvent(ui_context* Context, api_window* Window);
 
 internal ui_object* UI_BuildObjectWithParent(
-                                             ui_context* Context,
-                                             u8* Key,
-                                             u8* Text,
-                                             rect_2d Rect,
-                                             ui_lay_opt Options,
-                                             ui_object* Parent
-                                             );
+	ui_context* Context,
+	u8* Key,
+	u8* Text,
+	rect_2d Rect,
+	ui_lay_opt Options,
+	ui_object* Parent
+);
 
 #define UI_BuildObject(ctx, key, txt, rect, opts) UI_BuildObjectWithParent(ctx, key, txt, rect, opts, ctx->CurrentParent);
 
@@ -291,12 +289,12 @@ internal void UI_SortWindowByDepth(ui_win_stack* window, Stack_Allocator* Alloca
 #ifdef SP_UI_IMPL
 
 internal u64
-UI_CustomXXHash( const u8* buffer, u64 len, u64 seed ) {
+	UI_CustomXXHash( const u8* buffer, u64 len, u64 seed ) {
     return XXH3_64bits_withSeed(buffer, len, seed);
 }
 
 internal void
-UI_Init(ui_context* Context, Stack_Allocator* Allocator, Stack_Allocator* TempAllocator) {
+	UI_Init(ui_context* Context, Stack_Allocator* Allocator, Stack_Allocator* TempAllocator) {
     Context->Allocator = Allocator;
     Context->TempAllocator = TempAllocator;
 
@@ -314,13 +312,15 @@ UI_Init(ui_context* Context, Stack_Allocator* Allocator, Stack_Allocator* TempAl
 }
 
 internal void
-UI_Begin(ui_context* Context) {
+	UI_Begin(ui_context* Context) {
     Context->KeyPressed   = 0;
     Context->CursorClick  = (vec2){0, 0};
     Context->CursorAction = Input_None;
     Context->LastInput    = Input_None;
 
     Context->TextInput.idx = 0;
+
+	TreeInit(&Context->RootObject, &UI_NULL_OBJECT);
 
     StackClear(&Context->Windows);
     StackClear(&Context->Layouts);
@@ -391,8 +391,8 @@ UI_End(ui_context* UI_Context, draw_bucket_instance* DrawInstance) {
 
             // This do not need to render a rect
             if( Object->Type != UI_LabelType &&
-               Object->Type != UI_Icon      &&
-               Object->Type != UI_ImageType )
+				Object->Type != UI_Icon      &&
+				Object->Type != UI_ImageType )
             {
                 vec2 BorderWidth = {Object->Theme.BorderThickness, Object->Theme.BorderThickness};
 
@@ -430,16 +430,22 @@ UI_End(ui_context* UI_Context, draw_bucket_instance* DrawInstance) {
 
             if( Object->Text.data != NULL && Object->Text.idx > 0 ) {
                 
+				U8_String S = StringNew(
+					Object->Text.data + Object->TextStartIdx, 
+					Object->Text.idx - Object->TextStartIdx, 
+					UI_Context->TempAllocator
+				);
+
 				D_DrawText2D(
 					DrawInstance,
 					Object->Rect,
-					&Object->Text,
+					&S,
 					Object->Theme.Font,
 					(vec4){Color.r, Color.g, Color.b, Color.a}
 				);
                 
-                if( Object->TextCursorIdx != -1 ) {
-                    float Start = Object->Pos.x + F_TextWidth(Object->Theme.Font, Object->Text.data, Object->TextCursorIdx);
+                if( Object->TextCursorIdx >= 0 && Object->TextStartIdx >= 0 ) {
+                    float Start = Object->Pos.x + F_TextWidth(Object->Theme.Font, Object->Text.data, Object->TextCursorIdx - Object->TextStartIdx);
                     
 					D_DrawRect2D(
 						DrawInstance,
@@ -478,7 +484,7 @@ TopDownMerge(ui_window** WorkBuffer, u32 Begin, u32 Middle, u32 End, ui_window**
 }
 
 internal void
-	TopDownSplitMerge(ui_window** WorkBuffer, u32 Begin, u32 End, ui_window** SrcWindows) {
+TopDownSplitMerge(ui_window** WorkBuffer, u32 Begin, u32 End, ui_window** SrcWindows) {
 	if (End - Begin <= 1) {
 		return;
 	}
@@ -490,13 +496,13 @@ internal void
 }
 
 internal void
-	TopDownMergeSort(ui_window** WorkBuffer, ui_window** SrcWindows, u32 N) {
+TopDownMergeSort(ui_window** WorkBuffer, ui_window** SrcWindows, u32 N) {
 	
 	TopDownSplitMerge(WorkBuffer, 0, N, SrcWindows);
 }
 
 internal void
-	UI_SortWindowByDepth(ui_win_stack* window, Stack_Allocator* Alloc ) {
+UI_SortWindowByDepth(ui_win_stack* window, Stack_Allocator* Alloc ) {
 	
 	ui_window** WorkBuffer = stack_push(Alloc, ui_window**, window->Current);
 	for (u32 i = 0; i < window->Current; i += 1) {
@@ -587,7 +593,7 @@ UI_WindowBegin(ui_context* Context, rect_2d Rect, const char* Title, ui_lay_opt 
 }
 
 internal void
-UI_WindowEnd(ui_context* Context) {
+	UI_WindowEnd(ui_context* Context) {
     if( !StackIsEmpty(&Context->Themes) ) {
         StackPop(&Context->Themes);
     }
@@ -597,7 +603,7 @@ UI_WindowEnd(ui_context* Context) {
 }
 
 internal U8_String*
-UI_GetTextFromBox(ui_context* Context, const char* Key) {
+	UI_GetTextFromBox(ui_context* Context, const char* Key) {
     ui_object* parent = Context->CurrentParent;
     if( HashTableContains(&Context->TableObject, Key, parent->HashId) ) {
         entry* StoredWindowEntry = HashTableFindPointer(&Context->TableObject, Key, parent->HashId);
@@ -639,10 +645,12 @@ UI_BuildObjectWithParent(ui_context* Context, u8* Key, u8* Text, rect_2d Rect, u
     }
 
     if( !StackIsEmpty(&Context->Layouts) ) {
-        ui_layout* Layout    = &StackGetFront(&Context->Layouts);
-
-        Object->Rect.Pos = Vec2Add(Object->Rect.Pos, Layout->Padding);
+        ui_layout* Layout = &StackGetFront(&Context->Layouts);
+		Object->Rect.Pos = Vec2Add(Layout->Size.Pos, Layout->ContentSize);
+        Object->Rect.Pos  = Vec2Add(Object->Rect.Pos, Layout->Padding);
+		Object->Rect.Size = Layout->BoxSize;
         vec2 RightPadding = Vec2ScalarMul(2, Layout->Padding);
+
         if( Layout->N_Columns == 0 && Layout->N_Rows == 0 ) {
         } else if( Layout->N_Columns > 0 && Layout->AxisDirection == 0 && Layout->CurrentColumn < Layout->N_Columns) {
             Object->Rect.Size.x = Layout->ColumnSizes[Layout->CurrentColumn];
@@ -652,10 +660,9 @@ UI_BuildObjectWithParent(ui_context* Context, u8* Key, u8* Text, rect_2d Rect, u
             Layout->CurrentRow += 1;
         }
 
-        Object->Rect.Size = Vec2Sub(Object->Rect.Size, RightPadding);
-        Layout->ContentSize.v[Layout->AxisDirection] += Object->Rect.Size.v[Layout->AxisDirection];
-        
-        Parent->ContentSize.v[Layout->AxisDirection] += Object->Rect.Size.v[Layout->AxisDirection];
+        Object->Rect.Size.x -= RightPadding.x;
+        Layout->ContentSize.v[Layout->AxisDirection] += Layout->BoxSize.v[Layout->AxisDirection] + Layout->Padding.v[Layout->AxisDirection];
+		Parent->ContentSize.v[Layout->AxisDirection] += Layout->BoxSize.v[Layout->AxisDirection] + Layout->Padding.v[Layout->AxisDirection];
     }
 
     if( Options & UI_DrawText ) {
@@ -687,13 +694,13 @@ UI_BuildObjectWithParent(ui_context* Context, u8* Key, u8* Text, rect_2d Rect, u
                 // instead of
                 // hello/asdf --> hello
                 //
-                if( LastSlash == -1 ) {
+                if( LastSlash != -1 ) {
                     LastSlash += 1;
                 }
-                if( LastUnderScore == -1 ) {
+                if( LastUnderScore != -1 ) {
                     LastUnderScore += 1;
                 }
-                if( LastSpace == -1 ) {
+                if( LastSpace != -1 ) {
                     LastSpace += 1;
                 }
 
@@ -724,6 +731,7 @@ UI_BuildObjectWithParent(ui_context* Context, u8* Key, u8* Text, rect_2d Rect, u
                 } else {
                     StringEraseUntil(&Object->Text, 0);
                     StringEraseUntil(&Context->TextInput, 0);
+					Object->TextCursorIdx = 0;
                 }
                 
             } else if( Context->LastInput & Input_Backspace ) {
@@ -734,9 +742,27 @@ UI_BuildObjectWithParent(ui_context* Context, u8* Key, u8* Text, rect_2d Rect, u
 
         Object->Pos  = Object->Rect.Pos;
         Object->Size = (vec2){
-            (f32)F_TextWidth( Object->Theme.Font, Object->Text.data, Object->Text.idx ),
+            (f32)F_TextWidth(Object->Theme.Font, Object->Text.data, Object->Text.idx ),
             (f32)F_TextHeight(Object->Theme.Font)
         };
+
+		if (Object->Size.x > Object->Rect.Size.x) {
+
+			// How much text is outside the render box
+			//
+			f32 Offset = Object->Size.x - Object->Rect.Size.x;
+			// Average size of a character given the size of the string and the number of 
+			// characters is composed of
+			//
+			f32 C_Avg  = Object->Size.x / Object->Text.idx;
+
+			u32 N_Chars = (u32) ceilf(Offset / C_Avg);
+			
+			if (N_Chars <= Object->Text.idx) {
+				// @todo This would affect text boxes
+				// Object->Text.idx -= N_Chars;
+			}
+		}
 
         if( Options & UI_AlignVertical ) {
             Object->Pos.y += Object->Rect.Size.y / 2 - Object->Size.y / 2;
@@ -769,7 +795,7 @@ UI_BuildObjectWithParent(ui_context* Context, u8* Key, u8* Text, rect_2d Rect, u
 }
 
 internal bool
-	IsCursorOnRect(ui_context* Context, rect_2d Rect) {
+IsCursorOnRect(ui_context* Context, rect_2d Rect) {
     vec2 Cursor = Context->CursorPos;
     if( Cursor.x >= Rect.Pos.x && Cursor.x <= Rect.Pos.x + Rect.Size.x ) {
         if( Cursor.y >= Rect.Pos.y && Cursor.y <= Rect.Pos.y + Rect.Size.y ) {
@@ -780,7 +806,7 @@ internal bool
 }
 
 internal bool
-	UI_CheckBoxInsideScrollView(ui_context* Context, ui_object* Object) {
+UI_CheckBoxInsideScrollView(ui_context* Context, ui_object* Object) {
     if(Object->Parent != &UI_NULL_OBJECT && Object->Parent->Type == UI_ScrollbarType) {
         if( Object->Type == UI_ScrollbarTypeButton ) {
             return true;
@@ -801,10 +827,10 @@ internal bool
 }
 
 internal ui_input
-	UI_ConsumeEvents(ui_context* Context, ui_object* Object) {
-    if( (Object->Option & UI_Select) && IsCursorOnRect(Context, Object->Rect) ) {
+UI_ConsumeEvents(ui_context* Context, ui_object* Object) {
+    if( (Object->Option & UI_Interact) && IsCursorOnRect(Context, Object->Rect) ) {
         if( UI_CheckBoxInsideScrollView(Context, Object)) {
-            return Context->CursorAction | Input_CursorHover;
+            return Context->CursorAction | Input_CursorHover | Context->LastInput;
         }
     }
 
@@ -812,9 +838,7 @@ internal ui_input
 }
 
 internal ui_input
-	UI_Button(ui_context* Context, const char* Title) {
-
-    ui_window* Win = &StackGetFront(&Context->Windows);
+UI_Button(ui_context* Context, const char* Title) {
 
     ui_object* Parent = Context->CurrentParent;
 
@@ -823,7 +847,7 @@ internal ui_input
     Rect.Pos         = Vec2Add(Rect.Pos, Layout.ContentSize);
     Rect.Size        = Layout.BoxSize;
 
-    ui_lay_opt Options = UI_DrawText | UI_AlignVertical | UI_AlignCenter | UI_Interact | UI_Select;
+    ui_lay_opt Options = UI_DrawBorder | UI_DrawRect | UI_DrawText | UI_AlignVertical | UI_Interact | UI_Select;
 
     UI_SetNextTheme( Context, Context->DefaultTheme.Button );
     ui_object* Button = UI_BuildObjectWithParent(Context, Title, Title, Rect, Options, Parent);
@@ -839,16 +863,14 @@ internal ui_input
     }
 
     if( Button->LastInputSet & Input_CursorHover ) {
-        Button->Theme = Context->DefaultTheme.Panel;
+		Button->Theme.Background = Context->DefaultTheme.Panel.Background;
     }
 
     return Input;
 }
 
 internal ui_input
-	UI_Label(ui_context* Context, const char* text) {
-    ui_window* Win = &StackGetFront(&Context->Windows);
-
+UI_Label(ui_context* Context, const char* text) {
     ui_object* Parent = Context->CurrentParent;
 
     ui_layout Layout = StackGetFront(&Context->Layouts);
@@ -860,6 +882,7 @@ internal ui_input
     UI_SetNextTheme( Context, Context->DefaultTheme.Label );
     ui_object* Label = UI_BuildObjectWithParent(Context, text, text, Rect, Options, Parent);
 
+	StackPop(&Context->Themes);
     ui_input Input = UI_ConsumeEvents(Context, Label);
     Label->LastInputSet = Input;
     Label->Type = UI_LabelType;
@@ -868,9 +891,7 @@ internal ui_input
 }
 
 internal ui_input
-	UI_LabelWithKey(ui_context* Context, const char* Key, const char* text) {
-    ui_window* Win = &StackGetFront(&Context->Windows);
-
+UI_LabelWithKey(ui_context* Context, const char* Key, const char* text) {
     ui_object* Parent = Context->CurrentParent;
 
     ui_layout Layout = StackGetFront(&Context->Layouts);
@@ -881,7 +902,7 @@ internal ui_input
     ui_lay_opt Options = UI_DrawText | UI_AlignVertical | UI_Interact | UI_Select;
     UI_SetNextTheme( Context, Context->DefaultTheme.Input );
     ui_object* Label = UI_BuildObjectWithParent(Context, Key, text, Rect, Options, Parent);
-
+	StackPop(&Context->Themes);
     ui_input Input = UI_ConsumeEvents(Context, Label);
     Label->LastInputSet = Input;
     Label->Type = UI_LabelType;
@@ -891,8 +912,6 @@ internal ui_input
 
 internal ui_input
 UI_TextBox(ui_context* Context, const char* text) {
-    ui_window* Win = &StackGetFront(&Context->Windows);
-
     ui_object* Parent = Context->CurrentParent;
 
     ui_layout Layout = StackGetFront(&Context->Layouts);
@@ -900,21 +919,45 @@ UI_TextBox(ui_context* Context, const char* text) {
     Rect.Pos         = Vec2Add(Rect.Pos, Layout.ContentSize);
     Rect.Size        = Layout.BoxSize;
 
-    ui_lay_opt Options = UI_DrawText | UI_AlignVertical | UI_Interact | UI_Select;
+    ui_lay_opt Options = UI_DrawBorder | UI_DrawRect | UI_DrawText | UI_AlignVertical | UI_Interact | UI_Select;
     UI_SetNextTheme( Context, Context->DefaultTheme.Input );
     ui_object* TextBox = UI_BuildObjectWithParent(Context, text, text, Rect, Options, Parent);
-
+	StackPop(&Context->Themes);
     ui_input Input = UI_ConsumeEvents(Context, TextBox);
     TextBox->LastInputSet = Input;
     TextBox->Type = UI_InputText;
 
-    if( Input & Input_LeftClickPress ) {
-        Context->FocusObject = TextBox;
+	if (Input & Input_LeftClickPress) {
+		
+		Context->FocusObject = TextBox;
+	}
+	
+	if( TextBox == Context->FocusObject ) {
+        TextBox->LastInputSet |= Context->LastInput;
+		Input |= Context->LastInput;
     }
 
-    if( TextBox == Context->FocusObject ) {
-        TextBox->LastInputSet |= Context->LastInput;
-    }
+	if ( Input & Input_KeyChar || Input & Input_KeyPressed ) {
+		if (TextBox->Size.x > TextBox->Rect.Size.x) {
+			// How much text is outside the render box
+			//
+			f32 Offset = TextBox->Size.x - TextBox->Rect.Size.x;
+			// Average size of a character given the size of the string and the number of 
+			// characters is composed of
+			//
+			f32 C_Avg  = TextBox->Size.x / TextBox->Text.idx;
+
+			u32 N_Chars = (u32) ceilf(Offset / C_Avg);
+
+			if (TextBox->TextCursorIdx >= N_Chars && (Input & Input_Backspace || Input & Input_Left ) ) {
+				TextBox->TextStartIdx = Max(0, TextBox->TextStartIdx - 1);
+			} else if (TextBox->TextCursorIdx >= N_Chars) {
+				TextBox->TextStartIdx = Min(TextBox->TextCursorIdx, TextBox->TextStartIdx + 1);
+			}
+		} else {
+			TextBox->TextStartIdx = 0;
+		}
+	}
 
     if( TextBox->LastInputSet & Input_CursorHover ) {
         TextBox->Theme.Background.a *= 0.8;
@@ -926,8 +969,6 @@ UI_TextBox(ui_context* Context, const char* text) {
 
 internal ui_input
 UI_BeginTreeNode(ui_context* Context, const char* text) {
-    ui_window* Win = &StackGetFront(&Context->Windows);
-
     ui_object* Parent = Context->CurrentParent;
 
     ui_layout Layout = StackGetFront(&Context->Layouts);
@@ -935,10 +976,10 @@ UI_BeginTreeNode(ui_context* Context, const char* text) {
     Rect.Pos         = Vec2Add(Rect.Pos, Layout.ContentSize);
     Rect.Size        = Layout.BoxSize;
 
-    ui_lay_opt Options = UI_DrawText | UI_AlignVertical | UI_AlignCenter | UI_Interact | UI_Select;
+    ui_lay_opt Options = UI_DrawBorder | UI_DrawRect | UI_DrawText | UI_AlignVertical | UI_AlignCenter | UI_Interact | UI_Select;
     UI_SetNextTheme( Context, Context->DefaultTheme.Panel );
     ui_object* TreeNode = UI_BuildObjectWithParent(Context, text, text, Rect, Options, Parent);
-
+	StackPop(&Context->Themes);
     ui_input Input = UI_ConsumeEvents(Context, TreeNode);
     ui_input IsActive = TreeNode->LastInputSet & ActiveObject;
     TreeNode->LastInputSet = Input | IsActive;
@@ -969,12 +1010,12 @@ UI_BeginTreeNode(ui_context* Context, const char* text) {
 }
 
 internal ui_input
-	UI_EndTreeNode(ui_context* Context) {
+UI_EndTreeNode(ui_context* Context) {
     Context->CurrentParent = Context->CurrentParent->Parent;
 }
 
 internal void
-	UI_BeginScrollbarViewEx(ui_context* Context, vec2 Size) {
+UI_BeginScrollbarViewEx(ui_context* Context, vec2 Size) {
 
     char name[] = "ScrollBarView";
 
@@ -987,10 +1028,12 @@ internal void
     vec2 ContentSize = Layout->ContentSize;
 
     vec2 Padding = Layout->Padding;
-    Layout->Padding = (vec2){0, 0};
+    //Layout->Padding = (vec2){0, 0};
+
+	UI_PushNextLayoutPadding(Context, (vec2){ 0, 0 });
 
     Rect.Pos.x = Rect.Pos.x + Rect.Size.x - 15;
-    Rect.Size.x = 15;
+    Rect.Size.x = 10;
     Rect.Pos.y += ContentSize.y;
     if( Size.x == 0 || Size.y == 0 ) {
         Rect.Size.y = Rect.Size.y - ContentSize.y;
@@ -1000,7 +1043,7 @@ internal void
 
     UI_SetNextTheme( Context, Context->DefaultTheme.Panel );
     ui_object* ScrollObj = UI_BuildObjectWithParent(Context, name, NULL, Rect, 0, Parent);
-
+	StackPop(&Context->Themes);
     ScrollObj->Type = UI_ScrollbarType;
 
     Layout->ContentSize = ContentSize;
@@ -1045,7 +1088,8 @@ UI_EndScrollbarView(ui_context* Context) {
 
     UI_SetNextTheme( Context, Context->DefaultTheme.Button );
     ui_object* Scrollable = UI_BuildObjectWithParent(Context, buf, NULL, ScrollableSize, UI_Select | UI_Drag, Scrollbar);
-    Scrollable->Type = UI_ScrollbarTypeButton;
+    StackPop(&Context->Themes);
+	Scrollable->Type = UI_ScrollbarTypeButton;
     Scrollable->Theme = Context->DefaultTheme.Scrollbar;
     Layout->Padding = Padding;
 
@@ -1094,17 +1138,17 @@ UI_EndScrollbarView(ui_context* Context) {
 }
 
 internal void
-	UI_SetNextParent(ui_context* Context, ui_object* Object) {
+UI_SetNextParent(ui_context* Context, ui_object* Object) {
     Context->CurrentParent = Object;
 }
 
 internal void
-	UI_PopLastParent(ui_context* Context) {
+UI_PopLastParent(ui_context* Context) {
     Context->CurrentParent = Context->CurrentParent->Parent;
 }
 
 internal void
-	UI_PushNextLayout(ui_context* Context, rect_2d Rect, ui_lay_opt Options) {
+UI_PushNextLayout(ui_context* Context, rect_2d Rect, ui_lay_opt Options) {
     StackPush(&Context->Layouts, (ui_layout){});
     ui_layout* Layout = &StackGetFront(&Context->Layouts);
 
@@ -1117,7 +1161,7 @@ internal void
 
 
 internal void
-	UI_PushNextLayoutRow(ui_context* Context, int N_Rows, const int* Rows ) {
+UI_PushNextLayoutRow(ui_context* Context, int N_Rows, const int* Rows ) {
 
     assert(!StackIsEmpty(&Context->Layouts));
 
@@ -1128,7 +1172,7 @@ internal void
 }
 
 internal void
-	UI_PushNextLayoutColumn(ui_context* Context, int N_Columns, const int* Columns ) {
+UI_PushNextLayoutColumn(ui_context* Context, int N_Columns, const int* Columns ) {
     assert(!StackIsEmpty(&Context->Layouts));
 
     ui_layout* Layout = &StackGetFront(&Context->Layouts);
@@ -1137,8 +1181,16 @@ internal void
     Layout->ColumnSizes = Columns;
 }
 
+internal void UI_PushNextLayoutBoxSize(ui_context* Context, vec2 BoxSize) {
+	assert(!StackIsEmpty(&Context->Layouts));
+
+    ui_layout* Layout = &StackGetFront(&Context->Layouts);
+
+	Layout->BoxSize = BoxSize;
+}
+
 internal void
-	UI_PushNextLayoutPadding(ui_context* Context, vec2 Padding) {
+UI_PushNextLayoutPadding(ui_context* Context, vec2 Padding) {
     assert(!StackIsEmpty(&Context->Layouts));
 
     ui_layout* Layout = &StackGetFront(&Context->Layouts);
@@ -1146,7 +1198,7 @@ internal void
 }
 
 internal void
-	UI_PushNextLayoutOption(ui_context* Context, ui_lay_opt Options) {
+UI_PushNextLayoutOption(ui_context* Context, ui_lay_opt Options) {
     assert(!StackIsEmpty(&Context->Layouts));
 
     ui_layout* Layout = &StackGetFront(&Context->Layouts);
@@ -1154,7 +1206,7 @@ internal void
 }
 
 internal void
-	UI_PushNextLayoutDisableOption(ui_context* Context, ui_lay_opt Options) {
+UI_PushNextLayoutDisableOption(ui_context* Context, ui_lay_opt Options) {
     assert(!StackIsEmpty(&Context->Layouts));
 
     ui_layout* Layout = &StackGetFront(&Context->Layouts);
@@ -1163,18 +1215,18 @@ internal void
 
 
 internal void
-	UI_SetNextTheme(ui_context* Context, object_theme Theme) {
+UI_SetNextTheme(ui_context* Context, object_theme Theme) {
     StackPush(&Context->Themes, Theme);
 }
 
 internal void
-	UI_PushNextFont(ui_context* Context, FontCache* Font) {
+UI_PushNextFont(ui_context* Context, FontCache* Font) {
     object_theme* Theme = &StackGetFront(&Context->Themes);
     Theme->Font = Font;
 }
 
 internal void
-	UI_PopTheme(ui_context* Context) {
+UI_PopTheme(ui_context* Context) {
     StackPop(&Context->Themes);
 }
 
@@ -1240,15 +1292,16 @@ UI_LastEvent(ui_context* Context, api_window* Window) {
 	}
     if( Input & Input_Left ) {
         Context->FocusObject->TextCursorIdx = Max(0, Context->FocusObject->TextCursorIdx - 1);
-    }
+		//Context->FocusObject->TextCursorIdx -= 1;
+	}
     if( Input & Input_Right ) {
         Context->FocusObject->TextCursorIdx = Min(Context->FocusObject->Text.idx, Context->FocusObject->TextCursorIdx + 1);
-    }
+	}
     if( Input & DeleteWord ) {
 
     } else if( Input & Input_Backspace ) {
         Context->FocusObject->TextCursorIdx = Max(0, Context->FocusObject->TextCursorIdx - 1 );
-        Context->TextInput.idx = Context->TextInput.idx > 0 ? Context->TextInput.idx - 1 : 0;
+        Context->TextInput.idx = Max(0, Context->TextInput.idx - 1);
     }
     if( Input & ClipboardPaste ) {
         StringAppend(&Context->TextInput, GetClipboard(Window));
