@@ -194,6 +194,8 @@ struct ui_context {
 
     ui_theme DefaultTheme;
 
+	bool IsOnDrag;
+	bool IsOnResize;
     ui_input KeyPressed;
     ui_input KeyDown;
 	
@@ -268,6 +270,8 @@ internal void UI_PushNextLayoutOption(ui_context* Context, ui_lay_opt Options);
 
 internal U8_String*  UI_GetTextFromBox(ui_context* Context, const char* Key);
 
+internal vec2 UI_UpdateObjectSize(ui_context* Context, ui_object* Object);
+
 internal void UI_SetNextTheme(ui_context* Context, object_theme Theme);
 internal void UI_PushNextFont(ui_context* Context, FontCache* Font);
 internal void UI_PopTheme(ui_context* Context);
@@ -276,9 +280,9 @@ internal void UI_BeginColumn(ui_context* Context);
 internal void UI_EndColumn(ui_context* Context);
 
 internal void UI_BeginScrollbarViewEx(ui_context* Context, vec2 MaxSize);
-internal void ui_EndScrollbarView(ui_context* Context);
+internal void UI_EndScrollbarView(ui_context* Context);
 
-#define UI_BeginScrollbarView(Context) UI_BeginScrollbarViewEx(Context, (vec2){0, 0});
+#define UI_BeginScrollbarView(Context) UI_BeginScrollbarViewEx(Context, (vec2){0, 0})
 
 internal bool IsCursorOnRect(ui_context* Context, rect_2d Rect);
 
@@ -307,6 +311,8 @@ internal void
     Context->CurrentParent = &UI_NULL_OBJECT;
 
 	Context->MaxDepth = 1;
+	Context->IsOnDrag = false;
+	Context->IsOnResize = false;
 
     HashTableInit(&Context->TableObject, Allocator, 4096, UI_CustomXXHash);
 }
@@ -528,12 +534,12 @@ UI_WindowBegin(ui_context* Context, rect_2d Rect, const char* Title, ui_lay_opt 
 
     ui_object* Object = &UI_NULL_OBJECT;
 
-    ui_lay_opt WOpt = UI_DrawText;
+    ui_lay_opt WOpt = UI_DrawText | UI_Interact;
 
     if( Options & UI_NoTitle ) {
         WOpt ^= UI_DrawText;
     }
-
+	UI_SetNextParent(Context, &Context->RootObject);
     UI_SetNextTheme( Context, Context->DefaultTheme.Window );
     Object = UI_BuildObjectWithParent(Context, Title, Title, Rect, WOpt | Options, &NewWin->Objects);
     Object->Type = UI_Window;
@@ -547,12 +553,12 @@ UI_WindowBegin(ui_context* Context, rect_2d Rect, const char* Title, ui_lay_opt 
             Vec2Add(Object->Rect.Pos, Vec2Sub(Object->Rect.Size, CornerSize)),
             {20, 20}
         };
-        if(IsCursorOnRect(Context, TitleRect) && Context->FocusObject == &UI_NULL_OBJECT && (Options & UI_Select) ) {
+        if(IsCursorOnRect(Context, TitleRect) && (Options & UI_Select) ) {
 			if (Object->DepthIdx < Context->MaxDepth) {
 				Object->DepthIdx = Context->MaxDepth + 1;
 			}
             Context->FocusObject = Object;
-        } else if( Object->Option & UI_Resize  && Context->FocusObject == &UI_NULL_OBJECT  && (Options & UI_Select) )  {
+        } else if( Object->Option & UI_Resize && (Options & UI_Select) )  {
             if( IsCursorOnRect(Context, ResizeRect) ) {
                 if (Object->DepthIdx <= Context->MaxDepth) {
 					//Object->DepthIdx += 1;
@@ -564,11 +570,15 @@ UI_WindowBegin(ui_context* Context, rect_2d Rect, const char* Title, ui_lay_opt 
 		Context->MaxDepth = Max(Context->MaxDepth, Object->DepthIdx);
     }
 
-    if( !( UI_ConsumeEvents(Context, Object) & Input_LeftClickRelease) && Object == Context->FocusObject ) {
-        vec2 CornerSize = (vec2){20, 20};
+	if (UI_ConsumeEvents(Context, Object) & Input_LeftClickPress) {
+		Context->FocusObject = Object;
+	} else if (Context->LastInput & Input_LeftClickRelease && Object == Context->FocusObject) {
+		Context->FocusObject = &UI_NULL_OBJECT;
+	} else if (Object == Context->FocusObject) {
+		vec2 CornerSize = (vec2){20, 20};
         rect_2d ResizeRect = (rect_2d){
             Vec2Add(Object->Rect.Pos, Vec2Sub(Object->Rect.Size, CornerSize)),
-            {20, 20}
+            CornerSize
         };
         if( Object->Option & UI_Resize )  {
             if( IsCursorOnRect(Context, ResizeRect) ) {
@@ -578,9 +588,7 @@ UI_WindowBegin(ui_context* Context, rect_2d Rect, const char* Title, ui_lay_opt 
         if( Object->Option & UI_Drag && !IsCursorOnRect(Context, ResizeRect) ) {
             Object->Rect.Pos = Vec2Add(Object->Rect.Pos, Context->CursorDelta);
         }
-    } else if( UI_ConsumeEvents(Context, Object) & Input_LeftClickRelease && Object == Context->FocusObject ) {
-        Context->FocusObject = &UI_NULL_OBJECT;
-    }
+	}
 
     UI_PushNextLayout(Context, Object->Rect, 0);
     ui_layout* Layout = &StackGetFront(&Context->Layouts);
@@ -593,7 +601,7 @@ UI_WindowBegin(ui_context* Context, rect_2d Rect, const char* Title, ui_lay_opt 
 }
 
 internal void
-	UI_WindowEnd(ui_context* Context) {
+UI_WindowEnd(ui_context* Context) {
     if( !StackIsEmpty(&Context->Themes) ) {
         StackPop(&Context->Themes);
     }
@@ -603,7 +611,7 @@ internal void
 }
 
 internal U8_String*
-	UI_GetTextFromBox(ui_context* Context, const char* Key) {
+UI_GetTextFromBox(ui_context* Context, const char* Key) {
     ui_object* parent = Context->CurrentParent;
     if( HashTableContains(&Context->TableObject, Key, parent->HashId) ) {
         entry* StoredWindowEntry = HashTableFindPointer(&Context->TableObject, Key, parent->HashId);
@@ -646,8 +654,9 @@ UI_BuildObjectWithParent(ui_context* Context, u8* Key, u8* Text, rect_2d Rect, u
 
     if( !StackIsEmpty(&Context->Layouts) ) {
         ui_layout* Layout = &StackGetFront(&Context->Layouts);
-		Object->Rect.Pos = Vec2Add(Layout->Size.Pos, Layout->ContentSize);
-        Object->Rect.Pos  = Vec2Add(Object->Rect.Pos, Layout->Padding);
+		//Object->Rect.Pos = Vec2Add(Layout->Size.Pos, Layout->ContentSize);
+		//Object->Rect.Pos.v[Layout->AxisDirection] = Layout->Size.Pos.v[Layout->AxisDirection] + Layout->ContentSize.v[Layout->AxisDirection];
+		Object->Rect.Pos  = Vec2Add(Object->Rect.Pos, Layout->Padding);
 		Object->Rect.Size = Layout->BoxSize;
         vec2 RightPadding = Vec2ScalarMul(2, Layout->Padding);
 
@@ -786,7 +795,7 @@ UI_BuildObjectWithParent(ui_context* Context, u8* Key, u8* Text, rect_2d Rect, u
         Object->Pos.y      -= Parent->ScrollRatio * Parent->LastDelta.y;
     }
 
-    TreeInit(Object, &UI_NULL_OBJECT);
+	TreeInit(Object, &UI_NULL_OBJECT);
     TreePushSon(Parent, Object, &UI_NULL_OBJECT);
 
     Object->ContentSize = Vec2Zero();
@@ -847,7 +856,7 @@ UI_Button(ui_context* Context, const char* Title) {
     Rect.Pos         = Vec2Add(Rect.Pos, Layout.ContentSize);
     Rect.Size        = Layout.BoxSize;
 
-    ui_lay_opt Options = UI_DrawBorder | UI_DrawRect | UI_DrawText | UI_AlignVertical | UI_Interact | UI_Select;
+    ui_lay_opt Options = UI_DrawRect | UI_DrawText | UI_AlignVertical | UI_Interact | UI_Select;
 
     UI_SetNextTheme( Context, Context->DefaultTheme.Button );
     ui_object* Button = UI_BuildObjectWithParent(Context, Title, Title, Rect, Options, Parent);
@@ -1033,16 +1042,19 @@ UI_BeginScrollbarViewEx(ui_context* Context, vec2 Size) {
 	UI_PushNextLayoutPadding(Context, (vec2){ 0, 0 });
 
     Rect.Pos.x = Rect.Pos.x + Rect.Size.x - 15;
-    Rect.Size.x = 10;
+    Rect.Size.x = 8;
     Rect.Pos.y += ContentSize.y;
     if( Size.x == 0 || Size.y == 0 ) {
-        Rect.Size.y = Rect.Size.y - ContentSize.y;
+        Rect.Size.y = Rect.Size.y - ContentSize.y - Padding.y;
     } else {
-        Rect.Size.y = Size.y;
+        Rect.Size.y = Size.y - Padding.y;
     }
 
+	vec2 BoxSize = Layout->BoxSize;
+	UI_PushNextLayoutBoxSize(Context, Rect.Size);
+
     UI_SetNextTheme( Context, Context->DefaultTheme.Panel );
-    ui_object* ScrollObj = UI_BuildObjectWithParent(Context, name, NULL, Rect, 0, Parent);
+    ui_object* ScrollObj = UI_BuildObjectWithParent(Context, name, NULL, Rect, UI_DrawRect, Parent);
 	StackPop(&Context->Themes);
     ScrollObj->Type = UI_ScrollbarType;
 
@@ -1051,31 +1063,21 @@ UI_BeginScrollbarViewEx(ui_context* Context, vec2 Size) {
     Context->CurrentParent = ScrollObj;
 
     Layout->Padding = Padding;
+	UI_PushNextLayoutBoxSize(Context, BoxSize);
 }
 
 internal void
 UI_EndScrollbarView(ui_context* Context) {
     ui_object* Scrollbar   = Context->CurrentParent;
-
-    float ContentHeight = Scrollbar->ContentSize.y;
-
-    float ViewportContent = Scrollbar->Rect.Size.y;
-
+    float ContentHeight    = Scrollbar->ContentSize.y;
+    float ViewportContent  = Scrollbar->Rect.Size.y;
     rect_2d ScrollableSize = Scrollbar->Rect;
-
-    ContentHeight = Max(1.0f, ContentHeight);
-
-	float TotalScrollableDistance = ContentHeight - ViewportContent;
-
-    ScrollableSize.Size.y = (ViewportContent / ContentHeight) * ViewportContent;
-
-    f32 ScrollRatio = 1;
-
-    ScrollableSize.Size.y = Max(ScrollableSize.Size.y, 20.0f);
-
-    float ThumbMovementRange = ViewportContent - ScrollableSize.Size.y;
-    float ScrollRange        = ContentHeight - ViewportContent;
-    float ScrollT = ThumbMovementRange / ScrollRange; // 0..1
+    ContentHeight          = Max(1.0f, ContentHeight);
+    ScrollableSize.Size.y  = (ViewportContent / ContentHeight) * ViewportContent;
+	f32 ScrollableDistance = ContentHeight - ViewportContent;
+	f32 TrackScrollableDistance = ViewportContent - ScrollableSize.Size.y;
+	f32 ScrollRatio = 6;
+    ScrollableSize.Size.y  = Max(ScrollableSize.Size.y, 20.0f);
 
     char buf[] = "EndOfScroll";
 
@@ -1086,8 +1088,11 @@ UI_EndScrollbarView(ui_context* Context) {
     vec2 Padding = Layout->Padding;
     Layout->Padding = (vec2){0, 0};
 
+	vec2 BoxSize = Layout->BoxSize;
+	UI_PushNextLayoutBoxSize(Context, ScrollableSize.Size);
+
     UI_SetNextTheme( Context, Context->DefaultTheme.Button );
-    ui_object* Scrollable = UI_BuildObjectWithParent(Context, buf, NULL, ScrollableSize, UI_Select | UI_Drag, Scrollbar);
+    ui_object* Scrollable = UI_BuildObjectWithParent(Context, buf, NULL, ScrollableSize, UI_DrawRect | UI_Select | UI_Interact, Scrollbar);
     StackPop(&Context->Themes);
 	Scrollable->Type = UI_ScrollbarTypeButton;
     Scrollable->Theme = Context->DefaultTheme.Scrollbar;
@@ -1095,23 +1100,32 @@ UI_EndScrollbarView(ui_context* Context) {
 
     Layout->ContentSize.y -= Max(0, ContentHeight - ViewportContent + Scrollable->Rect.Size.y);
 
-	ScrollRatio = Scrollable->Rect.Pos.y / TotalScrollableDistance;
-
     vec2 VerticalDelta = Vec2Zero();
     if( Context->FocusObject == Scrollable ) {
         VerticalDelta = (vec2){0, Context->CursorDelta.y};
     }
 
-    Scrollable->LastDelta = Vec2Add(Scrollable->LastDelta, VerticalDelta);
-    Scrollable->ScrollRatio = ScrollRatio;
-    Scrollable->Rect.Pos.y += Scrollable->LastDelta.y * ScrollRatio;
-    Scrollable->Rect.Pos.y = Max(Scrollbar->Rect.Pos.y, Scrollable->Rect.Pos.y);
-    Scrollable->Rect.Pos.y = Min(Scrollable->Rect.Pos.y, Scrollbar->Rect.Pos.y + ViewportContent);
+	
+	if (Scrollable->Rect.Pos.y + Scrollable->Rect.Size.y > Scrollbar->Rect.Pos.y + Scrollbar->Rect.Size.y) {
+		f32 OldPos = Scrollable->Rect.Pos.y;
+		f32 FarOff = (Scrollable->Rect.Pos.y + Scrollable->Rect.Size.y) - (Scrollbar->Rect.Pos.y + Scrollbar->Rect.Size.y);
+		Scrollable->Rect.Pos.y -= FarOff;
+	} else {
+		vec2 LastDelta = Scrollable->LastDelta;
+		Scrollable->LastDelta = Vec2Add(Scrollable->LastDelta, VerticalDelta);
+		Scrollable->ScrollRatio = ScrollRatio;
+		Scrollable->Rect.Pos.y += Scrollable->LastDelta.y * ScrollRatio;
+		Scrollable->Rect.Pos.y = Max(Scrollbar->Rect.Pos.y, Scrollable->Rect.Pos.y);
+		Scrollable->Rect.Pos.y = Min(Scrollable->Rect.Pos.y, Scrollbar->Rect.Pos.y + ViewportContent);
+	}
 
     if(Scrollable->Rect.Pos.y == Scrollbar->Rect.Pos.y) {
         Scrollable->LastDelta = Vec2Zero();
     } else if( Scrollable->Rect.Pos.y == Scrollbar->Rect.Pos.y + Scrollbar->Rect.Size.y ) {
-        Scrollable->LastDelta = Vec2Sub(Scrollable->LastDelta, VerticalDelta);
+		f32 OldPos = Scrollable->Rect.Pos.y;
+		f32 FarOff = (Scrollable->Rect.Pos.y + Scrollable->Rect.Size.y) - (Scrollbar->Rect.Pos.y + Scrollbar->Rect.Size.y);
+		Scrollable->Rect.Pos.y -= FarOff;
+		//Scrollable->LastDelta = Vec2Sub(Scrollable->LastDelta, VerticalDelta);
     }
 
     // Set the scrollbar begin base LastDelta to the offset created by the 
@@ -1135,6 +1149,7 @@ UI_EndScrollbarView(ui_context* Context) {
         Context->FocusObject = &UI_NULL_OBJECT;
     }
     Context->CurrentParent = Context->CurrentParent->Parent;
+	UI_PushNextLayoutBoxSize(Context, BoxSize);
 }
 
 internal void
@@ -1213,6 +1228,38 @@ UI_PushNextLayoutDisableOption(ui_context* Context, ui_lay_opt Options) {
     Layout->Option    ^= Options;
 }
 
+internal vec2
+UI_UpdateObjectSize(ui_context* Context, ui_object* Object) {
+	if (UI_ConsumeEvents(Context, Object) & Input_LeftClickPress) {
+		Context->FocusObject = Object;
+	} else if (Context->LastInput & Input_LeftClickRelease && Object == Context->FocusObject) {
+		Context->FocusObject = &UI_NULL_OBJECT;
+		Context->IsOnDrag = false;
+		Context->IsOnResize = false;
+	} else if (Object == Context->FocusObject) {
+		vec2 CornerSize = (vec2){20, 20};
+        rect_2d ResizeRect = (rect_2d){
+            Vec2Add(Object->Rect.Pos, Vec2Sub(Object->Rect.Size, CornerSize)),
+            CornerSize
+        };
+        if( Object->Option & UI_Resize && !Context->IsOnDrag)  {
+            if( IsCursorOnRect(Context, ResizeRect) || Context->IsOnResize ) {
+                Object->Rect.Size = Vec2Add(Object->Rect.Size, Context->CursorDelta);
+				Context->IsOnResize = true;
+            }
+        }
+        if( Object->Option & UI_Drag && !Context->IsOnResize ) {
+            Object->Rect.Pos = Vec2Add(Object->Rect.Pos, Context->CursorDelta);
+			if (IsCursorOnRect(Context, Object->Rect) || Context->IsOnDrag) {
+				Context->IsOnDrag = true;
+			}
+        }
+
+		return Context->CursorDelta;
+	}
+
+	return Vec2Zero();
+}
 
 internal void
 UI_SetNextTheme(ui_context* Context, object_theme Theme) {

@@ -160,7 +160,6 @@ struct todo_list {
 	todo_render Render;
 };
 
-
 internal r_vertex_input_description Vertex2DInputDescription(Stack_Allocator* Allocator);
 internal r_vertex_input_description Line2DInputDescription(Stack_Allocator* Allocator);
 
@@ -203,24 +202,71 @@ int main( void ) {
 			UI_SetNextParent(TodoApp.UI_Context, &TodoApp.UI_Context->RootObject);
 			{
 				UI_SetNextTheme(TodoApp.UI_Context, TodoApp.UI_Context->DefaultTheme.Window);
-				ui_object* Windows = UI_BuildObject(TodoApp.UI_Context, "Title", NULL, PanelRect, UI_DrawRect | UI_DrawBorder);
+				ui_object* Windows = UI_BuildObject(TodoApp.UI_Context, "Title", NULL, PanelRect, UI_DrawRect | UI_DrawBorder | UI_Drag | UI_Resize | UI_Interact | UI_SetPosPersistent );
+				UI_UpdateObjectSize(TodoApp.UI_Context, Windows);
 				UI_PopTheme(TodoApp.UI_Context);
 
+				PanelRect = Windows->Rect;
+
 				UI_PushNextLayout(TodoApp.UI_Context, PanelRect, 0);
-				UI_PushNextLayoutBoxSize(TodoApp.UI_Context, (vec2){300, 28});
+				UI_PushNextLayoutBoxSize(TodoApp.UI_Context, (vec2) { PanelRect.Size.x, 28 });
 				UI_PushNextLayoutPadding(TodoApp.UI_Context, (vec2) { 10, 5 });
 				UI_SetNextParent(TodoApp.UI_Context, Windows);
 
-				UI_SetNextTheme(TodoApp.UI_Context, TodoApp.UI_Context->DefaultTheme.Window);
-				UI_BuildObject(TodoApp.UI_Context, "Title", "Title", PanelRect, UI_DrawText | UI_AlignCenter);
+				UI_SetNextTheme(TodoApp.UI_Context, TodoApp.UI_Context->DefaultTheme.Button);
+				ui_object* TitleObj = UI_BuildObject(TodoApp.UI_Context, "Title", "Your ToDo App", PanelRect, UI_DrawText | UI_AlignCenter);
 				UI_PopTheme(TodoApp.UI_Context);
+
+				PanelRect.Pos.y += TitleObj->Size.y;
+				UI_PushNextLayoutBoxSize(TodoApp.UI_Context, (vec2){PanelRect.Size.x, 4});
+				UI_SetNextTheme(TodoApp.UI_Context, TodoApp.UI_Context->DefaultTheme.Panel);
+				UI_BuildObject(TodoApp.UI_Context, "TitleDivisor", NULL, PanelRect, UI_DrawRect);
 				
-				UI_Label(TodoApp.UI_Context, "Hello Label");
-				UI_Label(TodoApp.UI_Context, "Helloo From Second Label");
-				UI_TextBox(TodoApp.UI_Context, "This is an input box");
-				if( UI_Button(TodoApp.UI_Context, "This is a button") & Input_LeftClickPress) {
-					printf("Clicked\n");
+				UI_PushNextLayoutBoxSize(TodoApp.UI_Context, (vec2) {PanelRect.Size.x, PanelRect.Size.y - 2*TitleObj->Size.y});
+				UI_SetNextTheme(TodoApp.UI_Context, TodoApp.UI_Context->DefaultTheme.Label);
+				ui_object* NewNoteObj = UI_BuildObject(TodoApp.UI_Context, "+ Add New Note", "+ Add New Note", PanelRect, UI_DrawText | UI_AlignCenter | UI_AlignVertical | UI_Interact );
+				UI_PopTheme(TodoApp.UI_Context);
+
+				if (UI_ConsumeEvents(TodoApp.UI_Context, NewNoteObj) & Input_CursorHover) {
+					Windows->Theme.Background = RgbaToNorm(LightPink);
+					Windows->Theme.BorderThickness = 0;
 				}
+
+				StackPop(&TodoApp.UI_Context->Layouts);
+			} 
+			PanelRect = (rect_2d){ .Pos = { 550, 200 }, .Size = { 300, 300 } };
+			UI_SetNextParent(TodoApp.UI_Context, &TodoApp.UI_Context->RootObject);
+			{
+				UI_SetNextTheme(TodoApp.UI_Context, TodoApp.UI_Context->DefaultTheme.Window);
+				ui_object* Windows = UI_BuildObject(TodoApp.UI_Context, "New Title", NULL, PanelRect, UI_DrawRect | UI_DrawBorder | UI_Drag | UI_Resize | UI_Interact | UI_SetPosPersistent );
+				UI_UpdateObjectSize(TodoApp.UI_Context, Windows);
+				UI_PopTheme(TodoApp.UI_Context);
+
+				PanelRect = Windows->Rect;
+
+				UI_PushNextLayout(TodoApp.UI_Context, PanelRect, 0);
+				UI_PushNextLayoutBoxSize(TodoApp.UI_Context, (vec2) { PanelRect.Size.x, 28 });
+				UI_PushNextLayoutPadding(TodoApp.UI_Context, (vec2) { 10, 5 });
+				UI_SetNextParent(TodoApp.UI_Context, Windows);
+
+				UI_SetNextTheme(TodoApp.UI_Context, TodoApp.UI_Context->DefaultTheme.Button);
+				ui_object* TitleObj = UI_BuildObject(TodoApp.UI_Context, "Title", "Example ToDo", PanelRect, UI_DrawText | UI_AlignCenter);
+				UI_PopTheme(TodoApp.UI_Context);
+
+				PanelRect.Pos.y += TitleObj->Size.y;
+				UI_PushNextLayoutBoxSize(TodoApp.UI_Context, (vec2){PanelRect.Size.x, 4});
+				UI_SetNextTheme(TodoApp.UI_Context, TodoApp.UI_Context->DefaultTheme.Panel);
+				UI_BuildObject(TodoApp.UI_Context, "TitleDivisor", NULL, PanelRect, UI_DrawRect);
+				
+				UI_PushNextLayoutBoxSize(TodoApp.UI_Context, (vec2) {PanelRect.Size.x, TitleObj->Size.y});
+				UI_BeginScrollbarView(TodoApp.UI_Context);
+				for (i32 i = 0; i < 500; i += 1) {
+					char buf[64] = { 0 };
+					snprintf(buf, 64, "Tarea Num. %d", i);
+					UI_Label(TodoApp.UI_Context, buf);
+				}
+				UI_EndScrollbarView(TodoApp.UI_Context);
+
 				StackPop(&TodoApp.UI_Context->Layouts);
 			} 
 		}
@@ -250,6 +296,17 @@ int main( void ) {
 				
 				Object = StackGetFront(&ObjStack);
 				StackPop(&ObjStack);
+
+				if (Object->Parent->Type == UI_ScrollbarType && Object->Type != UI_ScrollbarTypeButton) {
+					if( Object->Rect.Pos.y < Object->Parent->Rect.Pos.y ) {
+						continue;
+					}
+					if( Object->Rect.Pos.y > Object->Parent->Rect.Pos.y + Object->Parent->Rect.Size.y ) {
+						continue;
+					} else if( Object->Rect.Pos.y + Object->Rect.Size.y > Object->Parent->Rect.Pos.y + Object->Parent->Rect.Size.y ) {
+						continue;
+					}
+				}
 
 				if (Object->Option & UI_DrawRect) {
 					D_DrawRect2D(&TodoApp.DrawInstance, Object->Rect, Object->Theme.Radius, 0, Object->Theme.Background);
@@ -557,8 +614,8 @@ internal void TodoRenderInit(todo_render* TodoRenderer) {
 			.Border = RgbaToNorm(LightPink),
 			.Background = RgbaToNorm(BrokenWhite),
 			.Foreground = RgbaToNorm(HardDark),
-			.Radius     = 2,
-			.BorderThickness = 1,
+			.Radius     = 8,
+			.BorderThickness = 4,
 			.Font       = TitleFont2
 		},
 		.Button = {
@@ -571,9 +628,9 @@ internal void TodoRenderInit(todo_render* TodoRenderer) {
 		},
 		.Panel = {
 			.Border = RgbaToNorm(BrokenWhite),
-			.Background = RgbaToNorm(LightPink),
+			.Background = RgbaToNorm(VioletBord),
 			.Foreground = RgbaToNorm(HardDark),
-			.Radius     = 2,
+			.Radius     = 8,
 			.BorderThickness = 1,
 			.Font       = DefaultFont
 		},
@@ -595,9 +652,9 @@ internal void TodoRenderInit(todo_render* TodoRenderer) {
 		},
 		.Scrollbar  = {
 			.Border = RgbaToNorm(LightPink),
-			.Background = RgbaToNorm(BrokenWhite),
-			.Foreground = RgbaToNorm(HardDark),
-			.Radius     = 2,
+			.Background = RgbaToNorm(Dark),
+			.Foreground = RgbaToNorm(Dark),
+			.Radius     = 8,
 			.BorderThickness = 1,
 			.Font       = NULL
 		}
