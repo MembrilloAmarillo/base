@@ -17,9 +17,8 @@
 
 #include "types.h"
 
-// --- Public API (Unchanged) ---
-typedef enum f_flags f_flags;
-enum f_flags {
+// --- Public API ---
+typedef enum f_flags {
     RDONLY = (1 << 0),
     WRONLY = (1 << 1),
     APPEND = (1 << 2)
@@ -40,7 +39,7 @@ struct f_file {
 #endif
 };
 
-internal f_file F_OpenFile(const char* c, i32 o_flags);
+internal f_file F_OpenFile(const char* c, f_flags o_flags);
 internal void   F_CloseFile(f_file* f);
 internal i32    F_FileLength(f_file* f);
 internal i32    F_FileRead(f_file* f);
@@ -54,7 +53,7 @@ internal u32    F_FileOffset(f_file* f);
 
 internal f_file
 F_OpenFile(const char* c, f_flags o_flags) {
-    f_file f = {0};
+    f_file f = {};
     f.Path = c;
     f.Flags = o_flags;
 

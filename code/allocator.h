@@ -29,8 +29,7 @@
 #define DEFAULT_ALIGNMENT 8
 #endif
 
-typedef enum Allocator_Mode Allocator_Mode;
-enum Allocator_Mode {
+typedef enum Allocator_Mode {
     Alloc,
 	Free,
 	Free_All,

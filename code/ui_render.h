@@ -2,10 +2,14 @@
 #define _UI_RENDER_H_
 
 /** LOG -- Information
-	* 08/09/2025. Added a stop condition for gpu rendering and main thread computation while no event for the user is
+* 23/10/2024. Re-done ui renderer using the render backed layer abstraction layer
+* 08/09/2025. Added a stop condition for gpu rendering and main thread computation while no event for the user is
 	being given or an unfocusing event was set.
-	*/
+*/
 
+#include "types.h"
+#include "new_ui.h"
+#include "render.h"
 
 typedef struct ui_uniform ui_uniform;
 struct ui_uniform {
@@ -13,608 +17,516 @@ struct ui_uniform {
     f32 TextureHeight;
     f32 ScreenWidth;
     f32 ScreenHeight;
+	f32 IconTextureWidth;
+	f32 IconTextureHeight;
 };
 
-typedef struct UI_Graphics UI_Graphics;
-struct UI_Graphics {
-    vulkan_base* base;
-    allocated_buffer ui_buffer[MAX_FRAMES_IN_FLIGHT];
-    allocated_buffer ui_buffer_idx[MAX_FRAMES_IN_FLIGHT];
-    allocated_buffer ui_vertex_staging[MAX_FRAMES_IN_FLIGHT];
+typedef struct ucf_gui ucf_gui;
+struct ucf_gui {
+	ui_context*          Context;
+	r_render             Render;
+	ui_uniform           UniformData;
+	draw_bucket_instance DrawInstance;
 
-    allocated_buffer UniformBuffer;
-    ui_uniform       UniformData;
+	hash_table           Fonts;
 
-    vector ui_rects; // type: v_2d
-    vector ui_indxs; // type: u32
+	Stack_Allocator      Allocator;
+	Stack_Allocator      TempAllocator;
 
-    // pipeline to render the ui
-    //
-    vk_pipeline            UI_Pipeline;
-    VkDescriptorSet        UI_DescriptorSet;
-    VkDescriptorSetLayout  UI_DescriptorLayout;
-    vk_image               UI_TextureImage;
-    VkExtent3D             UI_TextureSize;
-    VkDescriptorPool       UI_DescriptorPool;
+	u8* IconsBitmap;
+	vec4 IconsUvCoords[Icon_Details + 1];
 
-    // pipeline to render the computed texture
-    //
-    vk_pipeline           BG_RenderPipeline;
-    VkDescriptorSet       BG_RenderDescriptorSet;
-    VkDescriptorSetLayout BG_RenderDescriptorLayout;
-
-    // Compute pipeline to draw grid
-    //
-    vk_pipeline           BG_Pipeline;
-    VkDescriptorSet       BG_DescriptorSet;
-    VkDescriptorSetLayout BG_DescriptorLayout;
-    vk_image              BG_TextureImage;
-
-    vec2 LastMousePosition;
-    bool UI_EnableDebug;
+	R_Handle PipelineHandle;
+	R_Handle ComputePipelineHandle;
+	R_Handle FontTextureHandle;
+	R_Handle ComputeTextureHandle;
+	R_Handle IconsTextureHandle;
+	R_Handle VBuffer[MAX_FRAMES_IN_FLIGHT];
+	R_Handle IBuffer[MAX_FRAMES_IN_FLIGHT];
+	R_Handle StagBuffer[MAX_FRAMES_IN_FLIGHT];
+	R_Handle UBuffer;
+	u32      IndexOrder[6];
 };
 
-internal UI_Graphics UI_GraphicsInit(vulkan_base* VkBase, u8* Bitmap, u32 Width, u32 Height);
+internal r_vertex_input_description Vertex2DInputDescription(Stack_Allocator* Allocator);
 
-internal void UI_Render(UI_Graphics* gfx, VkCommandBuffer cmd);
+internal ucf_gui UIRender_Start( vulkan_base* VkBase );
 
-internal void UI_ExternalRecreateSwapchain( UI_Graphics* gfx );
-internal void UI_CreateRenderComputePipeline( UI_Graphics* gfx );
-internal void UI_CreateRenderDescriptorSet( UI_Graphics* gfx );
-internal void UI_CreateUI_Pipeline( UI_Graphics* gfx, u8* Bitmap, u32 Width, u32 Height);
-internal void UI_CreateComputePipeline( UI_Graphics* gfx );
-internal void UI_CreateComputeBG_DescriptorSet( UI_Graphics* gfx );
+internal void UIRender_Frame( ucf_gui* GUI );
 
 #endif
 
 #ifdef UI_RENDER_IMPL
 
-internal void
-	UI_Render(UI_Graphics* gfx, VkCommandBuffer cmd) {
+internal r_vertex_input_description
+Vertex2DInputDescription(Stack_Allocator* Allocator)
+{
+	r_vertex_input_description VertexDescription;
+	VertexDescription.Stride = sizeof(v_2d);
+	VertexDescription.Rate = VK_VERTEX_INPUT_RATE_INSTANCE;
+	VertexDescription.AttributeCount = 9;
+	VertexDescription.Attributes = stack_push(Allocator, r_vertex_attribute, 9);
+	VertexDescription.Attributes[0].Location = 0;
+	VertexDescription.Attributes[0].Format   = R_FORMAT_VEC2;
+	VertexDescription.Attributes[0].Offset    = 0;
+	
+	VertexDescription.Attributes[1].Location = 1;
+	VertexDescription.Attributes[1].Format   = R_FORMAT_VEC2;
+	VertexDescription.Attributes[1].Offset    = sizeof(vec2);
+	
+	VertexDescription.Attributes[2].Location = 2;
+	VertexDescription.Attributes[2].Format   = R_FORMAT_VEC2;
+	VertexDescription.Attributes[2].Offset    = 2 * sizeof(vec2);
+	
+	VertexDescription.Attributes[3].Location = 3;
+	VertexDescription.Attributes[3].Format   = R_FORMAT_VEC2;
+	VertexDescription.Attributes[3].Offset    = 3 * sizeof(vec2);
+	
+	VertexDescription.Attributes[4].Location = 4;
+	VertexDescription.Attributes[4].Format   = R_FORMAT_VEC4;
+	VertexDescription.Attributes[4].Offset    = 4 * sizeof(vec2);
+	
+	VertexDescription.Attributes[5].Location = 5;
+	VertexDescription.Attributes[5].Format   = R_FORMAT_FLOAT;
+	VertexDescription.Attributes[5].Offset    = 4 * sizeof(vec2) + sizeof(vec4);
+	
+	VertexDescription.Attributes[6].Location = 6;
+	VertexDescription.Attributes[6].Format   = R_FORMAT_FLOAT;
+	VertexDescription.Attributes[6].Offset    = 4 * sizeof(vec2) + sizeof(vec4) + sizeof(float);
+	
+	VertexDescription.Attributes[7].Location = 7;
+	VertexDescription.Attributes[7].Format   = R_FORMAT_VEC2;
+	VertexDescription.Attributes[7].Offset    = 4 * sizeof(vec2) + sizeof(vec4) + 2 * sizeof(float);
+	
+	VertexDescription.Attributes[8].Location = 8;
+	VertexDescription.Attributes[8].Format   = R_FORMAT_VEC2;
+	VertexDescription.Attributes[8].Offset    = 5 * sizeof(vec2) + sizeof(vec4) + 2 * sizeof(float);
 
-    {
-        gfx->UniformData.ScreenWidth = gfx->base->Swapchain.Extent.width;
-        gfx->UniformData.ScreenHeight = gfx->base->Swapchain.Extent.height;
-        gfx->UniformData.TextureWidth = gfx->UI_TextureImage.Width;
-        gfx->UniformData.TextureHeight = gfx->UI_TextureImage.Height;
-        VkMappedMemoryRange flushRange = {0};
-        flushRange.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
-        // Get the VkDeviceMemory from your buffer's allocation info
-        flushRange.memory = gfx->UniformBuffer.Info.deviceMemory;
-        flushRange.offset = 0;
-        flushRange.size = VK_WHOLE_SIZE; // Or sizeof(ui_uniform)
-        vkFlushMappedMemoryRanges(gfx->base->Device, 1, &flushRange);
-        memcpy(gfx->UniformBuffer.Info.pMappedData, &gfx->UniformData, sizeof(ui_uniform));
-    }
+	return VertexDescription;
+}
 
-    {
-        memcpy(
-            gfx->ui_vertex_staging[gfx->base->CurrentFrame].Info.pMappedData,
-            gfx->ui_rects.data,
-            gfx->ui_rects.offset
-        );
+#define ATLAS_W 4096
+#define ATLAS_H 4096
+#define ATLAS_BPP 4   // RGBA8
 
-        void* data = gfx->ui_vertex_staging[gfx->base->CurrentFrame].Info.pMappedData;
-        void* data_offset = (u8*)data + gfx->ui_rects.offset;
+static int atlas_x = 0;
+static int atlas_y = 0;
+static int atlas_row_h = 0;
 
-        memcpy(
-			data_offset,
-			gfx->ui_indxs.data,
-			gfx->ui_indxs.offset
-		);
+bool BuildIconAtlas(u8* atlas, int atlas_w, int atlas_h, const char** paths, int path_count, vec4* out_pixel_uvs)
+{
+    if (!atlas || !paths || !out_pixel_uvs)
+        return false;
 
-        VkBufferCopy vertexCopy = {0};
-        vertexCopy.dstOffset = 0;
-        vertexCopy.srcOffset = 0;
-        vertexCopy.size = gfx->ui_rects.offset;
+    // Clear atlas
+    memset(atlas, 0, (size_t)atlas_w * atlas_h * 4);
 
-        vkCmdCopyBuffer(
-			cmd,
-			gfx->ui_vertex_staging[gfx->base->CurrentFrame].Buffer,
-			gfx->ui_buffer[gfx->base->CurrentFrame].Buffer,
-			1,
-			&vertexCopy
-		);
+    int pen_x = 0;
+    int pen_y = 0;
 
-        VkBufferCopy indexCopy = {0};
-        indexCopy.dstOffset = 0;
-        indexCopy.srcOffset = gfx->ui_rects.offset;
-        indexCopy.size      = gfx->ui_indxs.offset;
-
-        if( indexCopy.srcOffset + indexCopy.size > gfx->ui_buffer_idx[gfx->base->CurrentFrame].Info.size ) {
-            fprintf(stderr, "[VULKAN_ERROR] Copy size is greater that destination size %d\n", gfx->ui_buffer_idx[gfx->base->CurrentFrame].Info.size);
+    for (int i = 0; i < path_count; ++i) {
+        int w, h, ch;
+        u8 *data = stbi_load(paths[i], &w, &h, &ch, 4);
+        if (!data) {
+            printf("Failed to load: %s\n", paths[i]);
+            return false;
         }
 
-        vkCmdCopyBuffer(
-			cmd,
-			gfx->ui_vertex_staging[gfx->base->CurrentFrame].Buffer,
-			gfx->ui_buffer_idx[gfx->base->CurrentFrame].Buffer,
-			1,
-			&indexCopy
-		);
+        // Wrap row
+        if (pen_x + w > atlas_w) {
+            pen_x = 0;
+            pen_y += h;
+        }
 
-        // Add pipeline barrier before vertex input
-        VkMemoryBarrier barrier = {
-            .sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
-            .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
-            .dstAccessMask = VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT
-        };
+        // Check vertical space
+        if (pen_y + h > atlas_h) {
+            printf("Atlas too small for %s\n", paths[i]);
+            stbi_image_free(data);
+            return false;
+        }
 
-        vkCmdPipelineBarrier(cmd,
-                             VK_PIPELINE_STAGE_TRANSFER_BIT,
-                             VK_PIPELINE_STAGE_VERTEX_INPUT_BIT,
-                             0, 1, &barrier, 0, 0, 0, 0);
-    }
-    {
-        TransitionImage(
-			cmd,
-			gfx->BG_TextureImage.Image,
-			VK_IMAGE_LAYOUT_UNDEFINED,
-			VK_IMAGE_LAYOUT_GENERAL,
-			VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
-			VK_ACCESS_2_SHADER_READ_BIT,
-			VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-			VK_ACCESS_2_SHADER_WRITE_BIT
-		);
+        // Correct copy: row by row into 2D buffer
+        for (int row = 0; row < h; ++row) {
+            u8 *dst = atlas + ((pen_y + row) * atlas_w + pen_x) * 4;
+            u8 *src = data + row * w * 4;
+            memcpy(dst, src, w * 4);
+        }
 
-        // bind the gradient drawing compute pipeline
-        vkCmdBindPipeline(
-			cmd,
-			VK_PIPELINE_BIND_POINT_COMPUTE,
-			gfx->BG_Pipeline.Pipeline
-		);
+        // Save pixel location in atlas
+        out_pixel_uvs[i] = Vec4New(pen_x, pen_y, w, h);
 
-        // bind the descriptor set containing the draw image for the compute pipeline
-        vkCmdBindDescriptorSets(
-			cmd,
-			VK_PIPELINE_BIND_POINT_COMPUTE,
-			gfx->BG_Pipeline.Layout,
-			0, 1,
-			&gfx->BG_DescriptorSet,
-			0, 0
-		);
+		printf("first 4: %d %d %d %d\n", data[0], data[1], data[2], data[3]);
+        printf("out_pixel_uvs[i]: %d %d %d %d\n", pen_x, pen_y, w, h);
 
-        VkExtent3D Extent = gfx->BG_TextureImage.Extent;
-        // execute the compute pipeline dispatch. We are using 16x16 workgroup size so we need to divide by it
-        vkCmdDispatch(
-			cmd,
-			ceil((f32)Extent.width / 32.0),
-			ceil((f32)Extent.height / 32.0),
-			1
-		);
-
-        TransitionImage(
-			cmd,
-			gfx->BG_TextureImage.Image,
-			VK_IMAGE_LAYOUT_GENERAL,
-			VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-			VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-			VK_ACCESS_2_SHADER_WRITE_BIT,
-			VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
-			VK_ACCESS_2_SHADER_READ_BIT
-		);
+        pen_x += w;
+        stbi_image_free(data);
     }
 
-    VkClearValue clear_value = (VkClearValue){
-        .color = (VkClearColorValue){ .float32 = {12.0 / 255.0, 12.0 / 255.0, 12.0 / 255.0, 255.0 / 255.0} },
-    };
+    return true;
+}
 
-    VkExtent2D Extent2d = gfx->base->Swapchain.Extent;
-    VkRenderingAttachmentInfo  colorAttachment = AttachmentInfo(gfx->base->Swapchain.ImageViews[gfx->base->SwapchainImageIdx], &clear_value, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-    VkRenderingInfo renderInfo                 = RenderingInfo( Extent2d, &colorAttachment, NULL );
-    vkCmdBeginRendering(cmd, &renderInfo);
-    {
-        vkCmdBindPipeline(
-			cmd,
-			VK_PIPELINE_BIND_POINT_GRAPHICS,
-			gfx->BG_RenderPipeline.Pipeline
-		);
-        vkCmdBindDescriptorSets(
-			cmd,
-			VK_PIPELINE_BIND_POINT_GRAPHICS,
-			gfx->BG_RenderPipeline.Layout,
-			0, 1,
-			&gfx->BG_RenderDescriptorSet,
-			0, 0
-		);
-        VkViewport viewport = {0};
-        viewport.x = 0;
-        viewport.y = 0;
-        viewport.width  = gfx->base->Swapchain.Extent.width;
-        viewport.height = gfx->base->Swapchain.Extent.height;
-        viewport.minDepth = 0;
-        viewport.maxDepth = 1;
+internal ucf_gui UIRender_Start(vulkan_base* VkBase) {
 
-        vkCmdSetViewport(cmd, 0, 1, &viewport);
+	ucf_gui GUI;
 
-        VkRect2D scissor = {
-            .offset = {0, 0},
-            .extent = gfx->base->Swapchain.Extent
-        };
-        vkCmdSetScissor(cmd, 0, 1, &scissor);
-        vkCmdDraw(cmd, 3, 1, 0, 0);
-    }
+	// Memory Allocation
+    //
+    Arena *main_arena = VkBase->Arena;
 
-    ///////////////////////////////////////////////////////////
-    // UI Rendering
-    {
-        VkExtent2D Extent = gfx->base->Swapchain.Extent;
-        vkCmdBindPipeline(
-			cmd,
-			VK_PIPELINE_BIND_POINT_GRAPHICS,
-			gfx->UI_Pipeline.Pipeline
-		);
+    u8 *Buffer = PushArray(main_arena, u8, gigabyte(1));
+    u8 *TempBuffer = PushArray(main_arena, u8, gigabyte(1));
+    stack_init(&GUI.Allocator, Buffer, gigabyte(1));
+    stack_init(&GUI.TempAllocator, TempBuffer, gigabyte(1));
 
-        vkCmdBindDescriptorSets(
-			cmd,
-			VK_PIPELINE_BIND_POINT_GRAPHICS,
-			gfx->UI_Pipeline.Layout, 0, 1,
-			&gfx->UI_DescriptorSet, 0, 0
-		);
+	// Font Creation
+    // @todo: Change how to add fonts this is highly inconvenient
+    //
+	u8 *BitmapArray = stack_push(&GUI.Allocator, u8, 2100 * 1200);
+	FontCache *DefaultFont, *TitleFont, *TitleFont2, *BoldFont, *ItalicFont;
+	DefaultFont = stack_push(&GUI.Allocator, FontCache, 1);
+	TitleFont   = stack_push(&GUI.Allocator, FontCache, 1);
+	TitleFont2  = stack_push(&GUI.Allocator, FontCache, 1);
+	BoldFont    = stack_push(&GUI.Allocator, FontCache, 1);
+	ItalicFont  = stack_push(&GUI.Allocator, FontCache, 1);
+	*DefaultFont = F_BuildFont(18, 2100, 60, BitmapArray, "./data/RobotoMono.ttf");
+	*TitleFont   = F_BuildFont(22, 2100, 60, BitmapArray + (2100 * 60), "./data/LiterationMono.ttf");
+	*TitleFont2  = F_BuildFont(22, 2100, 60, BitmapArray + (2100 * 120), "./data/TinosNerdFontPropo.ttf");
+	*BoldFont    = F_BuildFont(15, 2100, 60, BitmapArray + (2100 * 180), "./data/LiterationMonoBold.ttf");
+	*ItalicFont  = F_BuildFont(15, 2100, 60, BitmapArray + (2100 * 240), "./data/LiterationMonoItalic.ttf");
 
-        VkBuffer Buffers[] = {gfx->ui_buffer[gfx->base->CurrentFrame].Buffer};
-        VkDeviceSize offsets[] = {0};
-        vkCmdBindVertexBuffers(
-			cmd, 0, 1,
-			Buffers,
-			offsets
-		);
-        vkCmdBindIndexBuffer(
-			cmd,
-			gfx->ui_buffer_idx[gfx->base->CurrentFrame].Buffer,
-			0,
-			VK_INDEX_TYPE_UINT32
-		);
+	DefaultFont->BitmapOffset = Vec2Zero();
+	vec2 _off1 = {0, 60};
+	TitleFont->BitmapOffset = _off1;
+	vec2 _off2 = {0, 120};
+	TitleFont2->BitmapOffset = _off2;
+	vec2 _off3 = {0, 180};
+	BoldFont->BitmapOffset = _off3;
+	vec2 _off4 = {0, 240};
+	ItalicFont->BitmapOffset = _off4;
 
-        // set dynamic viewport and scissor
-        VkViewport viewport = {0};
-        viewport.x = 0;
-        viewport.y = 0;
-        viewport.width  = Extent.width;
-        viewport.height = Extent.height;
-        viewport.minDepth = 0;
-        viewport.maxDepth = 1;
+	GUI.IconsBitmap = stack_push(&GUI.Allocator, u8, 4096 * 4096 * 4); //rgba
+	memset(GUI.IconsBitmap, 0, 4096 * 4096 * 4);
+	const char* icon_paths[] = {
+		"./data/icons/archivo.png",
+		"./data/icons/carpeta-abierta.png",
+		"./data/icons/comunicacion.png",
+		"./data/icons/enviar.png",
+		"./data/icons/flecha-abajo.png",
+		"./data/icons/sonido-de-onda.png",
+		"./data/icons/ver-detalles.png"
+	};
 
-        vkCmdSetViewport(cmd, 0, 1, &viewport);
+	if (!BuildIconAtlas(GUI.IconsBitmap, ATLAS_W, ATLAS_H, icon_paths, ArrayCount(icon_paths), GUI.IconsUvCoords)) {
+		fprintf(stderr, "Failed to build icon atlas\n");
+		// handle failure...
+	}
 
-        VkRect2D scissor = {0};
-        scissor.offset.x = 0;
-        scissor.offset.y = 0;
-        scissor.extent.width  = Extent.width;
-        scissor.extent.height = Extent.height;
+	ui_context *UI_Context = stack_push(&GUI.Allocator, ui_context, 1);
 
-        vkCmdSetScissor(cmd, 0, 1, &scissor);
-        vkCmdDrawIndexed(cmd, 6, gfx->ui_rects.len, 0, 0, 0);
-    }
+	UI_Init(UI_Context, &GUI.Allocator, &GUI.TempAllocator);
 
-    vkCmdEndRendering(cmd);
+	GUI.Context = UI_Context;
+	memcpy(GUI.Context->IconsUvCoords, GUI.IconsUvCoords, (Icon_Details + 1) * sizeof(vec4));
 
-    TransitionImageDefault(
-		cmd,
-		gfx->base->Swapchain.Images[gfx->base->SwapchainImageIdx],
-		VK_IMAGE_LAYOUT_UNDEFINED,
-		VK_IMAGE_LAYOUT_PRESENT_SRC_KHR
+	object_theme DefaultTheme = {};
+    DefaultTheme.Border          = RgbaToNorm(HexToRGBA(0x333333FF)); // Subtle graphite border
+    DefaultTheme.Background      = RgbaToNorm(HexToRGBA(0x050505FF)); // Deep "OLED" Black
+    DefaultTheme.Foreground      = RgbaToNorm(HexToRGBA(0xCCCCCCFF)); // Off-white for secondary text
+    DefaultTheme.Radius          = 6.0f;
+    DefaultTheme.BorderThickness = 1.0f;
+    DefaultTheme.Font            = DefaultFont;
+
+    object_theme TitleTheme = DefaultTheme;
+    TitleTheme.Font = TitleFont;
+    // Header: Distinct dark slate to separate from content
+    TitleTheme.Background = RgbaToNorm(HexToRGBA(0x121214FF)); 
+    TitleTheme.Foreground = RgbaToNorm(HexToRGBA(0xFFFFFFFF)); // Pure White
+
+    object_theme ButtonTheme = {};
+    ButtonTheme.Border          = RgbaToNorm(HexToRGBA(0x444444FF));
+    ButtonTheme.Background      = RgbaToNorm(HexToRGBA(0x222222FF)); // Standard interaction dark grey
+    ButtonTheme.Foreground      = RgbaToNorm(HexToRGBA(0xFFFFFFFF)); 
+    ButtonTheme.Radius          = 4.0f;
+    ButtonTheme.BorderThickness = 1.0f;
+    ButtonTheme.Font            = DefaultFont;
+
+    object_theme PanelTheme = {};
+    PanelTheme.Border          = RgbaToNorm(HexToRGBA(0x333333FF));
+    PanelTheme.Background      = RgbaToNorm(HexToRGBA(0x0B0B0EFF)); // Dark blue-tinted black (Space)
+    PanelTheme.Foreground      = RgbaToNorm(HexToRGBA(0xDDDDDDFF)); 
+    PanelTheme.Radius          = 10.0f;
+    PanelTheme.BorderThickness = 1.0f;
+    PanelTheme.Font            = DefaultFont;
+
+    object_theme InputTheme = {};
+    InputTheme.Border          = RgbaToNorm(HexToRGBA(0x555555FF)); 
+    InputTheme.Background      = RgbaToNorm(HexToRGBA(0x000000FF)); // Pure black for data entry
+    InputTheme.Foreground      = RgbaToNorm(HexToRGBA(0xFFFFFFFF)); 
+    InputTheme.Radius          = 4.0f;
+    InputTheme.BorderThickness = 1.0f;
+    InputTheme.Font            = DefaultFont;
+
+    object_theme LabelTheme = {};
+    LabelTheme.Border          = RgbaToNorm(HexToRGBA(0x00000000)); 
+    LabelTheme.Background      = RgbaToNorm(HexToRGBA(0x00000000)); 
+    LabelTheme.Foreground      = RgbaToNorm(HexToRGBA(0x999999FF)); // Dimmed telemetry labels
+    LabelTheme.Radius          = 0.0f;
+    LabelTheme.BorderThickness = 0.0f;
+    LabelTheme.Font            = ItalicFont;
+
+    object_theme ScrollbarTheme = {};
+    ScrollbarTheme.Border          = RgbaToNorm(HexToRGBA(0x222222FF));
+    ScrollbarTheme.Background      = RgbaToNorm(HexToRGBA(0x000000FF)); 
+    ScrollbarTheme.Foreground      = RgbaToNorm(HexToRGBA(0x444444FF)); // Subtle handle
+    ScrollbarTheme.Radius          = 2.0f;
+    ScrollbarTheme.BorderThickness = 0.0f;
+    ScrollbarTheme.Font            = NULL;
+
+    // --- UI Context Assignment ---
+
+    UI_Context->DefaultTheme = {};
+    UI_Context->DefaultTheme.Window    = TitleTheme;
+    UI_Context->DefaultTheme.Button    = ButtonTheme;
+    UI_Context->DefaultTheme.Panel     = PanelTheme;
+    UI_Context->DefaultTheme.Input     = InputTheme;
+    UI_Context->DefaultTheme.Label     = LabelTheme;
+    UI_Context->DefaultTheme.Scrollbar = ScrollbarTheme;
+
+    // Global Color States
+    UI_Context->DefaultTheme.OnDefaultBackground = RgbaToNorm(HexToRGBA(0x0B0B0EFF));
+    UI_Context->DefaultTheme.OnDefaultForeground = RgbaToNorm(HexToRGBA(0xCCCCCCFF));
+    UI_Context->DefaultTheme.OnDefaultBorder     = RgbaToNorm(HexToRGBA(0x333333FF));
+
+    // Hover States (Telemetry Interaction)
+    UI_Context->DefaultTheme.OnHoverBackground = RgbaToNorm(HexToRGBA(0x1A1A1DFF)); 
+    UI_Context->DefaultTheme.OnHoverForeground = RgbaToNorm(HexToRGBA(0xFFFFFFFF));
+    UI_Context->DefaultTheme.OnHoverBorder     = RgbaToNorm(HexToRGBA(0x007AFFFF)); // "Dragon Blue"
+
+    // Success (Flight Stable)
+    UI_Context->DefaultTheme.OnSuccessBackground = RgbaToNorm(HexToRGBA(0x00FF001A)); // Faint green tint
+    UI_Context->DefaultTheme.OnSuccessForeground = RgbaToNorm(HexToRGBA(0x00FF00FF)); // Vibrant Terminal Green
+    UI_Context->DefaultTheme.OnSuccessBorder     = RgbaToNorm(HexToRGBA(0x00FF00FF)); 
+
+    // Error (Abort/Critical)
+    UI_Context->DefaultTheme.OnErrorBackground = RgbaToNorm(HexToRGBA(0xFF00001A)); // Faint red tint
+    UI_Context->DefaultTheme.OnErrorForeground = RgbaToNorm(HexToRGBA(0xFF3B30FF)); // High-Vis Red
+    UI_Context->DefaultTheme.OnErrorBorder     = RgbaToNorm(HexToRGBA(0xFF3B30FF));
+
+    // Warning (Caution)
+    UI_Context->DefaultTheme.OnWarning = RgbaToNorm(HexToRGBA(0xFFCC00FF)); // Amber Alert
+
+    // General Border States
+    UI_Context->DefaultTheme.BorderPrimary = RgbaToNorm(HexToRGBA(0x333333FF));
+    UI_Context->DefaultTheme.BorderMedium  = RgbaToNorm(HexToRGBA(0x555555FF));
+    UI_Context->DefaultTheme.BorderHover   = RgbaToNorm(HexToRGBA(0x007AFFFF)); // Dragon Blue
+
+	R_RenderInit(&GUI.Render, VkBase, &GUI.Allocator);
+	VkDescriptorType Types[] = {
+		VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+		VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+		VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER};
+	VkDescriptorSetLayout Layout = R_CreateDescriptorSetLayout(&GUI.Render, ArrayCount(Types), Types, (VkShaderStageFlagBits)(VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT));
+
+	r_vertex_input_description VertexDescription = Vertex2DInputDescription(&GUI.Render.PerFrameAllocator);
+
+	VkDescriptorSetLayout Layouts[] = { Layout };
+	GUI.PipelineHandle = R_CreatePipeline(
+		&GUI.Render,
+		"My Pipeline",
+		"./data/ui_render.vert.spv",
+		"./data/ui_render.frag.spv",
+		&VertexDescription,
+		Layouts,
+		1
 	);
-    VectorClear(&gfx->ui_rects);
-    VectorClear(&gfx->ui_indxs);
-}
 
-internal void
-	UI_CreateComputeBG_DescriptorSet( UI_Graphics* gfx ) {
-    // Create storage image for background texture
-    gfx->BG_TextureImage = CreateImageDefault(
-		gfx->base,
-		(VkExtent3D){
-		.width = gfx->base->Swapchain.Extent.width,
-		.height = gfx->base->Swapchain.Extent.height,
-		.depth = 1
-	},
-	VK_FORMAT_R32G32B32A32_SFLOAT,
-	VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-	false
+	VkDescriptorType CompTypes[]     = { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE };
+	VkDescriptorSetLayout CompLayout = R_CreateDescriptorSetLayout(&GUI.Render, 1, CompTypes, VK_SHADER_STAGE_COMPUTE_BIT);
+	GUI.ComputePipelineHandle = R_CreateComputePipeline(
+		&GUI.Render,
+		"Compute Pipe",
+		"./data/compute.comp.spv",
+		&CompLayout,
+		1
 	);
 
-    // Setup descriptor set for background texture
-    vk_descriptor_set builder;
-    InitDescriptorSet(&builder, 1, &gfx->base->Allocator);
-    AddBindingDescriptorSet(&builder, 0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+	GUI.VBuffer[0] = R_CreateBuffer(&GUI.Render, "Buffer 1", 12 << 20, R_BUFFER_TYPE_VERTEX);
+	GUI.VBuffer[1] = R_CreateBuffer(&GUI.Render, "Buffer 2", 12 << 20, R_BUFFER_TYPE_VERTEX);
+	GUI.StagBuffer[0] = R_CreateBuffer(&GUI.Render, "Stag Buffer 1", 13 << 20, R_BUFFER_TYPE_STAGING);
+	GUI.StagBuffer[1] = R_CreateBuffer(&GUI.Render, "Stag Buffer 2", 13 << 20, R_BUFFER_TYPE_STAGING);
 
-    gfx->BG_DescriptorLayout = BuildDescriptorSet(&builder,
-                                                  gfx->base->Device,
-                                                  VK_SHADER_STAGE_COMPUTE_BIT,
-                                                  NULL,
-                                                  0);
+	GUI.IBuffer[0] = R_CreateBuffer(&GUI.Render, "Index Buffer 1", 126, R_BUFFER_TYPE_INDEX);
+	GUI.IBuffer[1] = R_CreateBuffer(&GUI.Render, "Index Buffer 2", 126, R_BUFFER_TYPE_INDEX);
 
-    gfx->BG_DescriptorSet = DescriptorSetAllocate(
-		&gfx->base->GlobalDescriptorAllocator,
-		gfx->base->Device,
-		&gfx->BG_DescriptorLayout);
+	GUI.UBuffer = R_CreateBuffer(&GUI.Render, "Uniform Buffer", sizeof(ui_uniform), R_BUFFER_TYPE_UNIFORM);
 
-    descriptor_writer writer = DescriptorWriterInit(1, &gfx->base->TempAllocator);
+	GUI.IndexOrder[0] = 0;
+	GUI.IndexOrder[1] = 1;
+	GUI.IndexOrder[2] = 3;
+	GUI.IndexOrder[3] = 3;
+	GUI.IndexOrder[4] = 2;
+	GUI.IndexOrder[5] = 0;
 
-    WriteImage(&writer, 0,
-               gfx->BG_TextureImage.ImageView,
-               VK_NULL_HANDLE,
-               VK_IMAGE_LAYOUT_GENERAL,
-               VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+	vk_image* FontTexture = stack_push(&GUI.Allocator, vk_image, 1);
+	R_Handle FontTextHandle;
+	// Image atlas creation for texture font
+	//
+	{
+		*FontTexture = CreateImageData(VkBase, BitmapArray, (VkExtent3D) { 2100, 2100, 1 }, VK_FORMAT_R8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT, false);
+		VkSamplerCreateInfo sampler = {};
+		sampler.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+		sampler.magFilter = VK_FILTER_LINEAR;
+		sampler.minFilter = VK_FILTER_LINEAR;
 
-    UpdateDescriptorSet(&writer,
-                        gfx->base->Device,
-                        gfx->BG_DescriptorSet);
-}
+		vkCreateSampler(VkBase->Device, &sampler, 0, &FontTexture->Sampler);
 
-///////////////////////////////////////////////////////////////////////
-// Create compute pipeline for grid
-internal void
-	UI_CreateComputePipeline( UI_Graphics* gfx ) {
+		GUI.FontTextureHandle = R_PushTexture(&GUI.Render, "Fonts Atlas", FontTexture);
+	}
 
-    UI_CreateComputeBG_DescriptorSet(gfx);
-
-    // Create pipeline layout for compute pipeline
-    VkPipelineLayoutCreateInfo computeLayout = {
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-        .pNext = NULL,
-        .setLayoutCount = 1,
-        .pSetLayouts = &gfx->BG_DescriptorLayout
-    };
-
-    VK_CHECK(vkCreatePipelineLayout(gfx->base->Device, &computeLayout, NULL, &gfx->BG_Pipeline.Layout));
-
-    // Load compute shader module
-    VkShaderModule computeDrawShader;
-    if (!LoadShaderModule("./data/compute.comp.spv", gfx->base->Device, &computeDrawShader)) {
-        fprintf(stderr, "[ERROR] Could not find shader!\n");
-        exit(EXIT_FAILURE);
-    }
-
-    // Configure shader stage
-    VkPipelineShaderStageCreateInfo stageInfo = {
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-        .pNext = NULL,
-        .stage = VK_SHADER_STAGE_COMPUTE_BIT,
-        .module = computeDrawShader,
-        .pName = "main"
-    };
-
-    // Create compute pipeline info
-    VkComputePipelineCreateInfo computePipelineCreateInfo = {
-        .sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
-        .pNext = NULL,
-        .layout = gfx->BG_Pipeline.Layout,
-        .stage = stageInfo
-    };
-
-    // Create compute pipeline
-    VK_CHECK(vkCreateComputePipelines(gfx->base->Device, VK_NULL_HANDLE, 1,
-                                      &computePipelineCreateInfo, NULL,
-                                      &gfx->BG_Pipeline.Pipeline));
-
-    // Clean up shader module
-    vkDestroyShaderModule(gfx->base->Device, computeDrawShader, NULL);
-}
-
-///////////////////////////////////////////////////////////////////////
-// Create graphic pipeline for ui rendering
-internal void
-	UI_CreateUI_Pipeline( UI_Graphics* gfx, u8* Bitmap, u32 Width, u32 Height ) {
-    pipeline_builder p_Build = InitPipelineBuilder(2, &gfx->base->Allocator);
-    SetInputTopology(&p_Build, VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
-    SetPolygonMode(&p_Build, VK_POLYGON_MODE_FILL);
-    SetCullMode(&p_Build, 0, VK_FRONT_FACE_CLOCKWISE);
-    EnableBlendingAlphaBlend(&p_Build);
-    DisableDepthTest(&p_Build);
-    SetMultisamplingNone(&p_Build);
-    {
-        VkVertexInputBindingDescription binding_description = {0};
-        binding_description.binding   = 0;
-        binding_description.inputRate = VK_VERTEX_INPUT_RATE_INSTANCE;
-        binding_description.stride    = sizeof(v_2d);
-
-        VkVertexInputAttributeDescription attribute_descriptions[] = {
-            // location = 0: LeftCorner (vec2)
-            {
-                .location = 0,
-                .binding  = 0,
-                .format   = VK_FORMAT_R32G32_SFLOAT,
-                .offset   = 0,
-            },
-            // location = 1: Size (vec2)
-            {
-                .location = 1,
-                .binding  = 0,
-                .format   = VK_FORMAT_R32G32_SFLOAT,
-                .offset   = sizeof(vec2),
-            },
-            // location = 2: UV (vec2)
-            {
-                .location = 2,
-                .binding  = 0,
-                .format   = VK_FORMAT_R32G32_SFLOAT,
-                .offset   = 2 * sizeof(vec2),
-            },
-            // location = 3: UVSize (vec2)
-            {
-                .location = 3,
-                .binding  = 0,
-                .format   = VK_FORMAT_R32G32_SFLOAT,
-                .offset   = 3 * sizeof(vec2),
-            },
-            // location = 3: Color (vec4)
-            {
-                .location = 4,
-                .binding  = 0,
-                .format   = VK_FORMAT_R32G32B32A32_SFLOAT,
-                .offset   = 4 * sizeof(vec2),
-            },
-            {
-                .location = 5,
-                .binding  = 0,
-                .format   = VK_FORMAT_R32_SFLOAT,
-                .offset   = 4 * sizeof(vec2) + sizeof(vec4),
-            },
-            {
-                .location = 6,
-                .binding  = 0,
-                .format   = VK_FORMAT_R32_SFLOAT,
-                .offset   = 4 * sizeof(vec2) + sizeof(vec4) + sizeof(float),
-            },
-        };
-        SetVertexInputAttributeDescription(&p_Build, attribute_descriptions, 7);
-        SetVertexInputBindingDescription(&p_Build, &binding_description, 1);
-
-        gfx->UI_TextureImage = CreateImageData(
-			gfx->base,
-			Bitmap,
-			(VkExtent3D){Width, Height, 1},
-			VK_FORMAT_R8_UNORM,
-			VK_IMAGE_USAGE_SAMPLED_BIT,
+	vk_image* ComputeImage = stack_push(&GUI.Allocator, vk_image, 1);
+	R_Handle ComputeImageHandle;
+	// Image for the compute pipeline
+	{
+		*ComputeImage = CreateImageDefault(
+			VkBase,
+			(VkExtent3D){ VkBase->Swapchain.Extent.width, VkBase->Swapchain.Extent.height, 1 },
+			VK_FORMAT_R32G32B32A32_SFLOAT,
+			VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
 			false
 		);
-    }
 
-    VkSamplerCreateInfo sampler = {0};
-    sampler.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-    sampler.magFilter = VK_FILTER_LINEAR;
-    sampler.minFilter = VK_FILTER_LINEAR;
+		GUI.ComputeTextureHandle = R_PushTexture(&GUI.Render, "Compute Texture", ComputeImage);
+	}
 
-    vkCreateSampler(gfx->base->Device, &sampler, 0, &gfx->UI_TextureImage.Sampler);
-    vk_descriptor_set builder = {0};
-    InitDescriptorSet(&builder, 2, &gfx->base->Allocator);
-    AddBindingDescriptorSet(
-        &builder,
-        0,
-        VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
-    );
-    AddBindingDescriptorSet(
-        &builder,
-        1,
-        VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER
-    );
-    gfx->UI_DescriptorLayout = BuildDescriptorSet(
-        &builder,
-        gfx->base->Device,
-        VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_VERTEX_BIT,
-        0,
-        0
-    );
+	{
+		vk_image* IconImage = stack_push(&GUI.Allocator, vk_image, 1);
+		*IconImage = CreateImageData(VkBase, GUI.IconsBitmap, (VkExtent3D) { 4096, 4096, 1 }, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_USAGE_SAMPLED_BIT, true);
+		VkSamplerCreateInfo sampler = {};
+		sampler.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+		sampler.magFilter = VK_FILTER_LINEAR;
+		sampler.minFilter = VK_FILTER_LINEAR;
 
-    pool_size_ratio sizes[2];
-    sizes[0] = (pool_size_ratio){VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 3};
-    sizes[1] = (pool_size_ratio){VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 3};
-    InitDescriptorPool(gfx->base, &gfx->UI_DescriptorPool, gfx->base->Device, 6, sizes, 2);
+		vkCreateSampler(VkBase->Device, &sampler, 0, &IconImage->Sampler);
+		GUI.IconsTextureHandle = R_PushTexture(&GUI.Render, "Icon Atlas", IconImage);
+	}
 
-    gfx->UI_DescriptorSet = DescriptorSetAllocate(&gfx->UI_DescriptorPool, gfx->base->Device, &gfx->UI_DescriptorLayout);
+	GUI.DrawInstance = D_DrawInit(&GUI.TempAllocator);
 
-    descriptor_writer writer = DescriptorWriterInit(2, &gfx->base->TempAllocator);
+	return GUI;
+}
 
-    WriteImage(
-		&writer, 0,
-		gfx->UI_TextureImage.ImageView,
-		gfx->UI_TextureImage.Sampler,
-		VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-		VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
+internal void UIRender_Frame(ucf_gui* GUI) {
+	r_render* Render    = &GUI->Render;
+	vulkan_base* VkBase = Render->VulkanBase;
+	draw_bucket_instance* DrawInstance = &GUI->DrawInstance;
+
+	vk_image* ComputeImage = (vk_image*)HashTableGet(&Render->Textures, GUI->ComputeTextureHandle, 0);
+	vk_image* FontTexture  = (vk_image*)HashTableGet(&Render->Textures, GUI->FontTextureHandle, 0);
+	vk_image* IconTexture  = (vk_image*)HashTableGet(&Render->Textures, GUI->IconsTextureHandle, 0);
+
+	u32 window_width  = Render->VulkanBase->Window.Width;
+	u32 window_height = Render->VulkanBase->Window.Height;
+
+	GUI->UniformData.ScreenWidth   = window_width;
+	GUI->UniformData.ScreenHeight  = window_height;
+	GUI->UniformData.TextureWidth  = FontTexture->Width;
+	GUI->UniformData.TextureHeight = FontTexture->Height;
+	GUI->UniformData.IconTextureWidth  = 4096;
+	GUI->UniformData.IconTextureHeight = 4096;
+
+
+	R_Begin(Render);
+
+	if (Render->SetExternalResize) {
+		vmaDestroyImage(VkBase->GPUAllocator, ComputeImage->Image, ComputeImage->Alloc);
+		*ComputeImage = CreateImageDefault(
+			VkBase,
+			(VkExtent3D){ VkBase->Swapchain.Extent.width, VkBase->Swapchain.Extent.height, 1 },
+			VK_FORMAT_R32G32B32A32_SFLOAT,
+			VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
+			false
+		);
+		return;
+	}
+
+	R_SendDataToBuffer(
+		Render,
+		GUI->StagBuffer[Render->VulkanBase->CurrentFrame],
+		DrawInstance->Current2DBuffer.data,
+		DrawInstance->Current2DBuffer.offset, 0
+	);
+	R_SendDataToBuffer(
+		Render,
+		GUI->StagBuffer[Render->VulkanBase->CurrentFrame],
+		GUI->IndexOrder, 6 * sizeof(u32),
+		DrawInstance->Current2DBuffer.offset
 	);
 
-    gfx->UniformBuffer = CreateBuffer(
-        gfx->base->GPUAllocator,
-        sizeof(ui_uniform),
-        VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-        VMA_MEMORY_USAGE_CPU_TO_GPU
-    );
-
-    WriteBuffer(&writer, 1, gfx->UniformBuffer.Buffer, sizeof(ui_uniform), 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
-    UpdateDescriptorSet(&writer, gfx->base->Device, gfx->UI_DescriptorSet);
-
-    SetDescriptorLayout(&p_Build, &gfx->UI_DescriptorLayout, 2);
-    gfx->UI_Pipeline = AddPipeline(
-		gfx->base,
-		&p_Build,
-		"./data/ui_render.vert.spv",
-		"./data/ui_render.frag.spv"
-	);
-}
-
-internal void
-	UI_CreateRenderDescriptorSet( UI_Graphics* gfx )
-{
-    vk_descriptor_set builder;
-    InitDescriptorSet(&builder, 1, &gfx->base->Allocator);
-    AddBindingDescriptorSet(&builder, 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
-    gfx->BG_RenderDescriptorLayout = BuildDescriptorSet(&builder, gfx->base->Device, VK_SHADER_STAGE_FRAGMENT_BIT, NULL, 0);
-    gfx->BG_RenderDescriptorSet = DescriptorSetAllocate(&gfx->base->GlobalDescriptorAllocator, gfx->base->Device, &gfx->BG_RenderDescriptorLayout);
-
-    VkSamplerCreateInfo sampler = {0};
-    sampler.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-    sampler.magFilter = VK_FILTER_LINEAR;
-    sampler.minFilter = VK_FILTER_LINEAR;
-
-    vkCreateSampler(gfx->base->Device, &sampler, 0, &gfx->BG_TextureImage.Sampler);
-
-    descriptor_writer Writer = DescriptorWriterInit(1, &gfx->base->Allocator);
-    WriteImage(
-		&Writer, 0,
-		gfx->BG_TextureImage.ImageView,
-		gfx->BG_TextureImage.Sampler,
-		VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-		VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
+	VkBufferCopy Copy = {};
+	Copy.srcOffset = 0;
+	Copy.dstOffset = 0;
+	Copy.size = DrawInstance->Current2DBuffer.offset;
+	R_CopyStageToBuffer(
+		Render,
+		GUI->StagBuffer[Render->VulkanBase->CurrentFrame],
+		GUI->VBuffer[Render->VulkanBase->CurrentFrame],
+		Copy
 	);
 
-    UpdateDescriptorSet(&Writer, gfx->base->Device, gfx->BG_RenderDescriptorSet);
+	Copy = {};
+	Copy.srcOffset = DrawInstance->Current2DBuffer.offset;
+	Copy.dstOffset = 0;
+	Copy.size = 6 * sizeof(u32);
+	R_CopyStageToBuffer(
+		Render,
+		GUI->StagBuffer[Render->VulkanBase->CurrentFrame],
+		GUI->IBuffer[Render->VulkanBase->CurrentFrame],
+		Copy
+	);
+	R_SendCopyToGpu(Render);
+
+	// Compute pipeline
+	//
+	{
+		TransitionImageDefault(
+			Render->CurrentCommandBuffer,
+			ComputeImage->Image,
+			VK_IMAGE_LAYOUT_UNDEFINED,
+			VK_IMAGE_LAYOUT_GENERAL
+		);
+		R_BindTexture(Render, "Compute Texture", 0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+		R_DispatchCompute(Render, GUI->ComputePipelineHandle, ceilf(window_width / 32), ceilf(window_height / 32), 1);
+	}
+
+	//R_ClearScreen(Render, (vec4){0.02, 0.02, 0.02, 1.0f});
+
+	// Render pass
+	//
+	R_SendImageToSwapchain(Render, GUI->ComputeTextureHandle);
+
+	R_BeginRenderPass(Render);
+	{
+		R_BindTexture(Render, "Fonts Atlas", 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+		R_BindTexture(Render, "Icon Atlas", 2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+		R_UpdateUniformBuffer(Render, "Uniform Buffer", 1, &GUI->UniformData, sizeof(ui_uniform));
+		R_BindVertexBuffer(Render, GUI->VBuffer[Render->VulkanBase->CurrentFrame]);
+		R_BindIndexBuffer(Render, GUI->IBuffer[Render->VulkanBase->CurrentFrame]);
+		R_SetPipeline(Render, GUI->PipelineHandle);
+		R_DrawIndexed(Render, 6, DrawInstance->Current2DBuffer.len);
+	}
+	R_RenderPassEnd(Render);
+	R_RenderEnd(Render);
+
+	if (Render->SetExternalResize) {
+		vmaDestroyImage(VkBase->GPUAllocator, ComputeImage->Image, ComputeImage->Alloc);
+		*ComputeImage = CreateImageDefault(
+			VkBase,
+			(VkExtent3D){ VkBase->Swapchain.Extent.width, VkBase->Swapchain.Extent.height, 1 },
+			VK_FORMAT_R32G32B32A32_SFLOAT,
+			VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
+			false
+		);
+	}
 }
-
-///////////////////////////////////////////////////////////////////////
-// Initialize the pipeline for rendering the computed texture
-//
-internal void
-	UI_CreateRenderComputePipeline( UI_Graphics* gfx ) {
-
-    pipeline_builder p_Build = InitPipelineBuilder(2, &gfx->base->Allocator);
-    SetInputTopology(&p_Build, VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
-    SetPolygonMode(&p_Build, VK_POLYGON_MODE_FILL);
-    SetCullMode(&p_Build, 0, VK_FRONT_FACE_CLOCKWISE);
-    EnableBlendingAlphaBlend(&p_Build);
-    DisableDepthTest(&p_Build);
-    SetMultisamplingNone(&p_Build);
-
-    UI_CreateRenderDescriptorSet(gfx);
-    SetDescriptorLayout(&p_Build, &gfx->BG_RenderDescriptorLayout, 1);
-
-    gfx->BG_RenderPipeline = AddPipeline(gfx->base, &p_Build, "./data/ColoredTriangle.vert.spv", "./data/ColoredTriangle.frag.spv");
-}
-
-internal void
-	UI_ExternalRecreateSwapchain( UI_Graphics* gfx )
-{
-	//vkResetDescriptorPool(gfx->base->Device, gfx->base->GlobalDescriptorAllocator, 0);
-	vkDestroyDescriptorSetLayout(gfx->base->Device, gfx->BG_DescriptorLayout, 0);
-	vkDestroyImageView(gfx->base->Device, gfx->BG_TextureImage.ImageView, 0);
-	vkDestroySampler(gfx->base->Device, gfx->BG_TextureImage.Sampler, 0);
-	vmaDestroyImage(gfx->base->GPUAllocator, gfx->BG_TextureImage.Image, gfx->BG_TextureImage.Alloc);
-	vkDestroyDescriptorSetLayout(gfx->base->Device, gfx->BG_RenderDescriptorLayout, 0);
-	UI_CreateComputeBG_DescriptorSet(gfx);
-	UI_CreateRenderDescriptorSet( gfx );
-}
-
-internal UI_Graphics
-	UI_GraphicsInit(vulkan_base* VkBase, u8* Bitmap, u32 Width, u32 Height) {
-    UI_Graphics gfx = {0};
-    gfx.base = VkBase;
-
-    gfx.ui_buffer[0] = CreateBuffer(gfx.base->GPUAllocator, 24 << 20, (VkBufferUsageFlags)(VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT), VMA_MEMORY_USAGE_GPU_ONLY);
-    gfx.ui_buffer[1] = CreateBuffer(gfx.base->GPUAllocator, 24 << 20, (VkBufferUsageFlags)(VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT), VMA_MEMORY_USAGE_GPU_ONLY);
-
-    gfx.ui_buffer_idx[0] = CreateBuffer(gfx.base->GPUAllocator, 24 << 20, (VkBufferUsageFlags)(VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT), VMA_MEMORY_USAGE_GPU_ONLY);
-    gfx.ui_buffer_idx[1] = CreateBuffer(gfx.base->GPUAllocator, 24 << 20, (VkBufferUsageFlags)(VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT), VMA_MEMORY_USAGE_GPU_ONLY);
-
-    gfx.ui_vertex_staging[0] = CreateBuffer(gfx.base->GPUAllocator, 48 << 20, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY);
-    gfx.ui_vertex_staging[1] = CreateBuffer(gfx.base->GPUAllocator, 48 << 20, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY);
-
-    UI_CreateComputePipeline(&gfx);
-    UI_CreateUI_Pipeline(&gfx, Bitmap, Width, Height);
-    UI_CreateRenderComputePipeline(&gfx);
-
-    return gfx;
-}
-
 
 #endif

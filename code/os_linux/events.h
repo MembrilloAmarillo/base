@@ -7,6 +7,8 @@
 #include <X11/XKBlib.h>
 #include <X11/keysym.h>
 
+#include "../strings.h"
+
 #define ui_input u64
 
 #define Input_None               ((ui_input)1 << 0)
@@ -49,7 +51,7 @@ internal ui_input GetNextEvent(api_window* window);
 
 internal char* GetClipboard(api_window* Window);
 
-#endif 
+#endif
 
 #ifdef EVENTS_IMPL
 
@@ -69,13 +71,22 @@ GetMousePosition(api_window* window) {
                   &mask_return
                   );
 
-    vec2 MousePosition = {.x = (f32)win_x, .y = (f32)win_y};
+    vec2 MousePosition = {};
+    MousePosition.x = (f32)win_x;
+    MousePosition.y = (f32)win_y;
 
     return MousePosition;
 }
 
+#include <poll.h>
+#include <X11/Xlib.h>
+#include <X11/keysym.h>
+#include <stdint.h>
+
+// return value: ui_input as before
 internal ui_input
-GetNextEvent(api_window* Window) {
+GetNextEvent(api_window* Window)
+{
     ui_input Input = 0;
     u32 window_width = Window->Width;
     u32 window_height = Window->Height;
@@ -84,7 +95,8 @@ GetNextEvent(api_window* Window) {
         XNextEvent(Window->Dpy, &ev);
 
         if( ev.type == FocusOut ) {
-            while( XNextEvent( Window->Dpy, &ev) && ev.type != FocusIn ) {
+            while( ev.type != FocusIn ) {
+                XNextEvent(Window->Dpy, &ev);
                 if( ev.type == FocusIn ) {
                     break;
                 }
@@ -99,23 +111,23 @@ GetNextEvent(api_window* Window) {
         int mouse_button_pressed = 0;
         static KeyMap keys_to_check[] = {
             { XK_BackSpace, Input_Backspace},
-            { XK_Return,    Input_Return},
-            { XK_Shift_L,   Input_Shift},
-            { XK_Shift_R,   Input_Shift},
-            { XK_Control_L, Input_Ctrol},
-            { XK_Control_R, Input_Ctrol},
-            { XK_Meta_L,    Input_Alt },
-            { XK_Meta_R,    Input_Alt },
-            { XK_F1,        Input_F1 },
-            { XK_F2,        Input_F2 },
-            { XK_F3,        Input_F3 },
-            { XK_F4,        Input_F4 },
-            { XK_F5,        Input_F5 },
-            { XK_Left,      Input_Left},
-            { XK_Right,     Input_Right},
-            { XK_Up,        Input_Up},
-            { XK_Down,      Input_Down},
-            { XK_Escape,    Input_Esc},
+            { XK_Return,    Input_Return   },
+            { XK_Shift_L,   Input_Shift    },
+            { XK_Shift_R,   Input_Shift    },
+            { XK_Control_L, Input_Ctrol    },
+            { XK_Control_R, Input_Ctrol    },
+            { XK_Meta_L,    Input_Alt      },
+            { XK_Meta_R,    Input_Alt      },
+            { XK_F1,        Input_F1       },
+            { XK_F2,        Input_F2       },
+            { XK_F3,        Input_F3       },
+            { XK_F4,        Input_F4       },
+            { XK_F5,        Input_F5       },
+            { XK_Left,      Input_Left     },
+            { XK_Right,     Input_Right    },
+            { XK_Up,        Input_Up       },
+            { XK_Down,      Input_Down     },
+            { XK_Escape,    Input_Esc      },
         };
         u32 NKeys = 18;
 
@@ -148,7 +160,7 @@ GetNextEvent(api_window* Window) {
                     if (data && nitems > 0) {
                         printf("Pasted content: %s\n", data);
                         memset(Window->ClipboardContent, 0, 256);
-                        memcpy(Window->ClipboardContent, data, UCF_Strlen(data));
+                        memcpy(Window->ClipboardContent, data, CustomStrlen((const char*)data));
                         XFree(data);
                     } else {
                         printf("Clipboard is empty or data could not be read.\n");
@@ -190,10 +202,10 @@ GetNextEvent(api_window* Window) {
                 char buffer[256] = {0};
                 KeySym keysym_from_utf8 = NoSymbol;
                 int num_bytes = Xutf8LookupString(
-                    Window->xic, 
-                    &ev.xkey, 
-                    buffer, sizeof(buffer), 
-                    &keysym_from_utf8, 
+                    Window->xic,
+                    &ev.xkey,
+                    buffer, sizeof(buffer),
+                    &keysym_from_utf8,
                     NULL
                 );
 
@@ -214,7 +226,7 @@ GetNextEvent(api_window* Window) {
 
                 if (keysym_from_utf8 == XK_Escape) {
                     Input = StopUI;
-                    return Input; 
+                    return Input;
                 }
 
                 if ( (ev.xkey.state & ControlMask) && (keysym_from_utf8 == XK_v || keysym_from_utf8 == XK_V)) {
@@ -318,12 +330,14 @@ GetNextEvent(api_window* Window) {
     }
 
     return Input;
+
 }
 
-internal char* 
+
+internal char*
 GetClipboard(api_window* Window) {
     return Window->ClipboardContent;
 }
 
 
-#endif 
+#endif

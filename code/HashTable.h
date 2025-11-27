@@ -8,7 +8,7 @@ struct entry {
     entry* Next;
 
     U64 HashId;
-    char* Id;
+    const char* Id;
     void* Value;
 };
 
@@ -46,14 +46,14 @@ void  HashTableInit( hash_table *Table, Stack_Allocator* BackingBuffer, u64 BufS
  * @param Value void* pointer to the value
  * @return entry* to the entry added, if already existed, pointer to that entry
  */
-entry* HashTableAdd( hash_table *Table, char* Id, void* Value, U64 parent );
+entry* HashTableAdd( hash_table *Table, const char* Id, void* Value, U64 parent );
 /**
  * @brief Sets a pointer to a value into an already existing entry
  * @param Table hash_table pointer to the struct
  * @param Id    char* with the Id
  * @param Value void* pointer to the value
  */
-void* HashTableSet( hash_table *Table, char* Id, void* Value, U64 parent );
+void* HashTableSet( hash_table *Table, const char* Id, void* Value, U64 parent );
 
 /**
  * @brief Indicates if an entry already exists
@@ -61,7 +61,7 @@ void* HashTableSet( hash_table *Table, char* Id, void* Value, U64 parent );
  * @param Id        char* with the Id
  * @return bool true if exists, if not, false
  */
-bool HashTableContains( hash_table *Table, char* Id, U64 parent );
+bool HashTableContains( hash_table *Table, const char* Id, U64 parent );
 
 /**
  * @brief Returns the value of an entry, if exists
@@ -69,7 +69,7 @@ bool HashTableContains( hash_table *Table, char* Id, U64 parent );
  * @param Id        char* with the Id
  * @return entry*    Non-null if exists, if not, NULL
  */
-entry* HashTableFindPointer( hash_table *Table, char* Id, U64 parent );
+entry* HashTableFindPointer( hash_table *Table, const char* Id, U64 parent );
 
 /**
 * @brief Return the value of a given hash id

@@ -11,45 +11,51 @@ struct U8_String {
     i64 idx;
 };
 
-U8_String StringCreate(u64 len, Stack_Allocator* a);
-U8_String StringNew(const char* str, u64 len, Stack_Allocator* a);
+U8_String StringCreate(i64 len, Stack_Allocator* a);
+U8_String StringNew(const char* str, i64 len, Stack_Allocator* a);
 void StringDestroy(U8_String* s);
 
 void StringAppend(U8_String* Dst, const char* Str);
 void StringAppendStr(U8_String* Dst, U8_String* Str);
 
-void StringInsert(U8_String* Dst, u32 Idx, const char* Str);
-void StringInsertStr(U8_String* Dst, u32 Idx, U8_String* Str);
+void StringInsert(U8_String* Dst, i64 Idx, const char* Str);
+void StringInsertStr(U8_String* Dst, i64 Idx, U8_String* Str);
 
-void StringCpy(U8_String* Dst, char* Src);
+void StringCpy(U8_String* Dst, const char* Src);
 void StringCpyStr(U8_String* Dst, U8_String* Src);
 
-void StringErase(U8_String* Str, u32 Idx);
-void StringEraseUntil(U8_String* Str, u32 Idx);
+void StringErase(U8_String* Str, i64 Idx);
+void StringEraseUntil(U8_String* Str, i64 Idx);
 
 void StringPop(U8_String* Str);
 
 U8_String SplitFirst(U8_String* Str, char val);
 
-u64 GetCountOfChar(U8_String* Str, char val);
+i64 GetCountOfChar(U8_String* Str, char val);
 
 i64 GetFirstOcurrence(U8_String* Str, char val);
 i64 GetLastOcurrence(U8_String* Str, char val);
 
-u64* GetAllOcurrences(U8_String* Str, char val);
+i64* GetAllOcurrences(U8_String* Str, char val);
 
-void SplitMultiple(U8_String* Dst, u64 Size, const U8_String* Src, char val);
+void SplitMultiple(U8_String* Dst, i64 Size, const U8_String* Src, char val);
+
+internal i64 StringGetLen(U8_String* Str) { return Str->idx; }
+internal i64 StringGetCapacity(U8_String* Str) { return Str->len; }
+
+internal i64 CustomStrlen(const char* str);
+internal i64 CustomStreq(const char* a, const char* b);
+internal u32 CustomStreqn(const char* a, const char* b, u32 n);
 
 #endif
 
 #ifdef STRINGS_IMPL
 
 U8_String StringNew( const char* str, i64 len, Stack_Allocator* a ) {
-    U8_String s = {
-        .data = stack_push(a, u8, len),
-        .len  = len,
-        .idx  = len
-    };
+	U8_String s = {};
+	s.data = stack_push(a, u8, len);
+	s.len = len;
+	s.idx = len;
 
     memcpy(s.data, str, len);
 
@@ -57,34 +63,33 @@ U8_String StringNew( const char* str, i64 len, Stack_Allocator* a ) {
 }
 
 U8_String StringCreate( i64 len, Stack_Allocator* a ) {
-    U8_String s = {
-        .data = stack_push(a, u8, len),
-        .len  = len,
-        .idx  = 0
-    };
+    U8_String s = {};
+	s.data = stack_push(a, u8, len);
+	s.len = len;
+	s.idx = 0;
 
     return s;
 }
 
 U8_String
 SplitFirst( U8_String* Str, char val ) {
-    for( u32 it = 0; it < Str->len; it += 1 ) {
+    for( i64 it = 0; it < Str->len; it += 1 ) {
         if( Str->data[it] == val ) {
-            U8_String ret = {
-                .data = Str->data,
-                .len  = it,
-                .idx  = it
-            };
+			U8_String ret = {};
+			ret.data = Str->data;
+			ret.len  = it;
+			ret.idx  = it;
+            
             return ret;
         }
     }
     return *Str;
 }
 
-u64
+i64
 GetCountOfChar(U8_String* Str, char val) {
-    u64 cnt = 0;
-    for( u32 it = 0; it < Str->len; it += 1 ) {
+    i64 cnt = 0;
+    for( i64 it = 0; it < Str->len; it += 1 ) {
         if( Str->data[it] == val ) {
             cnt += 1;
         }
@@ -115,24 +120,23 @@ void
 SplitMultiple(U8_String* Dst, i64 Size, const U8_String* Src, char val) {
     i64 Idx = 0;
     i64 LastValFound = 0;
-    for( u32 it = 0; it < Src->len && Idx < Size; it += 1 ) {
+    for( i64 it = 0; it < Src->len && Idx < Size; it += 1 ) {
         if( Src->data[it] == val ) {
-			U8_String str = {
-                .data = Src->data + LastValFound,
-                .len  = it - LastValFound,
-                .idx  = it - LastValFound
-            };
+			U8_String str = {};
+			str.data = Src->data + LastValFound;
+			str.len  = it - LastValFound;
+            str.idx  = it - LastValFound;
+            
 			Dst[Idx] = str;
             LastValFound = it + 1;
             Idx += 1;
         }
     }
     if( LastValFound < Src->len ) {
-		U8_String str = {
-            .data = Src->data + LastValFound,
-            .len  = Src->len - LastValFound,
-            .idx  = Src->len - LastValFound
-		};
+		U8_String str = {};
+		str.data = Src->data + LastValFound;
+		str.len = Src->len - LastValFound;
+		str.idx = Src->len - LastValFound;
 		Dst[Idx] = str;
     }
 }
@@ -187,8 +191,8 @@ void StringPop(U8_String* Str) {
 }
 
 void
-StringCpy(U8_String* Dst, char* Src) {
-    u64 len = UCF_Strlen(Src);
+StringCpy(U8_String* Dst, const char* Src) {
+    i64 len = UCF_Strlen(Src);
     if(Dst->len >= len) {
         memcpy(Dst->data, Src, len);
         Dst->idx = len;
@@ -204,7 +208,7 @@ StringCpyStr(U8_String* Dst, U8_String* Src) {
 }
 
 void StringAppend(U8_String* Dst, const char* Str) {
-    u64 len = UCF_Strlen(Str);
+    i64 len = UCF_Strlen(Str);
     if( Dst->idx + len >= Dst->len ) {
         // to big of a string, skip
     } else {
@@ -224,6 +228,53 @@ void StringAppendStr(U8_String* Dst, U8_String* Str) {
 
 void StringDestroy(U8_String* s) {
 
+}
+
+internal i64 CustomStrlen(const char* str) {
+	U64 i = 0;
+
+    if( str == NULL ) { return i; }
+
+    while( str[i] != '\0' ) { i += 1; };
+
+    return i;
+}
+
+internal i64 CustomStreq( const char* a, const char* b ) {
+	const char* a1 = a, *b1 = b;
+
+    while( (*a1 && *b1) && (*a1 == *b1) ) {
+        a1++;
+        b1++;
+    }
+
+    // if there is still more to read from one of the
+    // strings return 0 as its not equal
+    //
+    if( *a1 || *b1 ) {
+        return 0;
+    }
+
+    return 1;
+}
+
+internal u32 CustomStreqn( const char* a, const char* b, u32 n ) {
+    const char* a1 = a, *b1 = b;
+
+    u32 i = 0;
+    while( (*a1 && *b1) && (*a1 == *b1) && i < n ) {
+        a1++;
+        b1++;
+        i++;
+    }
+
+    // if i != n means that a1 == b1 was not succesfull for all n iterations
+    //
+    if( i != n ) {
+        return 0;
+    }
+
+    return 1;
 }
 
 #endif

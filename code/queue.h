@@ -82,14 +82,14 @@ internal void* QueueGetFrontRaw(queue* q);
 
 internal queue 
 QueueInit(void* buffer, u32 len, u32 capacity, u32 data_size) {
-    queue q = {
-        .data      = buffer,
-        .len       = len,
-        .idx_start = 0,
-        .idx_front = 0,
-        .capacity  = capacity,
-        .data_size = data_size,
-    };
+	queue q = {};
+	q.data      = buffer;
+    q.len       = len;
+    q.idx_start = 0;
+    q.idx_front = 0;
+    q.capacity  = capacity;
+    q.data_size = data_size;
+
 
     return q;
 }

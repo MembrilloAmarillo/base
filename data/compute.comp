@@ -7,19 +7,18 @@ void main()
 {
     ivec2 texelCoord = ivec2(gl_GlobalInvocationID.xy);
     ivec2 size = imageSize(image);
+    vec2 center = size / 2;
+    center.x += size.x / 4;
+    center.y -= size.y / 4;
+    ivec2 r = ivec2(50, 50);
 
     if(texelCoord.x < size.x && texelCoord.y < size.y) {
-        vec4 color = vec4(12.0 / 255.0, 30.0 / 255.0, 30.0 / 255.0, 1.0);
-
-        // Create grid lines every 16 pixels
-        if((texelCoord.x % 32) >= 0 && (texelCoord.y % 32) >= 0)
-        {
-			if ((texelCoord.x % 32) <= 4 && (texelCoord.y % 32) <= 4)
-			{
-				color.rgb = vec3(30.0 / 255.0) * (sin(texelCoord.x) + cos(texelCoord.y));
-			}
-        }
+        vec4 color = vec4(10.0 / 255.0, 10.0 / 255.0, 10.0 / 255.0, 1.0);
     
+		if( texelCoord.x % 32 == 0 && texelCoord.y % 32 == 0 ) {
+			color.rgb += 4;
+		}
+
         imageStore(image, texelCoord, color);
     }
 }

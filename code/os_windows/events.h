@@ -54,7 +54,7 @@ GetMousePosition(api_window* window) {
     POINT p;
     GetCursorPos(&p);
     ScreenToClient(window->Win, &p);
-	vec2 pos = {.x = (f32)p.x, .y = (f32)p.y};
+	vec2 pos = Vec2New((f32)p.x, (f32)p.y);
 	return pos;
 }
 

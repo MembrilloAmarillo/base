@@ -46,8 +46,8 @@ internal f32 F_GetHeightFromIdx(FontCache* fc, u64 idx);
 internal f32 F_GetPosXInBitmapFromIdx(FontCache* fc, u64 idx);
 internal f32 F_GetPosYInBitmapFromIdx(FontCache* fc, u64 idx);
 
-internal int F_TextWidth(FontCache* fc, const char* str, int str_len);
-internal int F_TextHeight(FontCache* fc);
+internal f32 F_TextWidth(FontCache* fc, const char* str, int str_len);
+internal f32 F_TextHeight(FontCache* fc);
 
 /** \brief Saves a single-channel bitmap as a grayscale PPM image
  *
@@ -64,14 +64,14 @@ internal void SaveBitmapAsPPM(const char* filename, const u8* bitmap, int width,
 
 internal FontCache
 F_BuildFont(f32 FontSize, u32 Width, u32 Height, u8* BitmapArray, const char* path) {
-    FontCache fc = {
-        .FontSize = FontSize,
-        .BitmapArray = BitmapArray,
-        .BitmapWidth = Width,
-        .BitmapHeight = Height,
-    };
+	FontCache fc = {};
+	fc.FontSize = FontSize;
+    fc.BitmapArray = BitmapArray;
+    fc.BitmapWidth = Width;
+    fc.BitmapHeight = Height;
+    
 
-    stbtt_pack_context ctx = {0};
+    stbtt_pack_context ctx;
     stbtt_PackBegin(&ctx, BitmapArray, (int)Width, (int)Height, 0, 1, NULL);
 
     f_file File = F_OpenFile(path, RDONLY);
@@ -79,11 +79,11 @@ F_BuildFont(f32 FontSize, u32 Width, u32 Height, u8* BitmapArray, const char* pa
     i32 FileSize = F_FileLength(&File);
 
     u8* data = 0;
-    #if __linux__  
-    data = mmap(NULL, FileSize, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, File.Fd, 0);
+    #if __linux__
+    data = (u8*)mmap(NULL, FileSize, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, File.Fd, 0);
     #elif _WIN32
-    data = (u8*)malloc(FileSize);  
-    #endif 
+    data = (u8*)malloc(FileSize);
+    #endif
     F_SetFileData(&File, data);
     i32 r_len = F_FileRead(&File);
 
@@ -197,22 +197,19 @@ internal f32 F_GetPosYInBitmapFromIdx(FontCache* fc, u64 idx) {
     return fc->glyph[idx].y;
 }
 
-internal int
+internal f32
 F_TextWidth(FontCache* fc, const char* str, int str_len) {
     if (!fc || !str) return 0;
     if (str_len < 0) str_len = (int)strlen(str);
 
-    int width = 0;
-    for (int i = 0; i < str_len && str[i] != '\0'; ++i) {
+    f32 width = 0;
+    for (int i = 0; i < str_len; ++i) {
         unsigned char ch = (unsigned char)str[i];
-        if (ch < 32 || ch > 126) {
-            // skip non-printable / unsupported
-            continue;
-        }
+        if ( (ch & 0xC0) == 0x80 ) continue;
         int g_idx = (int)ch - 32;
         f_Glyph glyph = fc->glyph[g_idx];
         // Use advance (xadvance) to advance pen, not bitmap width
-        width += (int)glyph.advance;
+        width += glyph.advance;
         if( i < str_len - 1 ) {
            u32 kern = F_GetKerningFromCodepoint( fc, (int)g_idx, (int) str[i+1] - 32 );
             width += kern;
@@ -221,10 +218,10 @@ F_TextWidth(FontCache* fc, const char* str, int str_len) {
     return width;
 }
 
-internal int F_TextHeight(FontCache* fc) {
+internal f32 F_TextHeight(FontCache* fc) {
     if (!fc) return 0;
     // line_height was computed as (ascent-descent+gap)*scale (a float). Round up to integer pixels.
-    return (int)ceilf(fc->FontSize + fc->line_height / 2);
+    return ceilf(fc->FontSize + fc->line_height / 2);
 }
 
 void SaveBitmapAsPPM(const char* filename, const u8* bitmap, int width, int height) {

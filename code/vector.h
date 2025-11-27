@@ -86,13 +86,12 @@ internal void VectorPop(vector* v);
 
 internal vector
 VectorInit(void* buffer, u32 len, u32 capacity, u32 data_size) {
-    vector v = {
-        .data = buffer,
-        .len  = len,
-        .offset   = len * data_size,
-        .capacity = capacity,
-        .data_size = data_size
-    };
+	vector v = {};
+	v.data = buffer;
+	v.len = len;
+	v.offset = len * data_size;
+	v.capacity = capacity;
+	v.data_size = data_size;
 
     return v;
 }

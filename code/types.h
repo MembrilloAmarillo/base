@@ -59,24 +59,6 @@ union vec3 {
 	f32 v[3];
 };
 
-typedef union vec4 vec4;
-union vec4 {
-	struct {
-		f32 x;
-		f32 y;
-		f32 z;
-		f32 m;
-	};
-	struct {
-		f32 r;
-		f32 g;
-		f32 b;
-		f32 a;
-	};
-
-	f32 v[4];
-};
-
 typedef union rgba rgba;
 union rgba {
 	struct {
@@ -108,6 +90,11 @@ internal inline vec2 Vec2Zero() {
 	return x;
 }
 
+internal inline vec2 Vec2New(f32 x, f32 y) {
+	vec2 vx = {x, y};
+	return vx;
+}
+
 internal inline vec2 Vec2Add(vec2 v1, vec2 v2) {
 	vec2 x = { v1.x + v2.x, v1.y + v2.y };
 	return x;
@@ -127,6 +114,34 @@ internal inline vec2 Vec2ScalarMul(f32 scalar, vec2 v1) {
 	vec2 x = { scalar * v1.x, scalar * v1.y };
 	return x;
 }
+
+typedef union vec4 vec4;
+union vec4 {
+	struct {
+		f32 x;
+		f32 y;
+		f32 z;
+		f32 w;
+	};
+	struct {
+		f32 r;
+		f32 g;
+		f32 b;
+		f32 a;
+	};
+	struct {
+		vec2 xy;
+		vec2 zw;
+	};
+
+	f32 v[4];
+};
+
+internal inline vec4 Vec4New(f32 x, f32 y, f32 z, f32 w) {
+	vec4 v = { x, y, z, w };
+	return v;
+}
+
 
 
 typedef struct DLL DLL;

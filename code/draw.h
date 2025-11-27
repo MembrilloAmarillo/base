@@ -58,58 +58,76 @@ internal void D_EndDraw2D( draw_bucket_instance* Instance );
 
 internal void D_DrawRect2D( draw_bucket_instance* Instance, rect_2d rect, f32 CornerRadius, f32 BorderSize, vec4 RgbaColor );
 
+internal void D_DrawIcon(draw_bucket_instance* Instance, rect_2d rect, rect_2d IconUvPos);
+
 internal void D_DrawText2D( draw_bucket_instance* Instance, rect_2d rect, U8_String* Text, FontCache* FC, vec4 Color );
 
-#endif 
+internal rect_2d NewRect2D(f32 x, f32 y, f32 width, f32 height);
+
+#endif
 
 #ifdef DRAW_IMPL
 
-internal draw_bucket_instance 
+internal draw_bucket_instance
 D_DrawInit(Stack_Allocator* Alloc) {
     draw_bucket_instance D_Instance;
     D_Instance.Allocator = Alloc;
     //D_Instance.BackBuffer2D = stack_push(Alloc, v_2d, MinVec2D_Size);
     //D_Instance.BackBuffer3D = stack_push(Alloc, v_3d, MinVec3D_Size);
-        
+
     DLIST_INIT(&D_Instance.Instance2D);
     DLIST_INIT(&D_Instance.Instance3D);
 
 	return D_Instance;
 }
 
-internal void 
+internal void
 D_DrawDestroy( draw_bucket_instance* D_Instance ) {
     stack_free_all(D_Instance->Allocator);
 }
 
-internal void 
+internal void
 D_BeginDraw2D( draw_bucket_instance* D_Instance ) {
     D_Instance->BackBuffer2D = stack_push(D_Instance->Allocator, draw_bucket_2d, MinVec2D_Size);
     D_Instance->Current2DBuffer = VectorNew(D_Instance->BackBuffer2D, 0, MinVec2D_Size, v_2d);
 }
 
-internal void 
+internal void
 D_EndDraw2D( draw_bucket_instance* D_Instance ) {
     //draw_bucket_2d* Bucket = stack_push(D_Instance->Allocator, draw_bucket_2d, 1);
     //DLIST_INIT(Bucket);
     //DLIST_INSERT(&D_Instance->Instance2D, Bucket);
 }
 
-internal void 
+internal void
 D_DrawRect2D(draw_bucket_instance* Instance, rect_2d rect, f32 CornerRadius, f32 BorderSize, vec4 RgbaColor) {
-	v_2d Vertex = {
-		.LeftCorner = rect.Pos,
-		.Size       = rect.Size,
-		.UV         = { -2, -2 },
-		.Color      = RgbaColor,
-		.CornerRadius = CornerRadius,
-		.Border       = BorderSize
-	};
+	v_2d Vertex = {};
+	Vertex.LeftCorner = rect.Pos;
+	Vertex.Size = rect.Size;
+	Vertex.UV = { -2, -2 };
+	Vertex.Color = RgbaColor;
+	Vertex.CornerRadius = CornerRadius;
+	Vertex.Border = BorderSize;
+	Vertex.IconUvSize = Vec2New(0, 0);
 
 	VectorAppend(&Instance->Current2DBuffer, &Vertex);
 }
 
-internal void 
+internal void
+D_DrawIcon(draw_bucket_instance* Instance, rect_2d rect, rect_2d IconUvPos) {
+	v_2d Vertex = {};
+	Vertex.LeftCorner = rect.Pos;
+	Vertex.Size = rect.Size;
+	Vertex.UV = Vec2Zero();
+	Vertex.CornerRadius = 0;
+	Vertex.Border = 0;
+	Vertex.IconUv = IconUvPos.Pos;
+	Vertex.IconUvSize = IconUvPos.Size;
+
+	VectorAppend(&Instance->Current2DBuffer, &Vertex);
+}
+
+internal void
 D_DrawText2D(draw_bucket_instance* Instance, rect_2d rect, U8_String* Text, FontCache* FC, vec4 Color ) {
 
 	vec2 Pos = rect.Pos;
@@ -141,17 +159,15 @@ D_DrawText2D(draw_bucket_instance* Instance, rect_2d rect, U8_String* Text, Font
 			float y0 = pen_y + g.y_off + UI_Font->line_height;
 
 			vec4 ColorVec = {Color.r, Color.g, Color.b, Color.a};
-			// Create quad vertices in the same winding you use for indices
-			v_2d v1 = {
-				.LeftCorner = { x0, y0 },
-				.Size = {g.width, g.height} ,
-				.UV = { _u0, _v0 },
-				.UVSize = { _u1, _v1 },
-				.Color = ColorVec,
-				.CornerRadius = 0
-			};
-
-			VectorAppend(&Instance->Current2DBuffer, &v1);
+		// Create quad vertices in the same winding you use for indices
+		v_2d v1 = {};
+		v1.LeftCorner = { x0, y0 };
+		v1.Size = {g.width, g.height};
+		v1.UV = { _u0, _v0 };
+		v1.UVSize = { _u1, _v1 };
+		v1.Color = ColorVec;
+		v1.CornerRadius = 0;
+		v1.IconUvSize = Vec2Zero();			VectorAppend(&Instance->Current2DBuffer, &v1);
 
 			// Advance pen by glyph advance (use xadvance from packing)
 			pen_x += g.advance;
@@ -162,4 +178,14 @@ D_DrawText2D(draw_bucket_instance* Instance, rect_2d rect, U8_String* Text, Font
 	}
 }
 
-#endif 
+internal rect_2d NewRect2D(f32 x, f32 y, f32 width, f32 height) {
+	rect_2d Rect;
+	Rect.Pos.x = x;
+	Rect.Pos.y = y;
+	Rect.Size.x = width;
+	Rect.Size.y = height;
+
+	return Rect;
+}
+
+#endif

@@ -163,17 +163,44 @@ struct todo_list {
 internal r_vertex_input_description Vertex2DInputDescription(Stack_Allocator* Allocator);
 internal r_vertex_input_description Line2DInputDescription(Stack_Allocator* Allocator);
 
+internal r_vertex_input_description 
+Line2DInputDescription(Stack_Allocator* Allocator)
+{
+	r_vertex_input_description VertexDescription = {};
+	VertexDescription.Stride = sizeof(line_vert);
+	VertexDescription.Rate = VK_VERTEX_INPUT_RATE_INSTANCE;
+	VertexDescription.AttributeCount = 3;
+	VertexDescription.Attributes = stack_push(Allocator, r_vertex_attribute, 3);
+	
+	// Rect position (vec2)
+	VertexDescription.Attributes[0].Location = 0;
+	VertexDescription.Attributes[0].Format   = R_FORMAT_VEC2;
+	VertexDescription.Attributes[0].Offset    = 0;
+	
+	// Rect size (vec2)
+	VertexDescription.Attributes[1].Location = 1;
+	VertexDescription.Attributes[1].Format   = R_FORMAT_VEC2;
+	VertexDescription.Attributes[1].Offset    = sizeof(vec2);
+	
+	// Color (vec4)
+	VertexDescription.Attributes[2].Location = 2;
+	VertexDescription.Attributes[2].Format   = R_FORMAT_VEC4;
+	VertexDescription.Attributes[2].Offset    = 2 * sizeof(vec2);
+	
+	return VertexDescription;
+}
+
 internal void TodoRenderInit(todo_render* Render);
 
 int main( void ) {
 	todo_render TodoApp;
 	TodoRenderInit(&TodoApp);
 
-    rgba HardDark    = HexToRGBA(0x050505FF);
-    rgba Dark        = HexToRGBA(0x121212FF);
+	rgba HardDark    = HexToRGBA(0x050505FF);
+	rgba Dark        = HexToRGBA(0x121212FF);
 	rgba VioletBord  = HexToRGBA(0x58536DFF);
-    rgba EggYellow   = HexToRGBA(0xF0C38EFF);
-    rgba LightPink   = HexToRGBA(0xF1AA9BFF);
+	rgba EggYellow   = HexToRGBA(0xF0C38EFF);
+	rgba LightPink   = HexToRGBA(0xF1AA9BFF);
 	rgba BrokenWhite = HexToRGBA(0xEEEEEEFF);
 
 	while (TodoApp.running) {		
@@ -198,33 +225,35 @@ int main( void ) {
 
 		// UI Creation
 		{
-			rect_2d PanelRect = { .Pos = { 200, 200 }, .Size = { 300, 300 } };
+			rect_2d PanelRect = {};
+			PanelRect.Pos = (vec2){200, 200};
+			PanelRect.Size = (vec2){300, 300};
 			UI_SetNextParent(TodoApp.UI_Context, &TodoApp.UI_Context->RootObject);
 			{
-				UI_SetNextTheme(TodoApp.UI_Context, TodoApp.UI_Context->DefaultTheme.Window);
-				ui_object* Windows = UI_BuildObject(TodoApp.UI_Context, "Title", NULL, PanelRect, UI_DrawRect | UI_DrawBorder | UI_Drag | UI_Resize | UI_Interact | UI_SetPosPersistent );
+			UI_SetNextTheme(TodoApp.UI_Context, TodoApp.UI_Context->DefaultTheme.Window);
+			ui_object* Windows = UI_BuildObject(TodoApp.UI_Context, (const uint8_t*)"Title", NULL, PanelRect, (ui_lay_opt)(UI_DrawRect | UI_DrawBorder | UI_Drag | UI_Resize | UI_Interact | UI_SetPosPersistent) );
 				UI_UpdateObjectSize(TodoApp.UI_Context, Windows);
 				UI_PopTheme(TodoApp.UI_Context);
 
 				PanelRect = Windows->Rect;
 
-				UI_PushNextLayout(TodoApp.UI_Context, PanelRect, 0);
+				UI_PushNextLayout(TodoApp.UI_Context, PanelRect, (ui_lay_opt)0);
 				UI_PushNextLayoutBoxSize(TodoApp.UI_Context, (vec2) { PanelRect.Size.x, 28 });
 				UI_PushNextLayoutPadding(TodoApp.UI_Context, (vec2) { 10, 5 });
 				UI_SetNextParent(TodoApp.UI_Context, Windows);
 
-				UI_SetNextTheme(TodoApp.UI_Context, TodoApp.UI_Context->DefaultTheme.Button);
-				ui_object* TitleObj = UI_BuildObject(TodoApp.UI_Context, "Title", "Your ToDo App", PanelRect, UI_DrawText | UI_AlignCenter);
-				UI_PopTheme(TodoApp.UI_Context);
+			UI_SetNextTheme(TodoApp.UI_Context, TodoApp.UI_Context->DefaultTheme.Button);
+			ui_object* TitleObj = UI_BuildObject(TodoApp.UI_Context, (const uint8_t*)("Title"), (const uint8_t*)("Your ToDo App"), PanelRect, (ui_lay_opt)(UI_DrawText | UI_AlignCenter));
+			UI_PopTheme(TodoApp.UI_Context);
 
-				PanelRect.Pos.y += TitleObj->Size.y;
-				UI_PushNextLayoutBoxSize(TodoApp.UI_Context, (vec2){PanelRect.Size.x, 4});
-				UI_SetNextTheme(TodoApp.UI_Context, TodoApp.UI_Context->DefaultTheme.Panel);
-				UI_BuildObject(TodoApp.UI_Context, "TitleDivisor", NULL, PanelRect, UI_DrawRect);
-				
-				UI_PushNextLayoutBoxSize(TodoApp.UI_Context, (vec2) {PanelRect.Size.x, PanelRect.Size.y - 2*TitleObj->Size.y});
-				UI_SetNextTheme(TodoApp.UI_Context, TodoApp.UI_Context->DefaultTheme.Label);
-				ui_object* NewNoteObj = UI_BuildObject(TodoApp.UI_Context, "+ Add New Note", "+ Add New Note", PanelRect, UI_DrawText | UI_AlignCenter | UI_AlignVertical | UI_Interact );
+			PanelRect.Pos.y += TitleObj->Size.y;
+			UI_PushNextLayoutBoxSize(TodoApp.UI_Context, (vec2){PanelRect.Size.x, 4});
+			UI_SetNextTheme(TodoApp.UI_Context, TodoApp.UI_Context->DefaultTheme.Panel);
+			UI_BuildObject(TodoApp.UI_Context, (const uint8_t*)"TitleDivisor", NULL, PanelRect, (ui_lay_opt)UI_DrawRect);
+			
+			UI_PushNextLayoutBoxSize(TodoApp.UI_Context, (vec2) {PanelRect.Size.x, PanelRect.Size.y - 2*TitleObj->Size.y});
+			UI_SetNextTheme(TodoApp.UI_Context, TodoApp.UI_Context->DefaultTheme.Label);
+			ui_object* NewNoteObj = UI_BuildObject(TodoApp.UI_Context, (const uint8_t*)"+ Add New Note", (const uint8_t*)"+ Add New Note", PanelRect, (ui_lay_opt)(UI_DrawText | UI_AlignCenter | UI_AlignVertical | UI_Interact) );
 				UI_PopTheme(TodoApp.UI_Context);
 
 				if (UI_ConsumeEvents(TodoApp.UI_Context, NewNoteObj) & Input_CursorHover) {
@@ -232,33 +261,40 @@ int main( void ) {
 					Windows->Theme.BorderThickness = 0;
 				}
 
-				StackPop(&TodoApp.UI_Context->Layouts);
-			} 
-			PanelRect = (rect_2d){ .Pos = { 550, 200 }, .Size = { 300, 300 } };
+			StackPop(&TodoApp.UI_Context->Layouts);
+		} 
+		rect_2d _rect_init = {};
+		_rect_init.Pos = (vec2){200, 200};
+		_rect_init.Size = (vec2){300, 300};
+		PanelRect = _rect_init;
+		rect_2d _rect_init2 = {};
+		_rect_init2.Pos = (vec2){550, 200};
+		_rect_init2.Size = (vec2){300, 300};
+		PanelRect = _rect_init2;
 			UI_SetNextParent(TodoApp.UI_Context, &TodoApp.UI_Context->RootObject);
-			{
-				UI_SetNextTheme(TodoApp.UI_Context, TodoApp.UI_Context->DefaultTheme.Window);
-				ui_object* Windows = UI_BuildObject(TodoApp.UI_Context, "New Title", NULL, PanelRect, UI_DrawRect | UI_DrawBorder | UI_Drag | UI_Resize | UI_Interact | UI_SetPosPersistent );
-				UI_UpdateObjectSize(TodoApp.UI_Context, Windows);
-				UI_PopTheme(TodoApp.UI_Context);
+		{
+			UI_SetNextTheme(TodoApp.UI_Context, TodoApp.UI_Context->DefaultTheme.Window);
+			ui_object* Windows = UI_BuildObject(TodoApp.UI_Context, (const uint8_t*)"New Title", NULL, PanelRect, (ui_lay_opt)(UI_DrawRect | UI_DrawBorder | UI_Drag | UI_Resize | UI_Interact | UI_SetPosPersistent) );
+			UI_UpdateObjectSize(TodoApp.UI_Context, Windows);
+			UI_PopTheme(TodoApp.UI_Context);
 
-				PanelRect = Windows->Rect;
+			PanelRect = Windows->Rect;
 
-				UI_PushNextLayout(TodoApp.UI_Context, PanelRect, 0);
+			UI_PushNextLayout(TodoApp.UI_Context, PanelRect, (ui_lay_opt)0);
 				UI_PushNextLayoutBoxSize(TodoApp.UI_Context, (vec2) { PanelRect.Size.x, 28 });
 				UI_PushNextLayoutPadding(TodoApp.UI_Context, (vec2) { 10, 5 });
 				UI_SetNextParent(TodoApp.UI_Context, Windows);
 
-				UI_SetNextTheme(TodoApp.UI_Context, TodoApp.UI_Context->DefaultTheme.Button);
-				ui_object* TitleObj = UI_BuildObject(TodoApp.UI_Context, "Title", "Example ToDo", PanelRect, UI_DrawText | UI_AlignCenter);
-				UI_PopTheme(TodoApp.UI_Context);
+			UI_SetNextTheme(TodoApp.UI_Context, TodoApp.UI_Context->DefaultTheme.Button);
+			ui_object* TitleObj = UI_BuildObject(TodoApp.UI_Context, (const uint8_t*)"Title", (const uint8_t*)"Example ToDo", PanelRect, (ui_lay_opt)(UI_DrawText | UI_AlignCenter));
+			UI_PopTheme(TodoApp.UI_Context);
 
-				PanelRect.Pos.y += TitleObj->Size.y;
-				UI_PushNextLayoutBoxSize(TodoApp.UI_Context, (vec2){PanelRect.Size.x, 4});
-				UI_SetNextTheme(TodoApp.UI_Context, TodoApp.UI_Context->DefaultTheme.Panel);
-				UI_BuildObject(TodoApp.UI_Context, "TitleDivisor", NULL, PanelRect, UI_DrawRect);
-				
-				UI_PushNextLayoutBoxSize(TodoApp.UI_Context, (vec2) {PanelRect.Size.x, TitleObj->Size.y});
+			PanelRect.Pos.y += TitleObj->Size.y;
+			UI_PushNextLayoutBoxSize(TodoApp.UI_Context, (vec2){PanelRect.Size.x, 4});
+			UI_SetNextTheme(TodoApp.UI_Context, TodoApp.UI_Context->DefaultTheme.Panel);
+			UI_BuildObject(TodoApp.UI_Context, (const uint8_t*)"TitleDivisor", NULL, PanelRect, (ui_lay_opt)UI_DrawRect);
+			
+			UI_PushNextLayoutBoxSize(TodoApp.UI_Context, (vec2) {PanelRect.Size.x, TitleObj->Size.y});
 				UI_BeginScrollbarView(TodoApp.UI_Context);
 				for (i32 i = 0; i < 500; i += 1) {
 					char buf[64] = { 0 };
@@ -280,11 +316,10 @@ int main( void ) {
 				ui_object** Items;
 			}object_stack;
 
-			object_stack ObjStack = {
-				.N = 1 << 20,
-				.Current = 0,
-				.Items = stack_push(&TodoApp.TempAllocator, ui_object*, 1 << 20)
-			};
+			object_stack ObjStack = {};
+			ObjStack.N = 1 << 20;
+			ObjStack.Current = 0;
+			ObjStack.Items = stack_push(&TodoApp.TempAllocator, ui_object*, 1 << 20);
 
 			ui_object* Root = &TodoApp.UI_Context->RootObject;
 
@@ -315,15 +350,12 @@ int main( void ) {
 					
 					D_DrawRect2D(&TodoApp.DrawInstance, Object->Rect, Object->Theme.Radius, Object->Theme.BorderThickness, Object->Theme.Border);
 				}
-				if (Object->Option & UI_DrawText) {
-					rect_2d TextRect = {
-						.Pos = Object->Pos,
-						.Size = Object->Size
-					};
-					D_DrawText2D(&TodoApp.DrawInstance, TextRect, &Object->Text, Object->Theme.Font, Object->Theme.Foreground);
-				}
-
-				for ( Object = Object->FirstSon; Object != &UI_NULL_OBJECT; Object = Object->Right) {
+			if (Object->Option & UI_DrawText) {
+				rect_2d TextRect = {};
+				TextRect.Pos = Object->Pos;
+				TextRect.Size = Object->Size;
+				D_DrawText2D(&TodoApp.DrawInstance, TextRect, &Object->Text, Object->Theme.Font, Object->Theme.Foreground);
+			}				for ( Object = Object->FirstSon; Object != &UI_NULL_OBJECT; Object = Object->Right) {
 					// process object 
 					StackPush(&ObjStack, Object);
 				}
@@ -334,11 +366,11 @@ int main( void ) {
 
 		// --------------- UI_End --------------------
 
-		line_vert LineVert = {
-			.Rect = (rect_2d) { { 195, 500 }, { 0, 200 } },
-			.Color = RgbaToNorm(VioletBord),
-			.BorderWidth = 4.f
-		};
+		line_vert LineVert = {};
+		LineVert.Rect.Pos = (vec2){195, 500};
+		LineVert.Rect.Size = (vec2){0, 200};
+		LineVert.Color = RgbaToNorm(VioletBord);
+		LineVert.BorderWidth = 4.f;
 
 		R_Begin(&TodoApp.Render);
 
@@ -379,11 +411,10 @@ int main( void ) {
 			sizeof(line_vert) + TodoApp.DrawInstance.Current2DBuffer.offset + (sizeof(u32) * 6)
 		);
 			
-		VkBufferCopy Copy = {
-			.srcOffset = 0,
-			.dstOffset = 0,	
-			.size      = TodoApp.DrawInstance.Current2DBuffer.offset
-		};
+		VkBufferCopy Copy = {};
+		Copy.srcOffset = 0;
+		Copy.dstOffset = 0;	
+		Copy.size = TodoApp.DrawInstance.Current2DBuffer.offset;
 		R_CopyStageToBuffer(
 			&TodoApp.Render, 
 			TodoApp.StagBuffer[TodoApp.Render.VulkanBase->CurrentFrame], 
@@ -391,26 +422,23 @@ int main( void ) {
 			Copy
 		);
 
-		Copy = (VkBufferCopy){
-			.srcOffset = TodoApp.DrawInstance.Current2DBuffer.offset,
-			.dstOffset = 0,
-			.size      = 6 * sizeof(u32)
-		};
+		Copy = {};
+		Copy.srcOffset = TodoApp.DrawInstance.Current2DBuffer.offset;
+		Copy.dstOffset = 0;
+		Copy.size = 6 * sizeof(u32);
 		R_CopyStageToBuffer(&TodoApp.Render, TodoApp.StagBuffer[TodoApp.Render.VulkanBase->CurrentFrame], TodoApp.IBuffer[TodoApp.Render.VulkanBase->CurrentFrame], Copy);
 
 
-		Copy = (VkBufferCopy){
-			.srcOffset = TodoApp.DrawInstance.Current2DBuffer.offset + 6 * sizeof(u32),
-			.dstOffset = 0,
-			.size      = sizeof(line_vert)
-		};
+		Copy = {};
+		Copy.srcOffset = TodoApp.DrawInstance.Current2DBuffer.offset + 6 * sizeof(u32);
+		Copy.dstOffset = 0;
+		Copy.size = sizeof(line_vert);
 		R_CopyStageToBuffer(&TodoApp.Render, TodoApp.StagBuffer[TodoApp.Render.VulkanBase->CurrentFrame], TodoApp.LineBuffer[TodoApp.Render.VulkanBase->CurrentFrame], Copy);
 		
-		Copy = (VkBufferCopy){
-			.srcOffset = sizeof(line_vert) + TodoApp.DrawInstance.Current2DBuffer.offset + 6 * sizeof(u32),
-			.dstOffset = 0,
-			.size      = 6 * sizeof(u32)
-		};
+		Copy = {};
+		Copy.srcOffset = sizeof(line_vert) + TodoApp.DrawInstance.Current2DBuffer.offset + 6 * sizeof(u32);
+		Copy.dstOffset = 0;
+		Copy.size = 6 * sizeof(u32);
 		R_CopyStageToBuffer(&TodoApp.Render, TodoApp.StagBuffer[TodoApp.Render.VulkanBase->CurrentFrame], TodoApp.LineIBuffer[TodoApp.Render.VulkanBase->CurrentFrame], Copy);
 
 		R_SendCopyToGpu(&TodoApp.Render);
@@ -438,6 +466,7 @@ int main( void ) {
 		{
 			R_BindTexture(&TodoApp.Render, "Fonts Atlas", 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
 			R_UpdateUniformBuffer(&TodoApp.Render, "Uniform Buffer", 1, &TodoApp.UniformData, sizeof(ui_uniform));
+			//R_BindTexture(&TodoApp.Render, "Icons Atlas", 2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
 			R_BindVertexBuffer(&TodoApp.Render, TodoApp.VBuffer[TodoApp.Render.VulkanBase->CurrentFrame]);
 			R_BindIndexBuffer(&TodoApp.Render, TodoApp.IBuffer[TodoApp.Render.VulkanBase->CurrentFrame]);
 			R_SetPipeline(&TodoApp.Render, TodoApp.UI_Pipeline);
@@ -540,7 +569,7 @@ internal void TodoRenderInit(todo_render* TodoRenderer) {
 
 	TodoRenderer->running = true;
 
-	TodoRenderer->Layout     = R_CreateDescriptorSetLayout(&TodoRenderer->Render, 2, TodoRenderer->Types, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);
+	TodoRenderer->Layout     = R_CreateDescriptorSetLayout(&TodoRenderer->Render, 2, TodoRenderer->Types, (VkShaderStageFlagBits)(VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT));
 	TodoRenderer->LineLayout = R_CreateDescriptorSetLayout(&TodoRenderer->Render, 1, TodoRenderer->LineTypes, VK_SHADER_STAGE_VERTEX_BIT);
 	TodoRenderer->CompLayout = R_CreateDescriptorSetLayout(&TodoRenderer->Render, 1, TodoRenderer->CompTypes, VK_SHADER_STAGE_COMPUTE_BIT);
 	r_vertex_input_description VertexDescription = Vertex2DInputDescription(&TodoRenderer->Render.PerFrameAllocator);
@@ -609,131 +638,48 @@ internal void TodoRenderInit(todo_render* TodoRenderer) {
 	rgba BrokenWhite = HexToRGBA(0xEEEEEEFF);
 
 	UI_Init(TodoRenderer->UI_Context, &TodoRenderer->Allocator, &TodoRenderer->TempAllocator);
-	TodoRenderer->UI_Context->DefaultTheme = (ui_theme){
-		.Window = {
-			.Border = RgbaToNorm(LightPink),
-			.Background = RgbaToNorm(BrokenWhite),
-			.Foreground = RgbaToNorm(HardDark),
-			.Radius     = 8,
-			.BorderThickness = 4,
-			.Font       = TitleFont2
-		},
-		.Button = {
-			.Border = RgbaToNorm(LightPink),
-			.Background = RgbaToNorm(BrokenWhite),
-			.Foreground = RgbaToNorm(HardDark),
-			.Radius     = 2,
-			.BorderThickness = 0,
-			.Font       = DefaultFont
-		},
-		.Panel = {
-			.Border = RgbaToNorm(BrokenWhite),
-			.Background = RgbaToNorm(VioletBord),
-			.Foreground = RgbaToNorm(HardDark),
-			.Radius     = 8,
-			.BorderThickness = 1,
-			.Font       = DefaultFont
-		},
-		.Input = {
-			.Border = RgbaToNorm(Dark),
-			.Background = RgbaToNorm(HardDark),
-			.Foreground = RgbaToNorm(BrokenWhite),
-			.Radius     = 2,
-			.BorderThickness = 1,
-			.Font       = DefaultFont
-		},
-		.Label  = {
-			.Border = RgbaToNorm(LightPink),
-			.Background = RgbaToNorm(BrokenWhite),
-			.Foreground = RgbaToNorm(Dark),
-			.Radius     = 2,
-			.BorderThickness = 1,
-			.Font       = ItalicFont
-		},
-		.Scrollbar  = {
-			.Border = RgbaToNorm(LightPink),
-			.Background = RgbaToNorm(Dark),
-			.Foreground = RgbaToNorm(Dark),
-			.Radius     = 8,
-			.BorderThickness = 1,
-			.Font       = NULL
-		}
-	};
-}
-
-internal r_vertex_input_description 
-Vertex2DInputDescription(Stack_Allocator* Allocator) {
-	r_vertex_input_description VertexDescription;
-	VertexDescription.Stride = sizeof(v_2d);
-	VertexDescription.Rate = VK_VERTEX_INPUT_RATE_INSTANCE;
-	VertexDescription.AttributeCount = 7;
-	VertexDescription.Attributes = stack_push(Allocator, r_vertex_attribute, 7);
-	VertexDescription.Attributes[0] = (r_vertex_attribute){
-		.Location = 0,
-		.Format   = R_FORMAT_VEC2,
-		.Offset    = 0
-	};
-	VertexDescription.Attributes[1] = (r_vertex_attribute){
-		.Location = 1,
-		.Format   = R_FORMAT_VEC2,
-		.Offset    = sizeof(vec2)
-	};
-	VertexDescription.Attributes[2] = (r_vertex_attribute){
-		.Location = 2,
-		.Format   = R_FORMAT_VEC2,
-		.Offset    = 2 * sizeof(vec2)
-	};
-	VertexDescription.Attributes[3] = (r_vertex_attribute){
-		.Location = 3,
-		.Format   = R_FORMAT_VEC2,
-		.Offset    = 3 * sizeof(vec2)
-	};
-	VertexDescription.Attributes[4] = (r_vertex_attribute){
-		.Location = 4,
-		.Format   = R_FORMAT_VEC4,
-		.Offset    = 4 * sizeof(vec2)
-	};
-	VertexDescription.Attributes[5] = (r_vertex_attribute){
-		.Location = 5,
-		.Format   = R_FORMAT_FLOAT,
-		.Offset    = 4 * sizeof(vec2) + sizeof(vec4)
-	};
-	VertexDescription.Attributes[6] = (r_vertex_attribute){
-		.Location = 6,
-		.Format   = R_FORMAT_FLOAT,
-		.Offset    = 4 * sizeof(vec2) + sizeof(vec4) + sizeof(float)
-	};
-
-	return VertexDescription;
-}
-
-internal r_vertex_input_description 
-Line2DInputDescription(Stack_Allocator* Allocator) {
-	r_vertex_input_description VertexDescription;
-	VertexDescription.Stride = sizeof(v_2d);
-	VertexDescription.Rate = VK_VERTEX_INPUT_RATE_INSTANCE;
-	VertexDescription.AttributeCount = 4;
-	VertexDescription.Attributes = stack_push(Allocator, r_vertex_attribute, 4);
-	VertexDescription.Attributes[0] = (r_vertex_attribute){
-		.Location = 0,
-		.Format   = R_FORMAT_VEC2,
-		.Offset    = 0
-	};
-	VertexDescription.Attributes[1] = (r_vertex_attribute){
-		.Location = 1,
-		.Format   = R_FORMAT_VEC2,
-		.Offset    = sizeof(vec2)
-	};
-	VertexDescription.Attributes[2] = (r_vertex_attribute){
-		.Location = 2,
-		.Format   = R_FORMAT_VEC4,
-		.Offset    = 2 * sizeof(vec2)
-	};
-	VertexDescription.Attributes[3] = (r_vertex_attribute){
-		.Location = 3,
-		.Format   = R_FORMAT_FLOAT,
-		.Offset    = 2 * sizeof(vec2) + sizeof(vec4)
-	};
-
-	return VertexDescription;
+	ui_theme DefaultTheme = {};
+	DefaultTheme.Window.Border = RgbaToNorm(LightPink);
+	DefaultTheme.Window.Background = RgbaToNorm(BrokenWhite);
+	DefaultTheme.Window.Foreground = RgbaToNorm(HardDark);
+	DefaultTheme.Window.Radius = 8;
+	DefaultTheme.Window.BorderThickness = 4;
+	DefaultTheme.Window.Font = TitleFont2;
+	
+	DefaultTheme.Button.Border = RgbaToNorm(LightPink);
+	DefaultTheme.Button.Background = RgbaToNorm(BrokenWhite);
+	DefaultTheme.Button.Foreground = RgbaToNorm(HardDark);
+	DefaultTheme.Button.Radius = 2;
+	DefaultTheme.Button.BorderThickness = 0;
+	DefaultTheme.Button.Font = DefaultFont;
+	
+	DefaultTheme.Panel.Border = RgbaToNorm(BrokenWhite);
+	DefaultTheme.Panel.Background = RgbaToNorm(VioletBord);
+	DefaultTheme.Panel.Foreground = RgbaToNorm(HardDark);
+	DefaultTheme.Panel.Radius = 8;
+	DefaultTheme.Panel.BorderThickness = 1;
+	DefaultTheme.Panel.Font = DefaultFont;
+	
+	DefaultTheme.Input.Border = RgbaToNorm(Dark);
+	DefaultTheme.Input.Background = RgbaToNorm(HardDark);
+	DefaultTheme.Input.Foreground = RgbaToNorm(BrokenWhite);
+	DefaultTheme.Input.Radius = 2;
+	DefaultTheme.Input.BorderThickness = 1;
+	DefaultTheme.Input.Font = DefaultFont;
+	
+	DefaultTheme.Label.Border = RgbaToNorm(LightPink);
+	DefaultTheme.Label.Background = RgbaToNorm(BrokenWhite);
+	DefaultTheme.Label.Foreground = RgbaToNorm(Dark);
+	DefaultTheme.Label.Radius = 2;
+	DefaultTheme.Label.BorderThickness = 1;
+	DefaultTheme.Label.Font = ItalicFont;
+	
+	DefaultTheme.Scrollbar.Border = RgbaToNorm(LightPink);
+	DefaultTheme.Scrollbar.Background = RgbaToNorm(Dark);
+	DefaultTheme.Scrollbar.Foreground = RgbaToNorm(Dark);
+	DefaultTheme.Scrollbar.Radius = 8;
+	DefaultTheme.Scrollbar.BorderThickness = 1;
+	DefaultTheme.Scrollbar.Font = NULL;
+	
+	TodoRenderer->UI_Context->DefaultTheme = DefaultTheme;
 }

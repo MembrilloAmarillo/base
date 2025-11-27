@@ -14,7 +14,7 @@ static U64 UCF_Strlen( const char* str ) {
 // --------------------------------------------------------------- //
 
 static u32 UCF_Streq( const char* a, const char* b ) {
-    char* a1 = a, *b1 = b;
+    const char* a1 = a, *b1 = b;
 
     while( (*a1 && *b1) && (*a1 == *b1) ) {
         a1++;
@@ -34,7 +34,7 @@ static u32 UCF_Streq( const char* a, const char* b ) {
 // --------------------------------------------------------------- //
 
 static u32 UCF_Streqn( const char* a, const char* b, u32 n ) {
-    char* a1 = a, *b1 = b;
+    const char* a1 = a, *b1 = b;
 
     u32 i = 0;
     while( (*a1 && *b1) && (*a1 == *b1) && i < n ) {
@@ -90,17 +90,16 @@ void HashTableInit( hash_table *Table, Stack_Allocator* Allocator, u64 Size, U64
 
 // --------------------------------------------------------------- //
 
-entry* HashTableAdd( hash_table *Table, char* Id, void* Value, U64 parent ) {
+entry* HashTableAdd( hash_table *Table, const char* Id, void* Value, U64 parent ) {
     U64 HashId = Table->HashFunction( (const U8*)Id, UCF_Strlen( Id ), parent );
 
     U64 EntryIdx = HashId % Table->Allocated;
 
     entry* Entry = stack_push(Table->Allocator, entry, 1);
-    *Entry = (entry){
-        .HashId = HashId,
-        .Id     = Id,
-        .Value  = Value
-    };
+    *Entry = {};
+    Entry->HashId = HashId;
+    Entry->Id     = Id;
+    Entry->Value  = Value;
     DLIST_INIT(Entry);
 
     if( Table->Entries[EntryIdx].HashId == 0 ) {
@@ -116,7 +115,7 @@ entry* HashTableAdd( hash_table *Table, char* Id, void* Value, U64 parent ) {
 
 // --------------------------------------------------------------- //
 
-void* HashTableSet( hash_table *Table, char* Id, void* Value, U64 parent ) {
+void* HashTableSet( hash_table *Table, const char* Id, void* Value, U64 parent ) {
     U64 HashId = Table->HashFunction( (const U8*)Id, UCF_Strlen( Id ), parent );
 
     U64 EntryIdx = HashId % Table->Allocated;
@@ -140,7 +139,7 @@ void* HashTableSet( hash_table *Table, char* Id, void* Value, U64 parent ) {
 
 // --------------------------------------------------------------- //
 
-bool HashTableContains( hash_table *Table, char* Id, U64 parent ) {
+bool HashTableContains( hash_table *Table, const char* Id, U64 parent ) {
     U64 HashId = Table->HashFunction( (const U8*)Id, UCF_Strlen( Id ), parent );
 
     U64 EntryIdx = HashId % Table->Allocated;
@@ -161,7 +160,7 @@ bool HashTableContains( hash_table *Table, char* Id, U64 parent ) {
 
 // --------------------------------------------------------------- //
 
-entry* HashTableFindPointer( hash_table *Table, char* Id, U64 parent ) {
+entry* HashTableFindPointer( hash_table *Table, const char* Id, U64 parent ) {
     U64 HashId = Table->HashFunction( (const U8*)Id, UCF_Strlen( Id ), parent );
 
     U64 EntryIdx = HashId % Table->Allocated;

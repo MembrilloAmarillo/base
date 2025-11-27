@@ -34,11 +34,11 @@ R_RenderInit(r_render* Render, vulkan_base* Base, Stack_Allocator* Allocator) {
 	Render->PendingBindingCount = 0;
 
 	pool_size_ratio sizes[5];
-    sizes[0] = (pool_size_ratio){VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 64};
-    sizes[1] = (pool_size_ratio){VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 64};
-	sizes[2] = (pool_size_ratio){ VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 64 };
-	sizes[3] = (pool_size_ratio){ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 64 };
-	sizes[4] = (pool_size_ratio){ VK_DESCRIPTOR_TYPE_SAMPLER, 64 };
+    sizes[0].Type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; sizes[0].Ratio = 64;
+    sizes[1].Type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; sizes[1].Ratio = 64;
+	sizes[2].Type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE; sizes[2].Ratio = 64;
+	sizes[3].Type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER; sizes[3].Ratio = 64;
+	sizes[4].Type = VK_DESCRIPTOR_TYPE_SAMPLER; sizes[4].Ratio = 64;
     InitDescriptorPool(Render->VulkanBase, &Render->DescriptorPool, Render->VulkanBase->Device, 64 * 5, sizes, ArrayCount(sizes));
 }
 
@@ -49,6 +49,7 @@ internal void R_Begin(r_render* Render) {
 	Render->SetExternalResize = resized;
     if (resized) {
         // @todo How to handle this in a better way? Maybe set a customizable resizing function?
+		return;
 	}
 
 	Render->SetScreenToClear = false;
@@ -88,7 +89,7 @@ internal void R_BeginRenderPass(r_render* Render) {
     
 	vkCmdBeginRendering(Render->CurrentCommandBuffer, &renderingInfo);
 
-	VkViewport viewport = {0};
+	VkViewport viewport = {};
     viewport.x = 0.0f;
     viewport.y = 0.0f;
     viewport.width = (float)base->Swapchain.Extent.width;
@@ -97,7 +98,7 @@ internal void R_BeginRenderPass(r_render* Render) {
     viewport.maxDepth = 1.0f;
     vkCmdSetViewport(Render->CurrentCommandBuffer , 0, 1, &viewport);
 
-    VkRect2D scissor = {0};
+    VkRect2D scissor = {};
     scissor.offset = (VkOffset2D){0, 0};
     scissor.extent = base->Swapchain.Extent;
     vkCmdSetScissor(Render->CurrentCommandBuffer , 0, 1, &scissor);
@@ -127,7 +128,7 @@ R_RenderEnd(r_render* Render) {
 
 internal VkDescriptorSetLayout 
 R_CreateDescriptorSetLayout(r_render* Render, u32 NSets, VkDescriptorType* Types, VkShaderStageFlagBits StageFlags) {
-	vk_descriptor_set builder = {0};
+	vk_descriptor_set builder = {};
     InitDescriptorSet(&builder, NSets, &Render->PerFrameAllocator);
 	for (i32 i = 0; i < NSets; i += 1) {
 		VkDescriptorType type = Types[i];
@@ -169,7 +170,8 @@ R_CreatePipelineEx(
     SetMultisamplingNone(&p_Build);
 
 	{
-		VkVertexInputBindingDescription binding_description = {0};
+		VkVertexInputBindingDescription binding_description = {};
+		memset(&binding_description, 0, sizeof(VkVertexInputBindingDescription));
         binding_description.binding   = 0;
         binding_description.inputRate = Description->Rate;
         binding_description.stride    = Description->Stride;
@@ -211,12 +213,11 @@ R_CreateComputePipeline(
 	VkDescriptorSetLayout* DescriptorSetLayout,
 	u32 LayoutCount
 ) {
-	VkPipelineLayoutCreateInfo computeLayout = {
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-        .pNext = NULL,
-        .setLayoutCount = LayoutCount,
-        .pSetLayouts = DescriptorSetLayout
-    };
+	VkPipelineLayoutCreateInfo computeLayout = {};
+	computeLayout.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+	computeLayout.pNext = NULL;
+	computeLayout.setLayoutCount = LayoutCount;
+	computeLayout.pSetLayouts = DescriptorSetLayout;
 
 	vk_pipeline* Pipeline = stack_push(Render->Allocator, vk_pipeline, 1);
 
@@ -232,20 +233,18 @@ R_CreateComputePipeline(
         exit(EXIT_FAILURE);
     }
 
-	VkPipelineShaderStageCreateInfo stageInfo = {
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-        .pNext = NULL,
-        .stage = VK_SHADER_STAGE_COMPUTE_BIT,
-        .module = computeDrawShader,
-        .pName = "main"
-    };
+	VkPipelineShaderStageCreateInfo stageInfo = {};
+	stageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	stageInfo.pNext = NULL;
+	stageInfo.stage = VK_SHADER_STAGE_COMPUTE_BIT;
+	stageInfo.module = computeDrawShader;
+	stageInfo.pName = "main";
 
-	VkComputePipelineCreateInfo computePipelineCreateInfo = {
-        .sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
-        .pNext = NULL,
-        .layout = Pipeline->Layout,
-        .stage = stageInfo
-    };
+	VkComputePipelineCreateInfo computePipelineCreateInfo = {};
+	computePipelineCreateInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+	computePipelineCreateInfo.pNext = NULL;
+	computePipelineCreateInfo.layout = Pipeline->Layout;
+	computePipelineCreateInfo.stage = stageInfo;
 
 	VK_CHECK(
 		vkCreateComputePipelines(
@@ -339,12 +338,12 @@ R_UpdateUniformBuffer(r_render* Render, const char* Id, u32 Binding, void* Data,
 	assert(UboEntry != NULL && "Invalid Id, Not Found");
 	allocated_buffer* Buffer = (allocated_buffer*)UboEntry->Value;
 	
-    VkMappedMemoryRange flushRange = {0};
+    VkMappedMemoryRange flushRange = {};
     flushRange.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
     flushRange.memory = Buffer->Info.deviceMemory;
     flushRange.offset = 0;
     flushRange.size = DataSize;
-    vkFlushMappedMemoryRanges(Render->VulkanBase->Device, 1, &flushRange);
+    //vkFlushMappedMemoryRanges(Render->VulkanBase->Device, 1, &flushRange);
 	memcpy(
         Buffer->Info.pMappedData,
         Data,
@@ -399,21 +398,20 @@ void R_Draw(r_render* Render, u32 VertexCount, u32 InstanceCount) {
             pending_binding* p = &Render->PendingBindings[i];
 
             switch (p->Type) {
-                case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER:
+				case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER:
+				{
 					allocated_buffer* buf = (allocated_buffer*)HashTableGet(&Render->Buffers, p->Handle, 0);
-                    assert(buf != NULL && "Buffer handle for pending binding not found.");
+					assert(buf != NULL && "Buffer handle for pending binding not found.");
                     
-                    WriteBuffer(&writer, p->BindingPoint, buf->Buffer, buf->Info.size, 0, p->Type);
-                    break;
+					WriteBuffer(&writer, p->BindingPoint, buf->Buffer, buf->Info.size, 0, p->Type);
+				} break;
                 case VK_DESCRIPTOR_TYPE_STORAGE_BUFFER:
                 {
                     allocated_buffer* buf = (allocated_buffer*)HashTableGet(&Render->Buffers, p->Handle, 0);
                     assert(buf != NULL && "Buffer handle for pending binding not found.");
                     
                     WriteBuffer(&writer, p->BindingPoint, buf->Buffer, buf->Info.size, 0, p->Type);
-                    break;
-                }
-                
+                } break;
                 case VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER:
                 {
                     vk_image* tex = (vk_image*)HashTableGet(&Render->Textures, p->Handle, 0);
@@ -421,9 +419,7 @@ void R_Draw(r_render* Render, u32 VertexCount, u32 InstanceCount) {
 
                     WriteImage(&writer, p->BindingPoint, tex->ImageView, tex->Sampler, 
                                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, p->Type);
-                    break;
-                }
-                
+                } break;
                 default:
                     assert(0 && "Unsupported descriptor type in pending bindings!");
                     break;
@@ -463,21 +459,20 @@ R_DrawIndexed(r_render* Render, u32 IndexCount, u32 InstanceCount) {
         for (u32 i = 0; i < Render->PendingBindingCount; ++i) {
             pending_binding* p = &Render->PendingBindings[i];
             switch (p->Type) {
-                case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER:
+				case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER:
+				{
 					allocated_buffer* buf = (allocated_buffer*)HashTableGet(&Render->Buffers, p->Handle, 0);
-                    assert(buf != NULL && "Buffer handle for pending binding not found.");
+					assert(buf != NULL && "Buffer handle for pending binding not found.");
                     
-                    WriteBuffer(&writer, p->BindingPoint, buf->Buffer, p->Range, 0, p->Type);
-                    break;
+					WriteBuffer(&writer, p->BindingPoint, buf->Buffer, p->Range, 0, p->Type);
+				} break;
                 case VK_DESCRIPTOR_TYPE_STORAGE_BUFFER:
                 {
                     allocated_buffer* buf = (allocated_buffer*)HashTableGet(&Render->Buffers, p->Handle, 0);
                     assert(buf != NULL && "Buffer handle for pending binding not found.");
                     
                     WriteBuffer(&writer, p->BindingPoint, buf->Buffer, buf->Info.size, 0, p->Type);
-                    break;
-                }
-                
+                } break;
                 case VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER:
                 {
                     vk_image* tex = (vk_image*)HashTableGet(&Render->Textures, p->Handle, 0);
@@ -485,12 +480,11 @@ R_DrawIndexed(r_render* Render, u32 IndexCount, u32 InstanceCount) {
 
                     WriteImage(&writer, p->BindingPoint, tex->ImageView, tex->Sampler, 
                                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, p->Type);
-                    break;
-                }
-                
-                default:
-                    assert(0 && "Unsupported descriptor type in pending bindings!");
-                    break;
+                } break;
+				default: 
+				{
+					assert(0 && "Unsupported descriptor type in pending bindings!");
+				} break;
             }
         }
         
@@ -524,12 +518,12 @@ R_SendDataToBuffer(r_render* Render, R_Handle Buffer, void* Data, u64 Size, u64 
 		Size
 	);
 
-	VkMappedMemoryRange flushRange = {0};
+	VkMappedMemoryRange flushRange = {};
     flushRange.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
     flushRange.memory = vb->Info.deviceMemory;
     flushRange.offset = 0;
     flushRange.size = Size;
-    vkFlushMappedMemoryRanges(Render->VulkanBase->Device, 1, &flushRange);
+    //vkFlushMappedMemoryRanges(Render->VulkanBase->Device, 1, &flushRange);
 }
 
 internal void
@@ -606,7 +600,7 @@ R_DispatchCompute(r_render* Render, R_Handle PipelineHandle, u32 GroupCountX, u3
 
 internal void 
 R_AddComputeToGraphicsBarrier(r_render* Render) {
-    VkMemoryBarrier barrier = {0};
+    VkMemoryBarrier barrier = {};
     barrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
     barrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT; // Escrituras del Compute
     barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;  // Lecturas del Gráfico (UBO, SSBO)
@@ -671,11 +665,10 @@ R_SendImageToSwapchain(r_render* Render, R_Handle ImageHandle) {
 internal void
 R_SendCopyToGpu(r_render* Render) {
 	// Add pipeline barrier before vertex input
-	VkMemoryBarrier barrier = {
-		.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER,
-		.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
-		.dstAccessMask = VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT
-	};
+	VkMemoryBarrier barrier = {};
+	barrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
+	barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+	barrier.dstAccessMask = VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT;
 
 	vkCmdPipelineBarrier(Render->CurrentCommandBuffer,
 						 VK_PIPELINE_STAGE_TRANSFER_BIT,

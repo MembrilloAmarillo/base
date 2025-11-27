@@ -303,4 +303,6 @@ internal void R_AddVertexCopyToBarrier(r_render* Render);
 
 internal void R_SendImageToSwapchain(r_render* Render, R_Handle Image);
 
+internal void R_SendCopyToGpu(r_render* Render);
+
 #endif // _RENDER_H_

@@ -86,38 +86,43 @@ main( int argc, char *argv[] )
 		object_theme TitleTheme = DefaultTheme;
 		TitleTheme.Font = &TitleFont;
 
-		object_theme ButtonTheme = {.Border = RgbaToNorm(bc),
-		.Background = RgbaToNorm(bd),
-		.Foreground = RgbaToNorm(fd),
-		.Radius = 6,
-		.BorderThickness = 0,
-		.Font = &BoldFont};
+		object_theme ButtonTheme = {};
+		ButtonTheme.Border = RgbaToNorm(bc);
+		ButtonTheme.Background = RgbaToNorm(bd);
+		ButtonTheme.Foreground = RgbaToNorm(fd);
+		ButtonTheme.Radius = 6;
+		ButtonTheme.BorderThickness = 0;
+		ButtonTheme.Font = &BoldFont;
 
-		object_theme PanelTheme = {.Border = RgbaToNorm(bc),
-		.Background = RgbaToNorm(bg2),
-		.Foreground = RgbaToNorm(fd),
-		.Radius = 6,
-		.BorderThickness = 0,
-		.Font = &BoldFont};
+		object_theme PanelTheme = {};
+		PanelTheme.Border = RgbaToNorm(bc);
+		PanelTheme.Background = RgbaToNorm(bg2);
+		PanelTheme.Foreground = RgbaToNorm(fd);
+		PanelTheme.Radius = 6;
+		PanelTheme.BorderThickness = 0;
+		PanelTheme.Font = &BoldFont;
 
-		object_theme InputTheme = {.Border = RgbaToNorm(bc),
-		.Background = RgbaToNorm(ib),
-		.Foreground = RgbaToNorm(fd),
-		.Radius = 2,
-		.BorderThickness = 2,
-		.Font = &DefaultFont};
+		object_theme InputTheme = {};
+		InputTheme.Border = RgbaToNorm(bc);
+		InputTheme.Background = RgbaToNorm(ib);
+		InputTheme.Foreground = RgbaToNorm(fd);
+		InputTheme.Radius = 2;
+		InputTheme.BorderThickness = 2;
+		InputTheme.Font = &DefaultFont;
 
-		object_theme LabelTheme = {.Border = RgbaToNorm(bc),
-		.Background = RgbaToNorm(bd),
-		.Foreground = RgbaToNorm(fd),
-		.Radius = 0,
-		.BorderThickness = 0,
-		.Font = &ItalicFont};
+		object_theme LabelTheme = {};
+		LabelTheme.Border = RgbaToNorm(bc);
+		LabelTheme.Background = RgbaToNorm(bd);
+		LabelTheme.Foreground = RgbaToNorm(fd);
+		LabelTheme.Radius = 0;
+		LabelTheme.BorderThickness = 0;
+		LabelTheme.Font = &ItalicFont;
 
-		object_theme ScrollbarTheme = {.Border = RgbaToNorm(bc),
-		.Background = RgbaToNorm(fd),
-		.Foreground = RgbaToNorm(bc),
-		.Radius = 6,
+		object_theme ScrollbarTheme = {};
+		ScrollbarTheme.Border = RgbaToNorm(bc);
+		ScrollbarTheme.Background = RgbaToNorm(fd);
+		ScrollbarTheme.Foreground = RgbaToNorm(bc);
+		ScrollbarTheme.Radius = 6;
 		.BorderThickness = 2,
 		.Font = NULL
 	};

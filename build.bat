@@ -1,4 +1,7 @@
 @echo off
+:: Initialize Visual Studio environment
+call "C:\Program Files\Microsoft Visual Studio\18\Insiders\VC\Auxiliary\Build\vcvarsall.bat" x64
+
 :: === VARIABLES DE USUARIO ===
 :: Set these paths according to your system
 set "GLSLC_PATH=C:\VulkanSDK\1.4.328.1\Bin\glslc.exe"
@@ -8,8 +11,8 @@ set CC=cl
 set CXX=cl
 
 :: Debug flags
-set CFLAGS_DEBUG=/nologo /std:c11 /FC /Z7 /DDEBUG /W3 /wd4996 /Od /Ob1 /TC
-set CXXFLAGS_DEBUG=/nologo /std:c++20 /FC /Z7 /W3 /Od /Ob1 /TP
+set CFLAGS_DEBUG=/nologo /std:c++17 /FC /Z7 /DDEBUG /W3 /wd4996 /wd4576 /Od /Ob1
+set CXXFLAGS_DEBUG=/nologo /std:c++17 /FC /Z7 /W3 /wd4996 /wd4576 /Od /Ob1
 set INC=/Icode /I"C:\VulkanSDK\1.4.328.1\Include"
 
 :: Release flags
@@ -80,9 +83,21 @@ echo Release build completed.
 exit /b
 
 :todolist
-%CC% %CFLAGS_DEBUG% %INC% ./code/Samples/ToDoList.cpp /link xxhash.obj vk_mem_alloc.obj %LIBS% /OUT:todolist.exe
+del /q vk_mem_alloc.obj 2>nul
+del /q xxhash.obj 2>nul
+
+:: Compile xxhash as C++ (same as other files)
+%CXX% /TP %CXXFLAGS_DEBUG% %INC% /c "%XXHASH%" /Fo:xxhash.obj
 if errorlevel 1 exit /b 1
-echo Release build completed.
+
+:: Compile VMA as C++
+%CXX% /TP %CXXFLAGS_DEBUG% %INC% /c "%VMA%" /Fo:vk_mem_alloc.obj
+if errorlevel 1 exit /b 1
+
+:: Compile and link ToDoList
+%CXX% %CXXFLAGS_DEBUG% %INC% ./code/Samples/ToDoList.cpp /link xxhash.obj vk_mem_alloc.obj %LIBS% /OUT:todolist.exe
+if errorlevel 1 exit /b 1
+echo ToDoList build completed.
 exit /b
 
 :release
