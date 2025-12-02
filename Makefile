@@ -1,21 +1,36 @@
 # === VARIABLES DE USUARIO ===
-CC   := clang
+CC   := clang++
 CXX  := g++
-CFLAGS  := -g -ggdb -DDEBUG -Wall -Wno-unused-function -std=gnu11 -D_GNU_SOURCE
+CFLAGS  := -g -ggdb -std=c++17 -DDEBUG -Wall -Wno-unused-function -D_GNU_SOURCE
 CXXFLAGS:= -g -ggdb -std=c++17 -Wall
 CPPFLAGS:= -D_POSIX_PTHREAD_SEMANTICS
 INC     := -Icode
 LIBS    := -lzmq -lsocketcan -lm -lpthread -ldl -lrt -lX11 -lvulkan -lstdc++
 
-SRC_C := code/Samples/UI_Sample.c
+ifeq ($(SDL_USAGE),1)
+    CFLAGS   += -DSDL_USAGE
+    CXXFLAGS += -DSDL_USAGE
+
+    # Link SDL3 dynamically
+    # SDL_CFLAGS := $(shell sdl3-config --cflags)
+    SDL_LIBS   := -lSDL3
+
+    # INC  += $(SDL_CFLAGS)
+    LIBS += $(SDL_LIBS)
+
+    # Optional: remove X11 Vulkan surface flags when using SDL Vulkan surface
+    LIBS := $(filter-out -DVK_USE_PLATFORM_XLIB_KHR -lX11, $(LIBS))
+endif
+
+SRC_C := code/Samples/todolist.cpp
 VMA   := code/third-party/vk_mem_alloc.c
 
-all: UI_Sample shaders
+all: todolist shaders
 
 vma_impl.o: $(VMA)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-UI_Sample: $(SRC_C) vma_impl.o
+todolist: $(SRC_C) vma_impl.o
 	@echo "Compiling $@..."
 	$(CC) $(CPPFLAGS) $(INC) -o $@ $^ $(LIBS)
 
