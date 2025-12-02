@@ -1,5 +1,5 @@
 
-internal VkFormat 
+fn_internal VkFormat 
 R_FormatToVkFormat(r_format format) {
     switch (format) {
         case R_FORMAT_FLOAT: return VK_FORMAT_R32_SFLOAT;
@@ -12,12 +12,12 @@ R_FormatToVkFormat(r_format format) {
     }
 }
 
-internal u64
+fn_internal u64
 CustomXXHash( const u8* buffer, u64 len, u64 seed ) {
     return XXH3_64bits_withSeed(buffer, len, seed);
 }
 
-internal void
+fn_internal void
 R_RenderInit(r_render* Render, vulkan_base* Base, Stack_Allocator* Allocator) {
 	Render->VulkanBase     = Base;
 	Render->Allocator      = Allocator;
@@ -42,7 +42,7 @@ R_RenderInit(r_render* Render, vulkan_base* Base, Stack_Allocator* Allocator) {
     InitDescriptorPool(Render->VulkanBase, &Render->DescriptorPool, Render->VulkanBase->Device, 64 * 5, sizes, ArrayCount(sizes));
 }
 
-internal void R_Begin(r_render* Render) {
+fn_internal void R_Begin(r_render* Render) {
     vulkan_base* base = Render->VulkanBase;
 
     bool resized = PrepareFrame(base);
@@ -57,14 +57,14 @@ internal void R_Begin(r_render* Render) {
     Render->CurrentCommandBuffer = BeginRender(base);
 }
 
-internal void R_ClearScreen(r_render* Render, vec4 Color ) {
+fn_internal void R_ClearScreen(r_render* Render, vec4 Color ) {
 	Render->ClearColorScreen = (VkClearValue) {
 		Color.r, Color.g, Color.b, Color.a
 	};
 	Render->SetScreenToClear = true;
 }
 
-internal void R_BeginRenderPass(r_render* Render) {
+fn_internal void R_BeginRenderPass(r_render* Render) {
 	vulkan_base* base = Render->VulkanBase;
     
 	VkRenderingAttachmentInfo colorAttachment; 
@@ -104,12 +104,12 @@ internal void R_BeginRenderPass(r_render* Render) {
     vkCmdSetScissor(Render->CurrentCommandBuffer , 0, 1, &scissor);
 }
 
-internal void
+fn_internal void
 R_RenderPassEnd(r_render* Render) {
 	vkCmdEndRendering(Render->CurrentCommandBuffer);
 }
 
-internal void
+fn_internal void
 R_RenderEnd(r_render* Render) {
 	TransitionImageDefault(
 		Render->CurrentCommandBuffer,
@@ -126,7 +126,7 @@ R_RenderEnd(r_render* Render) {
 	stack_free_all(&Render->PerFrameAllocator);
 }
 
-internal VkDescriptorSetLayout 
+fn_internal VkDescriptorSetLayout 
 R_CreateDescriptorSetLayout(r_render* Render, u32 NSets, VkDescriptorType* Types, VkShaderStageFlagBits StageFlags) {
 	vk_descriptor_set builder = {};
     InitDescriptorSet(&builder, NSets, &Render->PerFrameAllocator);
@@ -150,7 +150,7 @@ R_CreateDescriptorSetLayout(r_render* Render, u32 NSets, VkDescriptorType* Types
 	return SetLayout;
 }
 
-internal R_Handle 
+fn_internal R_Handle 
 R_CreatePipelineEx(
 	r_render* Render, 
 	const char* Id,
@@ -205,7 +205,7 @@ R_CreatePipelineEx(
 	return (R_Handle)Entry->HashId;
 }
 
-internal R_Handle 
+fn_internal R_Handle 
 R_CreateComputePipeline(
 	r_render* Render,
 	const char* Id,
@@ -268,7 +268,7 @@ R_CreateComputePipeline(
 }
 
 
-internal R_Handle 
+fn_internal R_Handle 
 R_CreateBuffer(r_render* Render, const char* BufferId, u64 Size, r_buffer_type Type) {
 	vulkan_base* base = Render->VulkanBase;
     VkBufferUsageFlags usage = 0;
@@ -307,7 +307,7 @@ R_CreateBuffer(r_render* Render, const char* BufferId, u64 Size, r_buffer_type T
     return Handle;
 }
 
-internal void R_DestroyBuffer(r_render* Render, const char* Id) {
+fn_internal void R_DestroyBuffer(r_render* Render, const char* Id) {
 	entry* Entry = HashTableFindPointer(&Render->Buffers, Id, 0);
 	if (Entry != NULL) {
 		allocated_buffer* Buffer = (allocated_buffer*)Entry->Value;
@@ -316,22 +316,22 @@ internal void R_DestroyBuffer(r_render* Render, const char* Id) {
 	}
 }
 
-internal void 
+fn_internal void 
 R_BindVertexBuffer(r_render* Render, R_Handle Handle) {
 	Render->CurrentVertexBuffer = Handle;
 }
 
-internal void 
+fn_internal void 
 R_BindIndexBuffer(r_render* Render, R_Handle Handle) {
 	Render->CurrentIndexBuffer = Handle;
 }
 
-internal void 
+fn_internal void 
 R_SetPipeline(r_render* Render, R_Handle Handle) {
 	Render->CurrentPipeline = Handle;
 }
 
-internal void 
+fn_internal void 
 R_UpdateUniformBuffer(r_render* Render, const char* Id, u32 Binding, void* Data, size_t DataSize) {
 
 	entry* UboEntry = HashTableFindPointer(&Render->Buffers, Id, 0);
@@ -358,7 +358,7 @@ R_UpdateUniformBuffer(r_render* Render, const char* Id, u32 Binding, void* Data,
 	p->Range        = DataSize;
 }
 
-internal void 
+fn_internal void 
 R_BindTexture(r_render* Render, const char* Id, u32 Binding, VkDescriptorType Type) {
 
 	entry* TexEntry = HashTableFindPointer(&Render->Textures, Id, 0);
@@ -371,7 +371,7 @@ R_BindTexture(r_render* Render, const char* Id, u32 Binding, VkDescriptorType Ty
     p->Type         = Type;
 }
 
-internal R_Handle 
+fn_internal R_Handle 
 R_PushTexture(r_render* Render, const char* Id, vk_image* Image) {
 	entry* Entry = HashTableAdd(&Render->Textures, Id, Image, 0);
 
@@ -439,7 +439,7 @@ void R_Draw(r_render* Render, u32 VertexCount, u32 InstanceCount) {
     Render->PendingBindingCount = 0;
 }
 
-internal void 
+fn_internal void 
 R_DrawIndexed(r_render* Render, u32 IndexCount, u32 InstanceCount) {
     assert(Render->CurrentPipeline     != R_HANDLE_INVALID && "R_DrawIndexed called without a pipeline being bound.");
     assert(Render->CurrentVertexBuffer != R_HANDLE_INVALID && "R_DrawIndexed called without a vertex buffer being bound.");
@@ -508,7 +508,7 @@ R_DrawIndexed(r_render* Render, u32 IndexCount, u32 InstanceCount) {
     Render->PendingBindingCount = 0;
 }
 
-internal void 
+fn_internal void 
 R_SendDataToBuffer(r_render* Render, R_Handle Buffer, void* Data, u64 Size, u64 offset) {
     allocated_buffer* vb = (allocated_buffer*)HashTableGet(&Render->Buffers, Buffer, 0);
 
@@ -526,7 +526,7 @@ R_SendDataToBuffer(r_render* Render, R_Handle Buffer, void* Data, u64 Size, u64 
     //vkFlushMappedMemoryRanges(Render->VulkanBase->Device, 1, &flushRange);
 }
 
-internal void
+fn_internal void
 R_CopyStageToBuffer(r_render* Render, R_Handle StageBuffer, R_Handle Buffer, VkBufferCopy Copy) {
 	allocated_buffer* sb = (allocated_buffer*)HashTableGet(&Render->Buffers, StageBuffer, 0);
 	allocated_buffer* vb = (allocated_buffer*)HashTableGet(&Render->Buffers, Buffer, 0);
@@ -540,7 +540,7 @@ R_CopyStageToBuffer(r_render* Render, R_Handle StageBuffer, R_Handle Buffer, VkB
 	);
 }
 
-internal void 
+fn_internal void 
 R_DispatchCompute(r_render* Render, R_Handle PipelineHandle, u32 GroupCountX, u32 GroupCountY, u32 GroupCountZ) {
     // 1. Obtener el contexto y el pipeline
     assert(PipelineHandle != R_HANDLE_INVALID && "Pipeline de cómputo inválido");
@@ -598,7 +598,7 @@ R_DispatchCompute(r_render* Render, R_Handle PipelineHandle, u32 GroupCountX, u3
 	R_AddComputeToGraphicsBarrier(Render);
 }
 
-internal void 
+fn_internal void 
 R_AddComputeToGraphicsBarrier(r_render* Render) {
     VkMemoryBarrier barrier = {};
     barrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
@@ -620,7 +620,7 @@ R_AddComputeToGraphicsBarrier(r_render* Render) {
 }
 
 
-internal void 
+fn_internal void 
 R_SendImageToSwapchain(r_render* Render, R_Handle ImageHandle) {
 	vk_image* computeImage = (vk_image*)HashTableGet(&Render->Textures, ImageHandle, 0);
     if (computeImage == NULL) {
@@ -662,7 +662,7 @@ R_SendImageToSwapchain(r_render* Render, R_Handle ImageHandle) {
     );
 }
 
-internal void
+fn_internal void
 R_SendCopyToGpu(r_render* Render) {
 	// Add pipeline barrier before vertex input
 	VkMemoryBarrier barrier = {};

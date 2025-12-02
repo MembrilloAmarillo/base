@@ -351,7 +351,7 @@ void *buddy_allocator_alloc(Buddy_Allocator *b, size_t size) {
             return (void *)((char *)found + b->alignment);
         }
 
-        // Out of memory (possibly due to too much internal fragmentation)
+        // Out of memory (possibly due to too much fn_internal fragmentation)
     }
 
     return NULL;

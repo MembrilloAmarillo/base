@@ -1,14 +1,22 @@
-#if __linux__
-#include <X11/Xlib.h>
-#include <X11/keysymdef.h>
-#include <X11/Xutil.h>
-#include <X11/XKBlib.h>
-#include <X11/keysym.h>
-#include <unistd.h>
-#define VK_USE_PLATFORM_XLIB_KHR
+#define SDL_USAGE
 
-#elif _WIN32
-#define VK_USE_PLATFORM_WIN32_KHR
+
+#ifdef SDL_USAGE 
+	#include <SDL3/SDL.h>
+	#include <SDL3/SDL_vulkan.h>
+#else
+	#if __linux__
+	#include <X11/Xlib.h>
+	#include <X11/keysymdef.h>
+	#include <X11/Xutil.h>
+	#include <X11/XKBlib.h>
+	#include <X11/keysym.h>
+	#include <unistd.h>
+	#define VK_USE_PLATFORM_XLIB_KHR
+
+	#elif _WIN32
+	#define VK_USE_PLATFORM_WIN32_KHR
+	#endif
 #endif
 #include <vulkan/vulkan.h>
 
@@ -160,10 +168,10 @@ struct todo_list {
 	todo_render Render;
 };
 
-internal r_vertex_input_description Vertex2DInputDescription(Stack_Allocator* Allocator);
-internal r_vertex_input_description Line2DInputDescription(Stack_Allocator* Allocator);
+fn_internal r_vertex_input_description Vertex2DInputDescription(Stack_Allocator* Allocator);
+fn_internal r_vertex_input_description Line2DInputDescription(Stack_Allocator* Allocator);
 
-internal r_vertex_input_description 
+fn_internal r_vertex_input_description 
 Line2DInputDescription(Stack_Allocator* Allocator)
 {
 	r_vertex_input_description VertexDescription = {};
@@ -190,7 +198,7 @@ Line2DInputDescription(Stack_Allocator* Allocator)
 	return VertexDescription;
 }
 
-internal void TodoRenderInit(todo_render* Render);
+fn_internal void TodoRenderInit(todo_render* Render);
 
 int main( void ) {
 	todo_render TodoApp;
@@ -210,9 +218,9 @@ int main( void ) {
 	}object_stack;
 
 	object_stack ObjStack = {};
-	ObjStack.N = 1 << 20;
+	ObjStack.N = 256 << 10;
 	ObjStack.Current = 0;
-	ObjStack.Items = stack_push(&TodoApp.Allocator, ui_object*, 1 << 20);
+	ObjStack.Items = stack_push(&TodoApp.Allocator, ui_object*, 256 << 10);
 
 	while (TodoApp.running) {		
 		f32 window_width  = TodoApp.VkBase.Window.Width;
@@ -446,7 +454,7 @@ int main( void ) {
 
 		// Compute pipeline 
 		//
-		if( false ) {
+		if( false ){
 			TransitionImageDefault(
 				TodoApp.Render.CurrentCommandBuffer,
 				TodoApp.ComputeImage.Image,
@@ -455,22 +463,20 @@ int main( void ) {
 			);
 			R_BindTexture(&TodoApp.Render, "Compute Texture", 0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
 			R_DispatchCompute(&TodoApp.Render, TodoApp.ComputePipeline, ceilf(window_width / 32), ceilf(window_height / 32), 1);
-			
 			R_SendImageToSwapchain(&TodoApp.Render, TodoApp.ComputeImageHandle);
 		}
-
-		TransitionImageDefault(
-			TodoApp.Render.CurrentCommandBuffer,
-			TodoApp.Render.VulkanBase->Swapchain.Images[TodoApp.Render.VulkanBase->SwapchainImageIdx],
-			VK_IMAGE_LAYOUT_UNDEFINED,
-			VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL 
-		);
 
 		R_ClearScreen(&TodoApp.Render, (vec4){0.02, 0.02, 0.02, 1.0f});
 
 		// Render pass
 		//
-			
+		TransitionImageDefault(
+			TodoApp.Render.CurrentCommandBuffer,
+			TodoApp.VkBase.Swapchain.Images[TodoApp.VkBase.SwapchainImageIdx],
+			VK_IMAGE_LAYOUT_UNDEFINED,
+			VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL 
+		);
+		
 		R_BeginRenderPass(&TodoApp.Render);
 		{
 			R_BindTexture(&TodoApp.Render, "Fonts Atlas", 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
@@ -501,7 +507,7 @@ int main( void ) {
 	}
 }
 
-internal void TodoRenderInit(todo_render* TodoRenderer) {
+fn_internal void TodoRenderInit(todo_render* TodoRenderer) {
 	TodoRenderer->VkBase = VulkanInit();
 	TodoRenderer->main_arena = TodoRenderer->VkBase.Arena;
 	TodoRenderer->arena_temp = TempBegin(TodoRenderer->main_arena);
@@ -580,7 +586,7 @@ internal void TodoRenderInit(todo_render* TodoRenderer) {
 
 
 	TodoRenderer->FontTexture = CreateImageData(&TodoRenderer->VkBase, BitmapArray, (VkExtent3D) { 2100, 2100, 1 }, VK_FORMAT_R8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT, false);
-	VkSamplerCreateInfo sampler = { 0 };
+	VkSamplerCreateInfo sampler = {  };
 	sampler.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
 	sampler.magFilter = VK_FILTER_LINEAR;
 	sampler.minFilter = VK_FILTER_LINEAR;
@@ -609,17 +615,6 @@ internal void TodoRenderInit(todo_render* TodoRenderer) {
 		&TodoRenderer->Layout,
 		1
 	);
-
-	TodoRenderer->LinePipeline = R_CreatePipeline(
-		&TodoRenderer->Render,
-		"Pipeline Line",
-		"./data/line.vert.spv",
-		"./data/line.frag.spv",
-		&LineVertDescription,
-		&TodoRenderer->LineLayout,
-		1
-	);
-
 
 	TodoRenderer->ComputePipeline = R_CreateComputePipeline(
 		&TodoRenderer->Render,

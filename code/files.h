@@ -39,19 +39,19 @@ struct f_file {
 #endif
 };
 
-internal f_file F_OpenFile(const char* c, f_flags o_flags);
-internal void   F_CloseFile(f_file* f);
-internal i32    F_FileLength(f_file* f);
-internal i32    F_FileRead(f_file* f);
-internal void   F_SetFileData(f_file* f, void* data);
-internal u32    F_FileOffset(f_file* f);
+fn_internal f_file F_OpenFile(const char* c, f_flags o_flags);
+fn_internal void   F_CloseFile(f_file* f);
+fn_internal i32    F_FileLength(f_file* f);
+fn_internal i32    F_FileRead(f_file* f);
+fn_internal void   F_SetFileData(f_file* f, void* data);
+fn_internal u32    F_FileOffset(f_file* f);
 
 #endif // _FILES_H_
 
 // --- Implementation ---
 #ifdef FILES_IMPL
 
-internal f_file
+fn_internal f_file
 F_OpenFile(const char* c, f_flags o_flags) {
     f_file f = {};
     f.Path = c;
@@ -113,7 +113,7 @@ F_OpenFile(const char* c, f_flags o_flags) {
     return f;
 }
 
-internal void
+fn_internal void
 F_CloseFile(f_file* f) {
     if (!f) return;
 
@@ -130,7 +130,7 @@ F_CloseFile(f_file* f) {
 #endif
 }
 
-internal i32
+fn_internal i32
 F_FileLength(f_file* f) {
     if (!f) return -1;
 
@@ -155,19 +155,19 @@ F_FileLength(f_file* f) {
 #endif
 }
 
-internal void
+fn_internal void
 F_SetFileData(f_file* f, void* data) {
     if (f) {
         f->Data = data;
     }
 }
 
-internal u32
+fn_internal u32
 F_FileOffset(f_file* f) {
     return f ? f->Offset : 0;
 }
 
-internal i32
+fn_internal i32
 F_FileRead(f_file* f) {
     if (!f || !f->Data) {
         // Error: puntero inválido

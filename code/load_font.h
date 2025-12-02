@@ -36,18 +36,18 @@ struct FontCache {
     u32        kerning_size;
 };
 
-internal FontCache F_BuildFont(f32 FontSize, u32 Width, u32 Height, u8* BitmapArray, const char* path);
+fn_internal FontCache F_BuildFont(f32 FontSize, u32 Width, u32 Height, u8* BitmapArray, const char* path);
 
-internal u32 F_GetKerningFromCodepoint(FontCache* fc, u32 g1, u32 g2);
+fn_internal u32 F_GetKerningFromCodepoint(FontCache* fc, u32 g1, u32 g2);
 
-internal u32 F_GetGlyphFromIdx(FontCache* fc, u64 idx);
-internal f32 F_GetWidthFromIdx(FontCache* fc, u64 idx);
-internal f32 F_GetHeightFromIdx(FontCache* fc, u64 idx);
-internal f32 F_GetPosXInBitmapFromIdx(FontCache* fc, u64 idx);
-internal f32 F_GetPosYInBitmapFromIdx(FontCache* fc, u64 idx);
+fn_internal u32 F_GetGlyphFromIdx(FontCache* fc, u64 idx);
+fn_internal f32 F_GetWidthFromIdx(FontCache* fc, u64 idx);
+fn_internal f32 F_GetHeightFromIdx(FontCache* fc, u64 idx);
+fn_internal f32 F_GetPosXInBitmapFromIdx(FontCache* fc, u64 idx);
+fn_internal f32 F_GetPosYInBitmapFromIdx(FontCache* fc, u64 idx);
 
-internal f32 F_TextWidth(FontCache* fc, const char* str, int str_len);
-internal f32 F_TextHeight(FontCache* fc);
+fn_internal f32 F_TextWidth(FontCache* fc, const char* str, int str_len);
+fn_internal f32 F_TextHeight(FontCache* fc);
 
 /** \brief Saves a single-channel bitmap as a grayscale PPM image
  *
@@ -56,13 +56,13 @@ internal f32 F_TextHeight(FontCache* fc);
  *  \param width Bitmap width
  *  \param height Bitmap height
  */
-internal void SaveBitmapAsPPM(const char* filename, const u8* bitmap, int width, int height);
+fn_internal void SaveBitmapAsPPM(const char* filename, const u8* bitmap, int width, int height);
 
 #endif // _LOAD_FONT_H_
 
 #ifdef LOAD_FONT_IMPL
 
-internal FontCache
+fn_internal FontCache
 F_BuildFont(f32 FontSize, u32 Width, u32 Height, u8* BitmapArray, const char* path) {
 	FontCache fc = {};
 	fc.FontSize = FontSize;
@@ -167,7 +167,7 @@ F_BuildFont(f32 FontSize, u32 Width, u32 Height, u8* BitmapArray, const char* pa
     return fc;
 }
 
-internal u32
+fn_internal u32
 F_GetKerningFromCodepoint(FontCache* fc, u32 g1, u32 g2) {
     for( u32 i = 0; i < fc->kerning_size; i += 1 ) {
 		if( fc->kerning[i].first == g1 && fc->kerning[i].second == g2) {
@@ -177,27 +177,27 @@ F_GetKerningFromCodepoint(FontCache* fc, u32 g1, u32 g2) {
     return 0;
 }
 
-internal u32 F_GetGlyphFromIdx(FontCache* fc, u64 idx) {
+fn_internal u32 F_GetGlyphFromIdx(FontCache* fc, u64 idx) {
     return fc->glyph[idx].glyph;
 }
 
-internal f32 F_GetWidthFromIdx(FontCache* fc, u64 idx) {
+fn_internal f32 F_GetWidthFromIdx(FontCache* fc, u64 idx) {
     return fc->glyph[idx].width;
 }
 
-internal f32 F_GetHeightFromIdx(FontCache* fc, u64 idx) {
+fn_internal f32 F_GetHeightFromIdx(FontCache* fc, u64 idx) {
     return fc->glyph[idx].height;
 }
 
-internal f32 F_GetPosXInBitmapFromIdx(FontCache* fc, u64 idx) {
+fn_internal f32 F_GetPosXInBitmapFromIdx(FontCache* fc, u64 idx) {
     return fc->glyph[idx].x;
 }
 
-internal f32 F_GetPosYInBitmapFromIdx(FontCache* fc, u64 idx) {
+fn_internal f32 F_GetPosYInBitmapFromIdx(FontCache* fc, u64 idx) {
     return fc->glyph[idx].y;
 }
 
-internal f32
+fn_internal f32
 F_TextWidth(FontCache* fc, const char* str, int str_len) {
     if (!fc || !str) return 0;
     if (str_len < 0) str_len = (int)strlen(str);
@@ -218,7 +218,7 @@ F_TextWidth(FontCache* fc, const char* str, int str_len) {
     return width;
 }
 
-internal f32 F_TextHeight(FontCache* fc) {
+fn_internal f32 F_TextHeight(FontCache* fc) {
     if (!fc) return 0;
     // line_height was computed as (ascent-descent+gap)*scale (a float). Round up to integer pixels.
     return ceilf(fc->FontSize + fc->line_height / 2);

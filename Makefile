@@ -19,18 +19,21 @@ ifeq ($(SDL_USAGE),1)
     LIBS += $(SDL_LIBS)
 
     # Optional: remove X11 Vulkan surface flags when using SDL Vulkan surface
-    LIBS := $(filter-out -DVK_USE_PLATFORM_XLIB_KHR -lX11, $(LIBS))
+    # LIBS := $(filter-out -DVK_USE_PLATFORM_XLIB_KHR -lX11, $(LIBS))
 endif
 
-SRC_C := code/Samples/todolist.cpp
+SRC_C := code/Samples/ToDoList.cpp
 VMA   := code/third-party/vk_mem_alloc.c
 
 all: todolist shaders
 
+xxhash.o: code/third-party/xxhash.c
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
 vma_impl.o: $(VMA)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-todolist: $(SRC_C) vma_impl.o
+todolist: $(SRC_C) vma_impl.o xxhash.o
 	@echo "Compiling $@..."
 	$(CC) $(CPPFLAGS) $(INC) -o $@ $^ $(LIBS)
 

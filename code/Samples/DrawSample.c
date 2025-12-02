@@ -89,7 +89,7 @@ struct ui_uniform {
     f32 ScreenHeight;
 };
 
-internal r_vertex_input_description Vertex2DInputDescription( Stack_Allocator* Allocator );
+fn_internal r_vertex_input_description Vertex2DInputDescription( Stack_Allocator* Allocator );
 
 int main()
 {
@@ -310,7 +310,7 @@ int main()
 	return 0;
 }
 
-internal r_vertex_input_description 
+fn_internal r_vertex_input_description 
 Vertex2DInputDescription(Stack_Allocator* Allocator) {
 	r_vertex_input_description VertexDescription;
 	VertexDescription.Stride = sizeof(v_2d);

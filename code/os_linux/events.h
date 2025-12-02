@@ -45,17 +45,17 @@
 #define Input_KeyRelease         ((ui_input)1 << 31)
 #define Input_KeyChar            ((ui_input)1 << 32)
 
-internal vec2 GetMousePosition(api_window* window);
+fn_internal vec2 GetMousePosition(api_window* window);
 
-internal ui_input GetNextEvent(api_window* window);
+fn_internal ui_input GetNextEvent(api_window* window);
 
-internal char* GetClipboard(api_window* Window);
+fn_internal char* GetClipboard(api_window* Window);
 
 #endif
 
 #ifdef EVENTS_IMPL
 
-internal vec2
+fn_internal vec2
 GetMousePosition(api_window* window) {
     Window window_returned;
     int root_x, root_y;
@@ -84,7 +84,7 @@ GetMousePosition(api_window* window) {
 #include <stdint.h>
 
 // return value: ui_input as before
-internal ui_input
+fn_internal ui_input
 GetNextEvent(api_window* Window)
 {
     ui_input Input = 0;
@@ -334,7 +334,7 @@ GetNextEvent(api_window* Window)
 }
 
 
-internal char*
+fn_internal char*
 GetClipboard(api_window* Window) {
     return Window->ClipboardContent;
 }

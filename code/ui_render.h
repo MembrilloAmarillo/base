@@ -48,17 +48,17 @@ struct ucf_gui {
 	u32      IndexOrder[6];
 };
 
-internal r_vertex_input_description Vertex2DInputDescription(Stack_Allocator* Allocator);
+fn_internal r_vertex_input_description Vertex2DInputDescription(Stack_Allocator* Allocator);
 
-internal ucf_gui UIRender_Start( vulkan_base* VkBase );
+fn_internal ucf_gui UIRender_Start( vulkan_base* VkBase );
 
-internal void UIRender_Frame( ucf_gui* GUI );
+fn_internal void UIRender_Frame( ucf_gui* GUI );
 
 #endif
 
 #ifdef UI_RENDER_IMPL
 
-internal r_vertex_input_description
+fn_internal r_vertex_input_description
 Vertex2DInputDescription(Stack_Allocator* Allocator)
 {
 	r_vertex_input_description VertexDescription;
@@ -165,7 +165,7 @@ bool BuildIconAtlas(u8* atlas, int atlas_w, int atlas_h, const char** paths, int
     return true;
 }
 
-internal ucf_gui UIRender_Start(vulkan_base* VkBase) {
+fn_internal ucf_gui UIRender_Start(vulkan_base* VkBase) {
 
 	ucf_gui GUI;
 
@@ -415,7 +415,7 @@ internal ucf_gui UIRender_Start(vulkan_base* VkBase) {
 	return GUI;
 }
 
-internal void UIRender_Frame(ucf_gui* GUI) {
+fn_internal void UIRender_Frame(ucf_gui* GUI) {
 	r_render* Render    = &GUI->Render;
 	vulkan_base* VkBase = Render->VulkanBase;
 	draw_bucket_instance* DrawInstance = &GUI->DrawInstance;

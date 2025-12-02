@@ -9,7 +9,7 @@ that we are easing the work for the os in terms of memory managment.
 #ifndef MEMORY_H
 #define MEMORY_H
 
-#define internal static
+#define fn_internal static
 #define U8       uint8_t
 #define U64      uint64_t
 #define U32      uint32_t
@@ -63,18 +63,18 @@ struct Temp
  U64 pos;
 };
 
-internal void*  ArenaImplReserve ( U64 size );
-internal void   ArenaImplCommit  ( void* ptr, U64 size );
-internal void   ArenaImplDecommit( void* ptr, U64 size );
-internal void   ArenaImplRelease ( void* ptr, U64 size );
+fn_internal void*  ArenaImplReserve ( U64 size );
+fn_internal void   ArenaImplCommit  ( void* ptr, U64 size );
+fn_internal void   ArenaImplDecommit( void* ptr, U64 size );
+fn_internal void   ArenaImplRelease ( void* ptr, U64 size );
 
-internal Arena* ArenaAlloc( U64 size );
-internal Arena* ArenaAllocDefault( void );
-internal void*  ArenaPush( Arena* arena, U64 size );
-internal void   ArenaPop ( Arena* arena, U64 erase  );
+fn_internal Arena* ArenaAlloc( U64 size );
+fn_internal Arena* ArenaAllocDefault( void );
+fn_internal void*  ArenaPush( Arena* arena, U64 size );
+fn_internal void   ArenaPop ( Arena* arena, U64 erase  );
 
-internal void   ArenaRelease( Arena* arena );
-internal void   ArenaClear  ( Arena* arena );
+fn_internal void   ArenaRelease( Arena* arena );
+fn_internal void   ArenaClear  ( Arena* arena );
 
 #define PushArray( arena, type, count ) (type*)ArenaPush( arena, sizeof( type ) * count )
 #define PopArray( arena, type, count )  ArenaPop( arena, sizeof( type ) * count )
@@ -84,7 +84,7 @@ internal void   ArenaClear  ( Arena* arena );
 
 #ifdef MEMORY_IMPL
 
-internal void*
+fn_internal void*
 ArenaImplReserve( U64 size )
 {
     U64 gb_snapped_size = size;
@@ -100,7 +100,7 @@ ArenaImplReserve( U64 size )
     return ptr;
 }
 
-internal void
+fn_internal void
 ArenaImplCommit( void* ptr, U64 size )
 {
 #ifdef _WIN32
@@ -122,7 +122,7 @@ ArenaImplCommit( void* ptr, U64 size )
 #endif
 }
 
-internal void
+fn_internal void
 ArenaImplDecommit( void* ptr, U64 size )
 {
 #ifdef _WIN32
@@ -133,7 +133,7 @@ ArenaImplDecommit( void* ptr, U64 size )
 #endif
 }
 
-internal void
+fn_internal void
 ArenaImplRelease( void* ptr, U64 size )
 {
 #ifdef _WIN32
@@ -143,7 +143,7 @@ ArenaImplRelease( void* ptr, U64 size )
 #endif
 }
 
-internal Arena*
+fn_internal Arena*
 ArenaAlloc( U64 size )
 {
     void* block = ArenaImplReserve( size );
@@ -156,7 +156,7 @@ ArenaAlloc( U64 size )
     return arena;
 }
 
-internal Arena*
+fn_internal Arena*
 ArenaAllocDefault( void )
 {
     void* block = ArenaImplReserve( DEFAULT_RESERVE );
@@ -169,7 +169,7 @@ ArenaAllocDefault( void )
     return arena;
 }
 
-internal void*
+fn_internal void*
 ArenaPush( Arena* arena, U64 size )
 {
     uint8_t *base = (uint8_t *)arena;
@@ -195,7 +195,7 @@ ArenaPush( Arena* arena, U64 size )
     return result;
 }
 
-internal void
+fn_internal void
 ArenaPopTo(Arena *arena, U64 pos)
 {
  U64 min_pos = sizeof(Arena);
@@ -213,7 +213,7 @@ ArenaPopTo(Arena *arena, U64 pos)
 }
 
 
-internal void
+fn_internal void
 ArenaPop( Arena* arena, U64 erase  )
 {
     /*
@@ -243,20 +243,20 @@ ArenaPop( Arena* arena, U64 erase  )
     ArenaImplDecommit( (char*)arena + arena->commit_pos, decommit_file_size );
 }
 
-internal void
+fn_internal void
 ArenaRelease( Arena* arena )
 {
     ArenaImplRelease( arena, arena->size );
 }
 
-internal void
+fn_internal void
 ArenaClear( Arena* arena )
 {
     ArenaPop( arena, arena->pos );
 }
 
 
-internal Temp
+fn_internal Temp
 TempBegin(Arena *arena)
 {
  Temp temp  = {0};
@@ -265,7 +265,7 @@ TempBegin(Arena *arena)
  return temp;
 }
 
-internal void
+fn_internal void
 TempEnd(Temp temp)
 {
  ArenaPopTo(temp.arena, temp.pos);

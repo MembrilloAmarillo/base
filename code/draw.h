@@ -48,27 +48,27 @@ struct draw_bucket_instance {
     vector           Current3DBuffer;
 };
 
-internal draw_bucket_instance D_DrawInit(Stack_Allocator* Alloc);
+fn_internal draw_bucket_instance D_DrawInit(Stack_Allocator* Alloc);
 
-internal void D_DrawDestroy( draw_bucket_instance* Instance );
+fn_internal void D_DrawDestroy( draw_bucket_instance* Instance );
 
-internal void D_BeginDraw2D( draw_bucket_instance* Instance );
+fn_internal void D_BeginDraw2D( draw_bucket_instance* Instance );
 
-internal void D_EndDraw2D( draw_bucket_instance* Instance );
+fn_internal void D_EndDraw2D( draw_bucket_instance* Instance );
 
-internal void D_DrawRect2D( draw_bucket_instance* Instance, rect_2d rect, f32 CornerRadius, f32 BorderSize, vec4 RgbaColor );
+fn_internal void D_DrawRect2D( draw_bucket_instance* Instance, rect_2d rect, f32 CornerRadius, f32 BorderSize, vec4 RgbaColor );
 
-internal void D_DrawIcon(draw_bucket_instance* Instance, rect_2d rect, rect_2d IconUvPos);
+fn_internal void D_DrawIcon(draw_bucket_instance* Instance, rect_2d rect, rect_2d IconUvPos);
 
-internal void D_DrawText2D( draw_bucket_instance* Instance, rect_2d rect, U8_String* Text, FontCache* FC, vec4 Color );
+fn_internal void D_DrawText2D( draw_bucket_instance* Instance, rect_2d rect, U8_String* Text, FontCache* FC, vec4 Color );
 
-internal rect_2d NewRect2D(f32 x, f32 y, f32 width, f32 height);
+fn_internal rect_2d NewRect2D(f32 x, f32 y, f32 width, f32 height);
 
 #endif
 
 #ifdef DRAW_IMPL
 
-internal draw_bucket_instance
+fn_internal draw_bucket_instance
 D_DrawInit(Stack_Allocator* Alloc) {
     draw_bucket_instance D_Instance;
     D_Instance.Allocator = Alloc;
@@ -81,25 +81,25 @@ D_DrawInit(Stack_Allocator* Alloc) {
 	return D_Instance;
 }
 
-internal void
+fn_internal void
 D_DrawDestroy( draw_bucket_instance* D_Instance ) {
     stack_free_all(D_Instance->Allocator);
 }
 
-internal void
+fn_internal void
 D_BeginDraw2D( draw_bucket_instance* D_Instance ) {
     //D_Instance->BackBuffer2D = stack_push(D_Instance->Allocator, draw_bucket_2d, MinVec2D_Size);
     D_Instance->Current2DBuffer = VectorNew(D_Instance->BackBuffer2D, 0, MinVec2D_Size, v_2d);
 }
 
-internal void
+fn_internal void
 D_EndDraw2D( draw_bucket_instance* D_Instance ) {
     //draw_bucket_2d* Bucket = stack_push(D_Instance->Allocator, draw_bucket_2d, 1);
     //DLIST_INIT(Bucket);
     //DLIST_INSERT(&D_Instance->Instance2D, Bucket);
 }
 
-internal void
+fn_internal void
 D_DrawRect2D(draw_bucket_instance* Instance, rect_2d rect, f32 CornerRadius, f32 BorderSize, vec4 RgbaColor) {
 	v_2d Vertex = {};
 	Vertex.LeftCorner = rect.Pos;
@@ -113,7 +113,7 @@ D_DrawRect2D(draw_bucket_instance* Instance, rect_2d rect, f32 CornerRadius, f32
 	VectorAppend(&Instance->Current2DBuffer, &Vertex);
 }
 
-internal void
+fn_internal void
 D_DrawIcon(draw_bucket_instance* Instance, rect_2d rect, rect_2d IconUvPos) {
 	v_2d Vertex = {};
 	Vertex.LeftCorner = rect.Pos;
@@ -127,7 +127,7 @@ D_DrawIcon(draw_bucket_instance* Instance, rect_2d rect, rect_2d IconUvPos) {
 	VectorAppend(&Instance->Current2DBuffer, &Vertex);
 }
 
-internal void
+fn_internal void
 D_DrawText2D(draw_bucket_instance* Instance, rect_2d rect, U8_String* Text, FontCache* FC, vec4 Color ) {
 
 	vec2 Pos = rect.Pos;
@@ -179,7 +179,7 @@ D_DrawText2D(draw_bucket_instance* Instance, rect_2d rect, U8_String* Text, Font
 	}
 }
 
-internal rect_2d NewRect2D(f32 x, f32 y, f32 width, f32 height) {
+fn_internal rect_2d NewRect2D(f32 x, f32 y, f32 width, f32 height) {
 	rect_2d Rect;
 	Rect.Pos.x = x;
 	Rect.Pos.y = y;

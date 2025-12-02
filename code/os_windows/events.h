@@ -37,30 +37,30 @@
 #define Input_KeyRelease         ((ui_input)1 << 31)
 #define Input_KeyChar            ((ui_input)1 << 32)
 
-internal vec2 GetMousePosition(api_window* window);
+fn_internal vec2 GetMousePosition(api_window* window);
 
-internal ui_input GetNextEvent(api_window* window);
+fn_internal ui_input GetNextEvent(api_window* window);
 
-internal char* GetClipboard(api_window* window);
+fn_internal char* GetClipboard(api_window* window);
 
-internal ui_input ProcessMessage(api_window* window, MSG* msg);
+fn_internal ui_input ProcessMessage(api_window* window, MSG* msg);
 
 #endif 
 
 #ifdef EVENTS_IMPL
 
-internal vec2
-GetMousePosition(api_window* window) {
+fn_internal vec2
+	GetMousePosition(api_window* window) {
     POINT p;
     GetCursorPos(&p);
     ScreenToClient(window->Win, &p);
-	vec2 pos = Vec2New((f32)p.x, (f32)p.y);
+	vec2 pos = {.x = (f32)p.x, .y = (f32)p.y};
 	return pos;
 }
 
 // This function is called every frame in your main loop.
-internal char*
-GetClipboard(api_window* window) {
+fn_internal char*
+	GetClipboard(api_window* window) {
     if (OpenClipboard(window->Win)) {
         HGLOBAL hMem = GetClipboardData(CF_UNICODETEXT);
         if (hMem) {
@@ -88,8 +88,8 @@ GetClipboard(api_window* window) {
 }
 
 
-internal ui_input
-GetNextEvent(api_window* window) {
+fn_internal ui_input
+	GetNextEvent(api_window* window) {
     ui_input Input = 0;
     MSG msg;
     while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
@@ -100,8 +100,8 @@ GetNextEvent(api_window* window) {
     return Input;
 }
 
-internal ui_input
-ProcessMessage(api_window* window, MSG* msg) {
+fn_internal ui_input
+	ProcessMessage(api_window* window, MSG* msg) {
     ui_input InputState = 0;
     switch (msg->message) {
         case WM_MOUSEMOVE:

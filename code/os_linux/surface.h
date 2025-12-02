@@ -23,22 +23,23 @@ struct api_window {
     Window       Win;
     XIC          xic;
     api_clipboard  Clipboard;
+    vec2           MousePosition;
     char           ClipboardContent[256];
     char           KeyPressed;
 };
 
 /** \brief Creates a new window with specified dimensions
- *
- *  Initializes and returns a window handle with the requested width and height.
- *  The window is configured for Vulkan rendering and appropriate event handling.
- *
- *  \param w Width of the window in pixels
- *  \param h Height of the window in pixels
- *  \return Handle to the created window
- */
-internal api_window SurfaceCreateWindow(F64 w, F64 h);
+	*
+	*  Initializes and returns a window handle with the requested width and height.
+	*  The window is configured for Vulkan rendering and appropriate event handling.
+	*
+	*  \param w Width of the window in pixels
+	*  \param h Height of the window in pixels
+	*  \return Handle to the created window
+	*/
+fn_internal api_window SurfaceCreateWindow(F64 w, F64 h);
 
-internal vec2 SurfaceGetWindowSize(api_window* window);
+fn_internal vec2 SurfaceGetWindowSize(api_window* window);
 
 #endif // _SURFACE_LINUX_H_
 
@@ -48,8 +49,8 @@ internal vec2 SurfaceGetWindowSize(api_window* window);
 
 ///////////////////////////////////////////////////////////////////////////////
 //
-internal api_window
-SurfaceCreateWindow(F64 w, F64 h) {
+fn_internal api_window
+	SurfaceCreateWindow(F64 w, F64 h) {
     api_window app;
 
     app.Dpy = XOpenDisplay(NULL);
@@ -63,11 +64,11 @@ SurfaceCreateWindow(F64 w, F64 h) {
     Atom wm_delete_window = XInternAtom(app.Dpy, "WM_DELETE_WINDOW", False);
 
     Window win = XCreateSimpleWindow(
-                                     app.Dpy, RootWindow(app.Dpy, screen),
-                                     0, 0, w, h, 0,
-                                     BlackPixel(app.Dpy, screen),
-                                     WhitePixel(app.Dpy, screen)
-                                     );
+		app.Dpy, RootWindow(app.Dpy, screen),
+		0, 0, w, h, 0,
+		BlackPixel(app.Dpy, screen),
+		WhitePixel(app.Dpy, screen)
+	);
 
     XSelectInput(app.Dpy, win,
                  ExposureMask     |
@@ -107,8 +108,8 @@ SurfaceCreateWindow(F64 w, F64 h) {
     return app;
 }
 
-internal vec2 
-SurfaceGetWindowSize(api_window* window) {
+fn_internal vec2
+	SurfaceGetWindowSize(api_window* window) {
     XWindowAttributes attr;
 
     XGetWindowAttributes(window->Dpy, window->Win, &attr);

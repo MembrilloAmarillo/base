@@ -42,11 +42,11 @@ struct zmq_data_thread {
     bool       bind;
 };
 
-internal zmq_conn_data start_zmq_job( const char* src, const char* dst, bool bind );
+fn_internal zmq_conn_data start_zmq_job( const char* src, const char* dst, bool bind );
 
-internal void thread_start_zmq_job( const char* src, const char* dst, bool bind );
+fn_internal void thread_start_zmq_job( const char* src, const char* dst, bool bind );
 
-internal void * zmq_main_loop( void* data_thread );
+fn_internal void * zmq_main_loop( void* data_thread );
 
 #endif
 
@@ -55,7 +55,7 @@ internal void * zmq_main_loop( void* data_thread );
 /**
  * @todo Add as an argument a pointer to a function that processes the data
  */
-internal void *
+fn_internal void *
 zmq_main_loop( void* data_thread_ctx ) {
 
     zmq_conn_data* data = (zmq_conn_data*) data_thread_ctx;
@@ -97,7 +97,7 @@ zmq_main_loop( void* data_thread_ctx ) {
     return NULL;
 }
 
-internal void*
+fn_internal void*
 proxy_start( void* data_thread ) {
     zmq_conn_data* data = (zmq_conn_data*) data_thread;
 
@@ -106,7 +106,7 @@ proxy_start( void* data_thread ) {
     return NULL;
 }
 
-internal void
+fn_internal void
 thread_start_zmq_job(  const char* src, const char* dst, bool bind ) {
     Arena* arena = ArenaAllocDefault();
     pthread_t task;
@@ -131,7 +131,7 @@ thread_start_zmq_job(  const char* src, const char* dst, bool bind ) {
     }
 }
 
-internal zmq_conn_data
+fn_internal zmq_conn_data
 start_zmq_job( const char* src, const char* dst, bool bind )
 {
     zmq_conn_data zmq_job;

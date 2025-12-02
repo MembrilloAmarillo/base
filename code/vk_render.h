@@ -1,11 +1,13 @@
 #ifndef _VK_RENDER_H_
 #define _VK_RENDER_H_
 
-#if __linux__
-#include <X11/Xlib.h>
-#define VK_USE_PLATFORM_XLIB_KHR
-#elif _WIN32
-#define VK_USE_PLATFORM_WIN32_KHR
+#ifndef SDL_USAGE
+	#if __linux__
+	#include <X11/Xlib.h>
+	#define VK_USE_PLATFORM_XLIB_KHR
+	#elif _WIN32
+	#define VK_USE_PLATFORM_WIN32_KHR
+	#endif
 #endif
 
 #include <vulkan/vulkan.h>
@@ -284,7 +286,7 @@ struct vulkan_base{
 	*
 	*  \return Initialized vulkan_base structure containing all Vulkan resources
 	*/
-internal vulkan_base VulkanInit();
+fn_internal vulkan_base VulkanInit();
 
 /** \brief Creates a Vulkan swapchain for rendering
 	*
@@ -293,7 +295,7 @@ internal vulkan_base VulkanInit();
 	*
 	*  \param base Pointer to the vulkan_base structure containing device and surface
 	*/
-internal void CreateSwapchain(vulkan_base* base);
+fn_internal void CreateSwapchain(vulkan_base* base);
 
 /** \brief Creates image views for swapchain images
 	*
@@ -302,7 +304,7 @@ internal void CreateSwapchain(vulkan_base* base);
 	*
 	*  \param base Pointer to the vulkan_base structure containing swapchain images
 	*/
-internal void CreateImageViews(vulkan_base* base);
+fn_internal void CreateImageViews(vulkan_base* base);
 
 /** \brief Initializes command pools and command buffers
 	*
@@ -311,7 +313,7 @@ internal void CreateImageViews(vulkan_base* base);
 	*
 	*  \param base Pointer to the vulkan_base structure
 	*/
-internal void InitCommands(vulkan_base* base);
+fn_internal void InitCommands(vulkan_base* base);
 
 /** \brief Initializes synchronization primitives
 	*
@@ -320,7 +322,7 @@ internal void InitCommands(vulkan_base* base);
 	*
 	*  \param base Pointer to the vulkan_base structure
 	*/
-internal void InitSyncStructures(vulkan_base* base);
+fn_internal void InitSyncStructures(vulkan_base* base);
 
 /** \brief Initializes descriptor sets and layouts
 	*
@@ -329,7 +331,7 @@ internal void InitSyncStructures(vulkan_base* base);
 	*
 	*  \param base Pointer to the vulkan_base structure
 	*/
-internal void InitDescriptors(vulkan_base* base);
+fn_internal void InitDescriptors(vulkan_base* base);
 
 /** \brief Initializes a descriptor pool
 	*
@@ -343,7 +345,7 @@ internal void InitDescriptors(vulkan_base* base);
 	*  \param pool_ratios Array of pool size ratios for different descriptor types
 	*  \param N_Pools Number of elements in the pool_ratios array
 	*/
-internal void InitDescriptorPool(vulkan_base* base, VkDescriptorPool* Pool, VkDevice Device, u32 MaxSets, pool_size_ratio* pool_ratios, u32 N_Pools);
+fn_internal void InitDescriptorPool(vulkan_base* base, VkDescriptorPool* Pool, VkDevice Device, u32 MaxSets, pool_size_ratio* pool_ratios, u32 N_Pools);
 
 /** \brief Resets all descriptor sets in a descriptor pool
 	*
@@ -359,7 +361,7 @@ internal void InitDescriptorPool(vulkan_base* base, VkDescriptorPool* Pool, VkDe
 	*  \note This operation does not free the underlying memory resources,
 	*        it only marks the descriptor sets as available for reuse
 	*/
-internal void ClearDescriptorPool(VkDescriptorPool* allocator, VkDevice device);
+fn_internal void ClearDescriptorPool(VkDescriptorPool* allocator, VkDevice device);
 
 /** \brief Destroys a descriptor pool and frees its resources
 	*
@@ -374,7 +376,7 @@ internal void ClearDescriptorPool(VkDescriptorPool* allocator, VkDevice device);
 	*  \note After destruction, the descriptor pool handle becomes invalid and
 	*        must not be used in any Vulkan commands
 	*/
-internal void DestroyPool(VkDescriptorPool* allocator, VkDevice device);
+fn_internal void DestroyPool(VkDescriptorPool* allocator, VkDevice device);
 
 /** \brief Creates a Vulkan buffer with associated memory allocation
 	*
@@ -393,7 +395,7 @@ internal void DestroyPool(VkDescriptorPool* allocator, VkDevice device);
 	*  \note The buffer uses exclusive sharing mode (not shared between queues)
 	*  \note Uses VK_CHECK macro to validate the creation operation
 	*/
-internal allocated_buffer CreateBuffer(VmaAllocator allocator, VkDeviceSize AllocSize,
+fn_internal allocated_buffer CreateBuffer(VmaAllocator allocator, VkDeviceSize AllocSize,
                                        VkBufferUsageFlags Usage, VmaMemoryUsage MemoryUsage);
 
 
@@ -405,7 +407,7 @@ internal allocated_buffer CreateBuffer(VmaAllocator allocator, VkDeviceSize Allo
 										   *  \param flags Creation flags for the fence (signaled state, etc.)
 										   *  \return Fully initialized VkFenceCreateInfo structure
 										   */
-internal VkFenceCreateInfo FenceCreateInfo(VkFenceCreateFlags flags);
+fn_internal VkFenceCreateInfo FenceCreateInfo(VkFenceCreateFlags flags);
 
 /** \brief Creates a VkSemaphoreCreateInfo structure
 	*
@@ -415,7 +417,7 @@ internal VkFenceCreateInfo FenceCreateInfo(VkFenceCreateFlags flags);
 	*  \param flags Creation flags for the semaphore
 	*  \return Fully initialized VkSemaphoreCreateInfo structure
 	*/
-internal VkSemaphoreCreateInfo SemaphoreCreateInfo(VkSemaphoreCreateFlags flags);
+fn_internal VkSemaphoreCreateInfo SemaphoreCreateInfo(VkSemaphoreCreateFlags flags);
 
 /** \brief Initializes a pipeline builder
 	*
@@ -649,7 +651,7 @@ void DestroyPipelineBuilder(pipeline_builder* builder);
 	*
 	*  \note The function uses memory-mapped I/O for efficient file reading
 	*/
-internal bool LoadShaderModule(const char* filename, VkDevice device, VkShaderModule* outModule);
+fn_internal bool LoadShaderModule(const char* filename, VkDevice device, VkShaderModule* outModule);
 
 /** \brief Initializes a descriptor set builder
 	*
@@ -660,7 +662,7 @@ internal bool LoadShaderModule(const char* filename, VkDevice device, VkShaderMo
 	*  \param max_descriptor_set_layout_binding Maximum number of bindings to pre-allocate
 	*  \param Allocator Memory allocator to use for dynamic allocations
 	*/
-internal void InitDescriptorSet(vk_descriptor_set* ds, u32 max_descriptor_set_layout_binding, Stack_Allocator* Allocator);
+fn_internal void InitDescriptorSet(vk_descriptor_set* ds, u32 max_descriptor_set_layout_binding, Stack_Allocator* Allocator);
 
 /** \brief Adds a binding to a descriptor set
 	*
@@ -674,7 +676,7 @@ internal void InitDescriptorSet(vk_descriptor_set* ds, u32 max_descriptor_set_la
 	*  \note The stageFlags field is initialized to 0 and should be set later
 	*        when building the descriptor set layout
 	*/
-internal void AddBindingDescriptorSet(vk_descriptor_set* ds, u32 binding, VkDescriptorType type);
+fn_internal void AddBindingDescriptorSet(vk_descriptor_set* ds, u32 binding, VkDescriptorType type);
 
 /** \brief Clears all bindings from a descriptor set
 	*
@@ -683,7 +685,7 @@ internal void AddBindingDescriptorSet(vk_descriptor_set* ds, u32 binding, VkDesc
 	*
 	*  \param ds Pointer to the descriptor set to clear
 	*/
-internal void ClearDescriptorSet(vk_descriptor_set* ds);
+fn_internal void ClearDescriptorSet(vk_descriptor_set* ds);
 
 /** \brief Builds a descriptor set layout
 	*
@@ -697,7 +699,7 @@ internal void ClearDescriptorSet(vk_descriptor_set* ds);
 	*  \param flags Creation flags for the descriptor set layout
 	*  \return Created VkDescriptorSetLayout handle
 	*/
-internal VkDescriptorSetLayout BuildDescriptorSet(vk_descriptor_set* ds, VkDevice device, VkShaderStageFlags shader_stages, void* p_next, VkDescriptorSetLayoutCreateFlags flags);
+fn_internal VkDescriptorSetLayout BuildDescriptorSet(vk_descriptor_set* ds, VkDevice device, VkShaderStageFlags shader_stages, void* p_next, VkDescriptorSetLayoutCreateFlags flags);
 
 /** \brief Allocates a descriptor set
 	*
@@ -708,7 +710,7 @@ internal VkDescriptorSetLayout BuildDescriptorSet(vk_descriptor_set* ds, VkDevic
 	*  \param layout Descriptor set layout to use for the allocation
 	*  \return Allocated VkDescriptorSet handle
 	*/
-internal VkDescriptorSet DescriptorSetAllocate(VkDescriptorPool* Pool, VkDevice device, VkDescriptorSetLayout* layout);
+fn_internal VkDescriptorSet DescriptorSetAllocate(VkDescriptorPool* Pool, VkDevice device, VkDescriptorSetLayout* layout);
 
 /** \brief Initializes a descriptor writer
 	*
@@ -719,7 +721,7 @@ internal VkDescriptorSet DescriptorSetAllocate(VkDescriptorPool* Pool, VkDevice 
 	*  \param Allocator Memory allocator to use for dynamic allocations
 	*  \return Initialized descriptor_writer structure
 	*/
-internal descriptor_writer DescriptorWriterInit(u32 capacity, Stack_Allocator* Allocator);
+fn_internal descriptor_writer DescriptorWriterInit(u32 capacity, Stack_Allocator* Allocator);
 
 /** \brief Clears a descriptor writer
 	*
@@ -728,7 +730,7 @@ internal descriptor_writer DescriptorWriterInit(u32 capacity, Stack_Allocator* A
 	*
 	*  \param dw Pointer to the descriptor writer to clear
 	*/
-internal void DescriptorWriterClear(descriptor_writer* dw);
+fn_internal void DescriptorWriterClear(descriptor_writer* dw);
 
 /** \brief Adds an image descriptor write operation
 	*
@@ -742,7 +744,7 @@ internal void DescriptorWriterClear(descriptor_writer* dw);
 	*  \param Layout Image layout the shader will access the image in
 	*  \param Type Descriptor type (e.g., VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
 	*/
-internal void WriteImage(descriptor_writer* dw, i32 binding, VkImageView Image, VkSampler Sample, VkImageLayout Layout, VkDescriptorType Type);
+fn_internal void WriteImage(descriptor_writer* dw, i32 binding, VkImageView Image, VkSampler Sample, VkImageLayout Layout, VkDescriptorType Type);
 
 /** \brief Adds a buffer descriptor write operation
 	*
@@ -756,7 +758,7 @@ internal void WriteImage(descriptor_writer* dw, i32 binding, VkImageView Image, 
 	*  \param Offset Offset into the buffer (in bytes)
 	*  \param Type Descriptor type (e.g., VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER)
 	*/
-internal void WriteBuffer(descriptor_writer* dw, i32 Binding, VkBuffer Buffer, i32 Size, i32 Offset, VkDescriptorType Type);
+fn_internal void WriteBuffer(descriptor_writer* dw, i32 Binding, VkBuffer Buffer, i32 Size, i32 Offset, VkDescriptorType Type);
 
 /** \brief Updates a descriptor set with all queued writes
 	*
@@ -767,7 +769,7 @@ internal void WriteBuffer(descriptor_writer* dw, i32 Binding, VkBuffer Buffer, i
 	*  \param Device Vulkan device
 	*  \param Set Descriptor set to update
 	*/
-internal void UpdateDescriptorSet(descriptor_writer* dw, VkDevice Device, VkDescriptorSet Set);
+fn_internal void UpdateDescriptorSet(descriptor_writer* dw, VkDevice Device, VkDescriptorSet Set);
 
 /** \brief Creates a VkImageCreateInfo structure with common parameters
 	*
@@ -779,7 +781,7 @@ internal void UpdateDescriptorSet(descriptor_writer* dw, VkDevice Device, VkDesc
 	*  \param Extent Image dimensions (width, height, depth)
 	*  \return Fully initialized VkImageCreateInfo structure
 	*/
-internal VkImageCreateInfo ImageCreateInfo(VkFormat Format, VkImageUsageFlags Flags, VkExtent3D Extent);
+fn_internal VkImageCreateInfo ImageCreateInfo(VkFormat Format, VkImageUsageFlags Flags, VkExtent3D Extent);
 
 /** \brief Creates a VkImageViewCreateInfo structure
 	*
@@ -791,7 +793,7 @@ internal VkImageCreateInfo ImageCreateInfo(VkFormat Format, VkImageUsageFlags Fl
 	*  \param flags Aspect flags (e.g., VK_IMAGE_ASPECT_COLOR_BIT)
 	*  \return Fully initialized VkImageViewCreateInfo structure
 	*/
-internal VkImageViewCreateInfo ImageViewCreateInfo(VkFormat Format, VkImage image, VkImageAspectFlags flags);
+fn_internal VkImageViewCreateInfo ImageViewCreateInfo(VkFormat Format, VkImage image, VkImageAspectFlags flags);
 
 /** \brief Creates a default image with associated resources
 	*
@@ -808,8 +810,8 @@ internal VkImageViewCreateInfo ImageViewCreateInfo(VkFormat Format, VkImage imag
 	*  \note The ImageView field in the returned structure must point to
 	*        externally allocated memory that will store the image view handle
 	*/
-internal vk_image CreateImageDefault(vulkan_base* base, VkExtent3D Size, VkFormat Format, VkImageUsageFlags Usage, bool is_mipmapped);
-internal vk_image CreateImageData(vulkan_base* base, void* data, VkExtent3D Size, VkFormat Format, VkImageUsageFlags Usage, bool is_mipmapped);
+fn_internal vk_image CreateImageDefault(vulkan_base* base, VkExtent3D Size, VkFormat Format, VkImageUsageFlags Usage, bool is_mipmapped);
+fn_internal vk_image CreateImageData(vulkan_base* base, void* data, VkExtent3D Size, VkFormat Format, VkImageUsageFlags Usage, bool is_mipmapped);
 
 /** \brief Creates a VkCommandBufferBeginInfo structure
 	*
@@ -819,7 +821,7 @@ internal vk_image CreateImageData(vulkan_base* base, void* data, VkExtent3D Size
 	*  \param flags Command buffer usage flags
 	*  \return Fully initialized VkCommandBufferBeginInfo structure
 	*/
-internal VkCommandBufferBeginInfo CommandBufferBeginInfo(VkCommandBufferUsageFlags flags);
+fn_internal VkCommandBufferBeginInfo CommandBufferBeginInfo(VkCommandBufferUsageFlags flags);
 
 /** \brief Begins an immediate submit command buffer
 	*
@@ -832,7 +834,7 @@ internal VkCommandBufferBeginInfo CommandBufferBeginInfo(VkCommandBufferUsageFla
 	*  \note This is part of a pattern for single-use command buffers that
 	*        are submitted immediately after recording
 	*/
-internal VkCommandBuffer ImmediateSubmitBegin(vulkan_base* base);
+fn_internal VkCommandBuffer ImmediateSubmitBegin(vulkan_base* base);
 
 /** \brief Creates a VkCommandBufferSubmitInfo structure
 	*
@@ -842,7 +844,7 @@ internal VkCommandBuffer ImmediateSubmitBegin(vulkan_base* base);
 	*  \param cmd Command buffer to submit
 	*  \return Fully initialized VkCommandBufferSubmitInfo structure
 	*/
-internal VkCommandBufferSubmitInfo CommandBufferSubmitInfo(VkCommandBuffer cmd);
+fn_internal VkCommandBufferSubmitInfo CommandBufferSubmitInfo(VkCommandBuffer cmd);
 
 /** \brief Creates a VkSubmitInfo2 structure
 	*
@@ -854,7 +856,7 @@ internal VkCommandBufferSubmitInfo CommandBufferSubmitInfo(VkCommandBuffer cmd);
 	*  \param waitSemaphoreInfo Semaphore info for waiting (can be NULL)
 	*  \return Fully initialized VkSubmitInfo2 structure
 	*/
-internal VkSubmitInfo2 SubmitInfo(VkCommandBufferSubmitInfo* cmd, VkSemaphoreSubmitInfo* signalSemaphoreInfo, VkSemaphoreSubmitInfo* waitSemaphoreInfo);
+fn_internal VkSubmitInfo2 SubmitInfo(VkCommandBufferSubmitInfo* cmd, VkSemaphoreSubmitInfo* signalSemaphoreInfo, VkSemaphoreSubmitInfo* waitSemaphoreInfo);
 
 /** \brief Completes and submits an immediate command buffer
 	*
@@ -866,7 +868,7 @@ internal VkSubmitInfo2 SubmitInfo(VkCommandBufferSubmitInfo* cmd, VkSemaphoreSub
 	*
 	*  \note This function blocks until the command buffer execution completes
 	*/
-internal void ImmediateSubmitEnd(vulkan_base* base, VkCommandBuffer cmd);
+fn_internal void ImmediateSubmitEnd(vulkan_base* base, VkCommandBuffer cmd);
 
 /** \brief Transition an image's layout using Vulkan 1.3 synchronization model
 	*
@@ -882,7 +884,7 @@ internal void ImmediateSubmitEnd(vulkan_base* base, VkCommandBuffer cmd);
 	*  \param dstStageMask Pipeline stages that must wait for the barrier
 	*  \param dstAccessMask Memory accesses that must wait for the barrier
 	*/
-internal void TransitionImage(VkCommandBuffer cmd, VkImage image, VkImageLayout currentLayout,
+fn_internal void TransitionImage(VkCommandBuffer cmd, VkImage image, VkImageLayout currentLayout,
                               VkImageLayout newLayout, VkPipelineStageFlags2 srcStageMask,
                               VkAccessFlags2 srcAccessMask, VkPipelineStageFlags2 dstStageMask,
                               VkAccessFlags2 dstAccessMask);
@@ -923,7 +925,7 @@ void CopyImageToImage(VkCommandBuffer cmd, VkImage source, VkImage destination, 
 	*        not be called frequently during normal rendering.
 	*  \note After recreation, the framebuffer resized flag is cleared.
 	*/
-internal void RecreateSwapchain(vulkan_base* base);
+fn_internal void RecreateSwapchain(vulkan_base* base);
 
 /** \brief Prepares the next frame for rendering
 	*
@@ -939,7 +941,7 @@ internal void RecreateSwapchain(vulkan_base* base);
 	*  \note If VK_ERROR_OUT_OF_DATE_KHR is returned, the swapchain must be
 	*        recreated before proceeding with rendering.
 	*/
-internal bool PrepareFrame(vulkan_base* base);
+fn_internal bool PrepareFrame(vulkan_base* base);
 
 /** \brief Begins command buffer recording for a new frame
 	*
@@ -954,7 +956,7 @@ internal bool PrepareFrame(vulkan_base* base);
 	*  \note This function assumes that PrepareFrame has already been called
 	*        successfully for the current frame.
 	*/
-internal VkCommandBuffer BeginRender(vulkan_base* base);
+fn_internal VkCommandBuffer BeginRender(vulkan_base* base);
 
 /** \brief Creates a VkSemaphoreSubmitInfo structure
 	*
@@ -967,7 +969,7 @@ internal VkCommandBuffer BeginRender(vulkan_base* base);
 	*
 	*  \note The function sets default values for deviceIndex (0) and value (1)
 	*/
-internal VkSemaphoreSubmitInfo SemaphoreSubmitInfo(VkPipelineStageFlags2 stageMask, VkSemaphore semaphore);
+fn_internal VkSemaphoreSubmitInfo SemaphoreSubmitInfo(VkPipelineStageFlags2 stageMask, VkSemaphore semaphore);
 
 /** \brief Completes rendering and presents the frame
 	*
@@ -986,7 +988,7 @@ internal VkSemaphoreSubmitInfo SemaphoreSubmitInfo(VkPipelineStageFlags2 stageMa
 	*  \note The CurrentFrame index is updated at the end of this function
 	*        to rotate through the frame resources.
 	*/
-internal bool EndRender(vulkan_base* base, VkCommandBuffer cmd);
+fn_internal bool EndRender(vulkan_base* base, VkCommandBuffer cmd);
 
 #endif // _VK_RENDER_H_
 
@@ -1007,7 +1009,7 @@ VkBool32
 
 ///////////////////////////////////////////////////////////////////////////////
 //
-internal void
+fn_internal void
 	populate_debug_messenger_create_info(VkDebugUtilsMessengerCreateInfoEXT* createInfo) {
 	createInfo->sType           = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
 	createInfo->messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT;
@@ -1018,7 +1020,7 @@ internal void
 
 ///////////////////////////////////////////////////////////////////////////////
 //
-internal queue_family_indices
+fn_internal queue_family_indices
 	FindQueueFamilies(vulkan_base* base, VkPhysicalDevice Device) {
     queue_family_indices Indices;
     Indices.GraphicsAndCompute = UINT32_MAX;
@@ -1058,7 +1060,7 @@ internal queue_family_indices
 
 ///////////////////////////////////////////////////////////////////////////////
 //
-internal bool
+fn_internal bool
 	CheckValidationLayerSupport(vulkan_base* base) {
     u32 LayerCount = 0;
     VkLayerProperties* Layers;
@@ -1087,7 +1089,7 @@ internal bool
 
 ///////////////////////////////////////////////////////////////////////////////
 //
-internal bool
+fn_internal bool
 	CheckDeviceExtensionSupport( vulkan_base* base, VkPhysicalDevice Device ) {
     u32 ExtensionCount = 0;
     VkExtensionProperties* Extensions = 0;
@@ -1124,7 +1126,7 @@ internal bool
 
 ///////////////////////////////////////////////////////////////////////////////
 //
-internal swapchain_support_details
+fn_internal swapchain_support_details
 	QuerySwapchainSupport(vulkan_base* base, VkPhysicalDevice Device )
 {
     swapchain_support_details Details = {};
@@ -1151,7 +1153,7 @@ internal swapchain_support_details
 
 ///////////////////////////////////////////////////////////////////////////////
 //
-internal bool
+fn_internal bool
 	IsSuitableDevice(vulkan_base* base, VkPhysicalDevice Device) {
     queue_family_indices Indices = FindQueueFamilies(base, Device);
 	bool extensions_supported = CheckDeviceExtensionSupport(base, Device);
@@ -1170,7 +1172,7 @@ internal bool
 
 ///////////////////////////////////////////////////////////////////////////////
 //
-internal vulkan_base
+fn_internal vulkan_base
 	VulkanInit() {
     vulkan_base Base = {};
 
@@ -1272,7 +1274,16 @@ internal vulkan_base
         VK_CHECK(vkCreateInstance(&InstanceInfo, 0, &Base.Instance));
     }
 
-	#if __linux__
+	#ifdef SDL_USAGE
+	VkSurfaceKHR surface = VK_NULL_HANDLE;
+
+	if (!SDL_Vulkan_CreateSurface(Base.Window.Win, Base.Instance, NULL, &surface)) {
+		fprintf(stderr, "SDL_Vulkan_CreateSurface failed: %s\n", SDL_GetError());
+		exit(EXIT_FAILURE);
+	}
+
+	Base.Window.Surface = surface;
+	#elif __linux__
     VkXlibSurfaceCreateInfoKHR ci = {};
     ci.sType  = VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR;
     ci.dpy    = Base.Window.Dpy;
@@ -1457,7 +1468,7 @@ internal vulkan_base
 ///////////////////////////////////////////////////////////////////////////////
 // clamp helper function
 //
-internal u32
+fn_internal u32
 	u32_clamp(u32 value, u32 min, u32 max) {
     if( value < min ) {
         value = min;
@@ -1471,7 +1482,7 @@ internal u32
 ///////////////////////////////////////////////////////////////////////////////
 // Vulkan Swapchain creation
 //
-internal void
+fn_internal void
 	CreateSwapchain(vulkan_base* base) {
     swapchain_support_details Support = QuerySwapchainSupport(base, base->PhysicalDevice);
     U32 ImageCount = Support.Capabilities.minImageCount + 1;
@@ -1563,7 +1574,7 @@ internal void
 ///////////////////////////////////////////////////////////////////////////////
 // ImageCreateInfo helper function
 //
-internal VkImageCreateInfo
+fn_internal VkImageCreateInfo
 	ImageCreateInfo(VkFormat Format, VkImageUsageFlags UsageFlags, VkExtent3D Extent) {
     VkImageCreateInfo info = {};
     info.sType         = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -1585,7 +1596,7 @@ internal VkImageCreateInfo
 ///////////////////////////////////////////////////////////////////////////////
 // Creates image views for swapchain
 //
-internal void
+fn_internal void
 	CreateImageViews(vulkan_base* base) {
     base->Swapchain.N_ImageViews = base->Swapchain.N_Images;
 
@@ -1613,7 +1624,7 @@ internal void
 ///////////////////////////////////////////////////////////////////////////////
 // Command pool helper functions
 //
-internal VkCommandPoolCreateInfo
+fn_internal VkCommandPoolCreateInfo
 	CommandPoolCreateInfo(u32 queueFamilyIndex, VkCommandPoolCreateFlags flags /*= 0*/) {
     VkCommandPoolCreateInfo info = {};
     info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
@@ -1624,7 +1635,7 @@ internal VkCommandPoolCreateInfo
     return info;
 }
 
-internal VkCommandBufferAllocateInfo
+fn_internal VkCommandBufferAllocateInfo
 	CommandBufferAllocateInfo( VkCommandPool pool, u32 count ) {
     VkCommandBufferAllocateInfo info = {};
     info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
@@ -1641,7 +1652,7 @@ internal VkCommandBufferAllocateInfo
 ///////////////////////////////////////////////////////////////////////////////
 // Creates the command buffers for the main rendering
 //
-internal void
+fn_internal void
 	InitCommands(vulkan_base* base) {
     VkCommandPoolCreateInfo CommandPoolInfo = CommandPoolCreateInfo(base->FamilyIndices.GraphicsAndCompute, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
 
@@ -1664,7 +1675,7 @@ internal void
 //
 
 // -----------------------------------------------------------------------------
-internal VkSemaphoreCreateInfo
+fn_internal VkSemaphoreCreateInfo
 	SemaphoreCreateInfo( VkSemaphoreCreateFlags flags) {
     VkSemaphoreCreateInfo info = {};
     info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
@@ -1675,7 +1686,7 @@ internal VkSemaphoreCreateInfo
 }
 
 // ------------------------------------------------------------------
-internal VkFenceCreateInfo
+fn_internal VkFenceCreateInfo
 	FenceCreateInfo(VkFenceCreateFlags flags) {
     VkFenceCreateInfo info = {};
     info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
@@ -1686,7 +1697,7 @@ internal VkFenceCreateInfo
     return info;
 }
 
-internal void
+fn_internal void
 	InitSyncStructures(vulkan_base* base) {
     // create syncronization structures
     // one fence to control when the gpu has finished rendering the frame,
@@ -1722,7 +1733,7 @@ internal void
 ///////////////////////////////////////////////////////////////////////////////
 // Init descriptors
 //
-internal void
+fn_internal void
 	InitDescriptors(vulkan_base* base) {
     pool_size_ratio* sizes = stack_push( &base->Allocator,  pool_size_ratio,  3);
 	sizes[0] = pool_size_ratio{VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 8};
@@ -1735,7 +1746,7 @@ internal void
 ///////////////////////////////////////////////////////////////////////////////
 // Init descriptor pool
 //
-internal void
+fn_internal void
 	InitDescriptorPool(vulkan_base* base, VkDescriptorPool* Pool, VkDevice Device, u32 MaxSets, pool_size_ratio* pool_ratios, u32 N_Pools ) {
     VkDescriptorPoolSize* PoolSizes = stack_push(&base->Allocator, VkDescriptorPoolSize, N_Pools);
 
@@ -1757,17 +1768,17 @@ internal void
     vkCreateDescriptorPool(Device, &pool_info, 0, Pool);
 }
 
-internal void
+fn_internal void
 	ClearDescriptorPool(VkDescriptorPool* allocator, VkDevice device) {
     vkResetDescriptorPool(device, *allocator, VkDescriptorPoolResetFlags{});
 }
 
-internal void
+fn_internal void
 	DestroyPool(VkDescriptorPool* allocator, VkDevice device) {
     vkDestroyDescriptorPool(device, *allocator, 0);
 }
 
-internal  allocated_buffer
+fn_internal  allocated_buffer
 	CreateBuffer(VmaAllocator allocator, VkDeviceSize AllocSize, VkBufferUsageFlags Usage, VmaMemoryUsage MemoryUsage)
 {
     allocated_buffer out = {};
@@ -1795,7 +1806,7 @@ internal  allocated_buffer
     return out;
 }
 
-internal void
+fn_internal void
 	DestroyBuffer(VmaAllocator* allocator, allocated_buffer* buf)
 {
     vmaDestroyBuffer(*allocator, buf->Buffer, buf->Allocation);
@@ -2063,7 +2074,7 @@ void SetColorAttachmentFormat(pipeline_builder* builder, VkFormat format) {
     builder->RenderInfo.pColorAttachmentFormats = &builder->ColorAttachmentFormat;
 }
 
-internal bool
+fn_internal bool
 	LoadShaderModule(const char* filename, VkDevice device, VkShaderModule* outModule)
 {
     f_file f = F_OpenFile(filename, RDONLY);
@@ -2146,14 +2157,14 @@ vk_pipeline AddPipeline(vulkan_base* base, pipeline_builder* builder, const char
     return pipeline;
 }
 
-internal void
+fn_internal void
 	InitDescriptorSet(vk_descriptor_set* ds, u32 max_descriptor_set_layout_binding, Stack_Allocator* Allocator) {
     ds->Allocator  = Allocator;
     ds->BackBuffer = stack_push(ds->Allocator, VkDescriptorSetLayoutBinding, max_descriptor_set_layout_binding);
     ds->bindings   = VectorNew(ds->BackBuffer, 0, max_descriptor_set_layout_binding, VkDescriptorSetLayoutBinding);
 }
 
-internal void
+fn_internal void
 	AddBindingDescriptorSet(vk_descriptor_set* ds, u32 binding, VkDescriptorType type) {
     VkDescriptorSetLayoutBinding new_bind = {};
     new_bind.binding = binding;
@@ -2169,12 +2180,12 @@ internal void
     VectorAppend(&ds->bindings, &new_bind);
 }
 
-internal void
+fn_internal void
 	ClearDescriptorSet(vk_descriptor_set* ds) {
     VectorClear(&ds->bindings);
 }
 
-internal VkDescriptorSetLayout
+fn_internal VkDescriptorSetLayout
 	BuildDescriptorSet(vk_descriptor_set* ds, VkDevice device, VkShaderStageFlags shader_stages, void* p_next, VkDescriptorSetLayoutCreateFlags flags) {
     for( u32 idx = 0; idx < ds->bindings.len; idx += 1 ) {
         VkDescriptorSetLayoutBinding* binding = (VkDescriptorSetLayoutBinding *)VectorGet(&ds->bindings, idx);
@@ -2194,7 +2205,7 @@ internal VkDescriptorSetLayout
     return set;
 }
 
-internal VkDescriptorSet
+fn_internal VkDescriptorSet
 	DescriptorSetAllocate(VkDescriptorPool* Pool, VkDevice device, VkDescriptorSetLayout* layout) {
     VkDescriptorSetAllocateInfo alloc_info = {};
     alloc_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
@@ -2209,7 +2220,7 @@ internal VkDescriptorSet
     return ds;
 }
 
-internal descriptor_writer
+fn_internal descriptor_writer
 	DescriptorWriterInit(u32 capacity, Stack_Allocator* Allocator) {
     descriptor_writer Writer = {};
 
@@ -2225,14 +2236,14 @@ internal descriptor_writer
     return Writer;
 }
 
-internal void
+fn_internal void
 	DescriptorWriterClear(descriptor_writer* dw) {
     VectorClear(&dw->Writes);
     QueueClear(&dw->BufferInfos);
     QueueClear(&dw->ImageInfos);
 }
 
-internal void
+fn_internal void
 	WriteImage(descriptor_writer* dw, i32 binding, VkImageView Image, VkSampler Sample, VkImageLayout Layout, VkDescriptorType Type) {
     VkDescriptorImageInfo Info = {};
     Info.sampler = Sample;
@@ -2253,7 +2264,7 @@ internal void
     VectorAppend(&dw->Writes, &Write);
 }
 
-internal void
+fn_internal void
 	WriteBuffer(descriptor_writer* dw, i32 Binding, VkBuffer Buffer, i32 Size, i32 Offset, VkDescriptorType Type) {
     VkDescriptorBufferInfo BufferInfo = {};
     BufferInfo.buffer = Buffer;
@@ -2273,7 +2284,7 @@ internal void
     VectorAppend(&dw->Writes, &Write);
 }
 
-internal void
+fn_internal void
 	UpdateDescriptorSet(descriptor_writer* dw, VkDevice Device, VkDescriptorSet Set) {
     for( u32 i = 0; i < dw->Writes.len; i += 1 ) {
         VkWriteDescriptorSet* Write = (VkWriteDescriptorSet*)VectorGet(&dw->Writes, i);
@@ -2283,7 +2294,7 @@ internal void
     vkUpdateDescriptorSets( Device, dw->Writes.len, (const VkWriteDescriptorSet*)dw->Writes.data, 0, 0 );
 }
 
-internal VkImageViewCreateInfo
+fn_internal VkImageViewCreateInfo
 	ImageViewCreateInfo(VkFormat Format, VkImage image, VkImageAspectFlags flags) {
     VkImageViewCreateInfo info = {};
     info.sType    = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -2302,7 +2313,7 @@ internal VkImageViewCreateInfo
     return info;
 }
 
-internal vk_image
+fn_internal vk_image
 	CreateImageDefault(vulkan_base* base, VkExtent3D Size, VkFormat Format, VkImageUsageFlags Usage, bool is_mipmapped)
 {
     vk_image new_image = {};
@@ -2349,7 +2360,7 @@ internal vk_image
 	* @todo   Maybe it should be good to directly pass as an argument the data_size, we do not assume that is
 	*         related to an rgba format, thus we multiply data_size * 4;
 	*/
-internal vk_image
+fn_internal vk_image
 	CreateImageData(vulkan_base* base, void* data, VkExtent3D Size, VkFormat Format, VkImageUsageFlags Usage, bool is_mipmapped)
 {
 	size_t data_size = 0;
@@ -2423,7 +2434,7 @@ internal vk_image
 	return new_image;
 }
 
-internal VkCommandBufferBeginInfo
+fn_internal VkCommandBufferBeginInfo
 	CommandBufferBeginInfo ( VkCommandBufferUsageFlags flags )
 {
 	VkCommandBufferBeginInfo info = {};
@@ -2435,7 +2446,7 @@ internal VkCommandBufferBeginInfo
 	return info;
 }
 
-internal VkCommandBuffer
+fn_internal VkCommandBuffer
 	ImmediateSubmitBegin(vulkan_base* base) {
     VK_CHECK(vkResetFences(base->Device, 1, &base->ImmFence));
     VK_CHECK(vkResetCommandBuffer(base->ImmCommandBuffer, 0));
@@ -2449,7 +2460,7 @@ internal VkCommandBuffer
     return cmd;
 }
 
-internal VkCommandBufferSubmitInfo
+fn_internal VkCommandBufferSubmitInfo
 	CommandBufferSubmitInfo(VkCommandBuffer cmd)
 {
 	VkCommandBufferSubmitInfo info = {};
@@ -2461,7 +2472,7 @@ internal VkCommandBufferSubmitInfo
 	return info;
 }
 
-internal VkSubmitInfo2
+fn_internal VkSubmitInfo2
 	SubmitInfo( VkCommandBufferSubmitInfo* cmd, VkSemaphoreSubmitInfo* signalSemaphoreInfo, VkSemaphoreSubmitInfo *waitSemaphoreInfo) {
 
     VkSubmitInfo2 info = {};
@@ -2480,7 +2491,7 @@ internal VkSubmitInfo2
     return info;
 }
 
-internal void
+fn_internal void
 	ImmediateSubmitEnd(vulkan_base* base, VkCommandBuffer cmd) {
     VK_CHECK(vkEndCommandBuffer(cmd));
     VkCommandBufferSubmitInfo CmdInfo = CommandBufferSubmitInfo(cmd);
@@ -2491,7 +2502,7 @@ internal void
 
 }
 
-internal
+fn_internal
 	void TransitionImage(VkCommandBuffer cmd, VkImage image, VkImageLayout currentLayout,
 						 VkImageLayout newLayout, VkPipelineStageFlags2 srcStageMask,
 						 VkAccessFlags2 srcAccessMask, VkPipelineStageFlags2 dstStageMask,
@@ -2562,7 +2573,7 @@ void CopyImageToImage(VkCommandBuffer cmd, VkImage source, VkImage destination,
     vkCmdBlitImage2(cmd, &blitInfo);
 }
 
-internal void
+fn_internal void
 	RecreateSwapchain(vulkan_base* base) {
     vkDeviceWaitIdle(base->Device);
 	vec2 Size = SurfaceGetWindowSize(&base->Window);
@@ -2584,7 +2595,7 @@ internal void
     base->FramebufferResized = false;
 }
 
-internal bool PrepareFrame(vulkan_base* base) {
+fn_internal bool PrepareFrame(vulkan_base* base) {
     u32 FrameIdx = base->CurrentFrame;
 	bool ResizeSwapchain = false;
 
@@ -2625,7 +2636,7 @@ internal bool PrepareFrame(vulkan_base* base) {
 	return ResizeSwapchain;
 }
 
-internal VkCommandBuffer
+fn_internal VkCommandBuffer
 BeginRender(vulkan_base* base)
 {
     u32 FrameIdx = base->CurrentFrame;
@@ -2644,7 +2655,7 @@ BeginRender(vulkan_base* base)
 	return cmd;
 }
 
-internal VkSemaphoreSubmitInfo
+fn_internal VkSemaphoreSubmitInfo
 	SemaphoreSubmitInfo( VkPipelineStageFlags2 stageMask, VkSemaphore semaphore) {
     VkSemaphoreSubmitInfo submitInfo = {};
     submitInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
@@ -2657,7 +2668,7 @@ internal VkSemaphoreSubmitInfo
     return submitInfo;
 }
 
-internal bool
+fn_internal bool
 EndRender( vulkan_base* base, VkCommandBuffer cmd ) {
 
 	bool ResizeSwapchain = false;
@@ -2728,7 +2739,7 @@ EndRender( vulkan_base* base, VkCommandBuffer cmd ) {
 	return ResizeSwapchain;
 }
 
-internal VkRenderingAttachmentInfo
+fn_internal VkRenderingAttachmentInfo
 	AttachmentInfo( VkImageView View, VkClearValue *Clear, VkImageLayout Layout ) {
     VkRenderingAttachmentInfo colorAttachment = {};
     colorAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
@@ -2747,7 +2758,7 @@ internal VkRenderingAttachmentInfo
 
 // ------------------------------------------------------------------
 
-internal VkRenderingInfo
+fn_internal VkRenderingInfo
 	RenderingInfo(VkExtent2D Extent, VkRenderingAttachmentInfo *ColorInfo, VkRenderingAttachmentInfo* DepthInfo)  {
     VkRenderingInfo renderInfo = {};
     renderInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;

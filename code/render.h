@@ -69,7 +69,7 @@ typedef struct r_vertex_input_description {
 
 /**
 	* @brief Holds information about a resource binding requested for an upcoming draw call.
-	* @note This is an internal structure used by the renderer to queue state changes.
+	* @note This is an fn_internal structure used by the renderer to queue state changes.
 	*/
 typedef struct pending_binding {
     R_Handle         Handle;       /**< The handle of the resource to bind. */
@@ -98,8 +98,8 @@ struct r_render {
     vulkan_base* VulkanBase;        /**< A pointer to the low-level Vulkan backend context. */
     VkDescriptorPool DescriptorPool;    /**< The global descriptor pool used for allocating descriptor sets. */
 
-    hash_table  Textures;          /**< A hash table mapping R_Handles to internal texture resources. */
-    hash_table  Buffers;           /**< A hash table mapping R_Handles to internal buffer resources. */
+    hash_table  Textures;          /**< A hash table mapping R_Handles to fn_internal texture resources. */
+    hash_table  Buffers;           /**< A hash table mapping R_Handles to fn_internal buffer resources. */
 	hash_table  Pipelines;
 
     R_Handle         CurrentPipeline;      /**< The handle of the graphics pipeline currently bound for rendering. */
@@ -124,7 +124,7 @@ struct r_render {
 	* @param base A pointer to an already initialized vulkan_base backend.
 	* @param Allocator A pointer to a memory allocator for the renderer's use.
 	*/
-internal void R_RenderInit(r_render* Render, vulkan_base* base, Stack_Allocator* Allocator);
+fn_internal void R_RenderInit(r_render* Render, vulkan_base* base, Stack_Allocator* Allocator);
 
 /**
 	* @brief Begins a new rendering frame.
@@ -132,24 +132,24 @@ internal void R_RenderInit(r_render* Render, vulkan_base* base, Stack_Allocator*
 	* with the GPU and prepares command buffers for recording.
 	* @param Render A pointer to the initialized renderer context.
 	*/
-internal void R_Begin(r_render* Render);
+fn_internal void R_Begin(r_render* Render);
 
-internal void R_ClearScreen(r_render* Render, vec4 Color);
+fn_internal void R_ClearScreen(r_render* Render, vec4 Color);
 
-internal void R_BeginRenderPass(r_render* Render);
+fn_internal void R_BeginRenderPass(r_render* Render);
 
-internal void R_RenderPassEnd(r_render* Render);
+fn_internal void R_RenderPassEnd(r_render* Render);
 /**
 	* @brief Ends the current rendering frame.
 	* @details This submits all recorded commands to the GPU for execution and presents the
 	* final image to the screen.
 	* @param Render A pointer to the initialized renderer context.
 	*/
-internal void R_RenderEnd(r_render* Render);
+fn_internal void R_RenderEnd(r_render* Render);
 
 // --- Resource Creation and Management ---
 
-internal VkDescriptorSetLayout R_CreateDescriptorSetLayout(
+fn_internal VkDescriptorSetLayout R_CreateDescriptorSetLayout(
 	r_render* Render, 
 	u32 NSets, 
 	VkDescriptorType* Types, 
@@ -165,7 +165,7 @@ internal VkDescriptorSetLayout R_CreateDescriptorSetLayout(
 	* @param DescriptorSetLayout The layout expected on the pipeline
 	* @return An `R_Handle` to the newly created pipeline. Returns `R_HANDLE_INVALID` on failure.
 	*/
-internal R_Handle R_CreatePipelineEx(
+fn_internal R_Handle R_CreatePipelineEx(
 	r_render* Render, 
 	const char* Id,
 	const char* VertPath, 
@@ -186,7 +186,7 @@ R_CreatePipelineEx(Render, Id, VertPath, FragPath, Description, VK_PRIMITIVE_TOP
 R_CreatePipelineEx(Render, Id, VertPath, FragPath, Description, VK_PRIMITIVE_TOPOLOGY_POINT_LIST, DescriptorLayout, LayoutCount)
 
 
-internal R_Handle R_CreateComputePipeline(
+fn_internal R_Handle R_CreateComputePipeline(
 	r_render* Render, 
 	const char* Id,
 	const char* ComputeShaderPath,
@@ -201,14 +201,14 @@ internal R_Handle R_CreateComputePipeline(
 	* @param Type The intended usage of the buffer (e.g., vertex, index, uniform).
 	* @return An `R_Handle` to the newly created buffer.
 	*/
-internal R_Handle R_CreateBuffer(r_render* Render, const char* BufferId, u64 Size, r_buffer_type Type);
+fn_internal R_Handle R_CreateBuffer(r_render* Render, const char* BufferId, u64 Size, r_buffer_type Type);
 
 /**
 	* @brief Destroys a previously created buffer and releases its resources.
 	* @param Render A pointer to the renderer context.
 	* @param Handle The handle of the buffer to destroy.
 	*/
-internal void R_DestroyBuffer(r_render* Render, const char* Id);
+fn_internal void R_DestroyBuffer(r_render* Render, const char* Id);
 
 // --- State Binding and Drawing Commands ---
 
@@ -220,7 +220,7 @@ internal void R_DestroyBuffer(r_render* Render, const char* Id);
 	* @param Data A pointer to the raw data to be copied into the buffer.
 	* @param DataSize The size of the data to copy.
 	*/
-internal void R_UpdateUniformBuffer(r_render* Render, const char* Id, u32 Binding, void* Data, size_t DataSize);
+fn_internal void R_UpdateUniformBuffer(r_render* Render, const char* Id, u32 Binding, void* Data, size_t DataSize);
 
 /**
 	* @brief Binds a storage buffer (SSBO) to a shader location for read-only access.
@@ -228,7 +228,7 @@ internal void R_UpdateUniformBuffer(r_render* Render, const char* Id, u32 Bindin
 	* @param BufferHandle The handle of the storage buffer to bind.
 	* @param Binding The binding point in the shader.
 	*/
-internal void R_BindStorageBuffer(r_render* Render, R_Handle BufferHandle, u32 Binding);
+fn_internal void R_BindStorageBuffer(r_render* Render, R_Handle BufferHandle, u32 Binding);
 
 /**
 	* @brief Pushes a new texture into the render graph
@@ -236,7 +236,7 @@ internal void R_BindStorageBuffer(r_render* Render, R_Handle BufferHandle, u32 B
 	* @param Id      The id of the texture to bind.
 	* @param Image   A pointer to the image texture.
 */
-internal R_Handle R_PushTexture(r_render* Render, const char* Id, vk_image* Image);
+fn_internal R_Handle R_PushTexture(r_render* Render, const char* Id, vk_image* Image);
 
 /**
 	* @brief Binds a texture and its sampler to a shader location.
@@ -244,13 +244,13 @@ internal R_Handle R_PushTexture(r_render* Render, const char* Id, vk_image* Imag
 	* @param TextureHandle The handle of the texture to bind.
 	* @param Binding The binding point in the shader.
 	*/
-internal void R_BindTexture(r_render* Render, const char* Id, u32 Binding, VkDescriptorType Type );
+fn_internal void R_BindTexture(r_render* Render, const char* Id, u32 Binding, VkDescriptorType Type );
 
-internal void R_BindVertexBuffer(r_render* Render, R_Handle Handle);
+fn_internal void R_BindVertexBuffer(r_render* Render, R_Handle Handle);
 
-internal void R_BindIndexBuffer(r_render* Render, R_Handle Handle);
+fn_internal void R_BindIndexBuffer(r_render* Render, R_Handle Handle);
 
-internal void R_SetPipeline(r_render* Render, R_Handle Handle);
+fn_internal void R_SetPipeline(r_render* Render, R_Handle Handle);
 
 /**
 	* @brief Records a non-indexed drawing command.
@@ -266,21 +266,21 @@ void R_Draw(r_render* Render, u32 VertexCount, u32 InstanceCount);
 	* @param IndexCount The number of indices to draw.
 	* @param InstanceCount The number of instances to draw.
 	*/
-internal void R_DrawIndexed(r_render* Render, u32 IndexCount, u32 InstanceCount);
+fn_internal void R_DrawIndexed(r_render* Render, u32 IndexCount, u32 InstanceCount);
 
-internal void R_SendDataToBuffer(r_render* Render, R_Handle Buffer, void* Data, u64 Size, u64 offset);
+fn_internal void R_SendDataToBuffer(r_render* Render, R_Handle Buffer, void* Data, u64 Size, u64 offset);
 
-internal void R_CopyStageToBuffer(r_render* Render, R_Handle StageBuffer, R_Handle Buffer, VkBufferCopy Copy);
+fn_internal void R_CopyStageToBuffer(r_render* Render, R_Handle StageBuffer, R_Handle Buffer, VkBufferCopy Copy);
 
 // --- Internal Helper Functions ---
 
 /**
-	* @internal
+	* @fn_internal
 	* @brief Converts an `r_format` enum to its corresponding `VkFormat`.
 	* @param format The `r_format` to convert.
 	* @return The equivalent `VkFormat`.
 	*/
-internal VkFormat R_FormatToVkFormat(r_format format);
+fn_internal VkFormat R_FormatToVkFormat(r_format format);
 
 /**
 * @brief Despacha un pipeline de cómputo.
@@ -290,19 +290,19 @@ internal VkFormat R_FormatToVkFormat(r_format format);
 	* @param GroupCountY El número de grupos de trabajo a despachar en Y.
 	* @param GroupCountZ El número de grupos de trabajo a despachar en Z.
 	*/
-internal void R_DispatchCompute(r_render* Render, R_Handle PipelineHandle, u32 GroupCountX, u32 GroupCountY, u32 GroupCountZ);
+fn_internal void R_DispatchCompute(r_render* Render, R_Handle PipelineHandle, u32 GroupCountX, u32 GroupCountY, u32 GroupCountZ);
 
 /**
 * @brief Inserta una barrera de memoria para sincronizar cómputo y gráfico.
 * @details Asegura que las escrituras del compute shader (Compute)
 	* sean visibles para las lecturas del vertex/fragment shader (Graphics).
 	*/
-internal void R_AddComputeToGraphicsBarrier(r_render* Render);
+fn_internal void R_AddComputeToGraphicsBarrier(r_render* Render);
 
-internal void R_AddVertexCopyToBarrier(r_render* Render);
+fn_internal void R_AddVertexCopyToBarrier(r_render* Render);
 
-internal void R_SendImageToSwapchain(r_render* Render, R_Handle Image);
+fn_internal void R_SendImageToSwapchain(r_render* Render, R_Handle Image);
 
-internal void R_SendCopyToGpu(r_render* Render);
+fn_internal void R_SendCopyToGpu(r_render* Render);
 
 #endif // _RENDER_H_

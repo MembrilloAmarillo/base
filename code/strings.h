@@ -40,12 +40,12 @@ i64* GetAllOcurrences(U8_String* Str, char val);
 
 void SplitMultiple(U8_String* Dst, i64 Size, const U8_String* Src, char val);
 
-internal i64 StringGetLen(U8_String* Str) { return Str->idx; }
-internal i64 StringGetCapacity(U8_String* Str) { return Str->len; }
+fn_internal i64 StringGetLen(U8_String* Str) { return Str->idx; }
+fn_internal i64 StringGetCapacity(U8_String* Str) { return Str->len; }
 
-internal i64 CustomStrlen(const char* str);
-internal i64 CustomStreq(const char* a, const char* b);
-internal u32 CustomStreqn(const char* a, const char* b, u32 n);
+fn_internal i64 CustomStrlen(const char* str);
+fn_internal i64 CustomStreq(const char* a, const char* b);
+fn_internal u32 CustomStreqn(const char* a, const char* b, u32 n);
 
 #endif
 
@@ -230,7 +230,7 @@ void StringDestroy(U8_String* s) {
 
 }
 
-internal i64 CustomStrlen(const char* str) {
+fn_internal i64 CustomStrlen(const char* str) {
 	U64 i = 0;
 
     if( str == NULL ) { return i; }
@@ -240,7 +240,7 @@ internal i64 CustomStrlen(const char* str) {
     return i;
 }
 
-internal i64 CustomStreq( const char* a, const char* b ) {
+fn_internal i64 CustomStreq( const char* a, const char* b ) {
 	const char* a1 = a, *b1 = b;
 
     while( (*a1 && *b1) && (*a1 == *b1) ) {
@@ -258,7 +258,7 @@ internal i64 CustomStreq( const char* a, const char* b ) {
     return 1;
 }
 
-internal u32 CustomStreqn( const char* a, const char* b, u32 n ) {
+fn_internal u32 CustomStreqn( const char* a, const char* b, u32 n ) {
     const char* a1 = a, *b1 = b;
 
     u32 i = 0;

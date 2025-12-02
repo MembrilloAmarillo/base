@@ -3,14 +3,14 @@
 #include "types.h"
 
 template <typename T>
-internal void TopDownSplitMerge(T*BackBuffer, T* Buffer, i64 N);
+fn_internal void TopDownSplitMerge(T*BackBuffer, T* Buffer, i64 N);
 
 #endif // __SORTING_HPP__
 
 #ifdef SORT_IMPL
 
 template<typename T>
-internal void TopDownMerge(T* BackBuffer, T* Buffer, i64 Begin, i64 Middle, i64 End) {
+fn_internal void TopDownMerge(T* BackBuffer, T* Buffer, i64 Begin, i64 Middle, i64 End) {
 	i64 i = Begin, j = Middle;
     for (i64 k = Begin; k < End; k++) {
         if (i < Middle && (j >= End || Buffer[i] >= Buffer[j])) {
@@ -24,7 +24,7 @@ internal void TopDownMerge(T* BackBuffer, T* Buffer, i64 Begin, i64 Middle, i64 
 }
 
 template<typename T>
-internal void TopDownSplitMergeEx(T* BackBuffer, T* Buffer, i64 Begin, i64 End) {
+fn_internal void TopDownSplitMergeEx(T* BackBuffer, T* Buffer, i64 Begin, i64 End) {
 	if (End - Begin <= 1) {
 		return;
 	}
@@ -36,7 +36,7 @@ internal void TopDownSplitMergeEx(T* BackBuffer, T* Buffer, i64 Begin, i64 End) 
 }
 
 template<typename T>
-internal void TopDownSplitMerge(T* BackBuffer, T* Buffer, i64 N) {
+fn_internal void TopDownSplitMerge(T* BackBuffer, T* Buffer, i64 N) {
 	TopDownSplitMergeEx(BackBuffer, Buffer, 0, N);
 }
 

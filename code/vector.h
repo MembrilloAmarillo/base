@@ -30,7 +30,7 @@ struct vector {
  * @return vector   Initialized vector
  * @note For sake for user manageability, the buffer will be initialized and destroyed by them
  */
-internal vector VectorInit(void* buffer, u32 len, u32 capacity, u32 data_size);
+fn_internal vector VectorInit(void* buffer, u32 len, u32 capacity, u32 data_size);
 
 /**
  * @author Sascha Paez
@@ -38,31 +38,31 @@ internal vector VectorInit(void* buffer, u32 len, u32 capacity, u32 data_size);
  *
  * @note For sake for user manageability, the buffer will never be freed by the function
  */
-internal void VectorReset(vector* v);
+fn_internal void VectorReset(vector* v);
 
 /**
  * @author Sascha Paez
  * @brief  Appends a value into the vector
  */
-internal void VectorAppend(vector* v, void* val);
+fn_internal void VectorAppend(vector* v, void* val);
 
 /**
  * @author Sascha Paez
  * @brief  Sets a value into a given idx
  */
-internal void VectorSet(vector* v, void* val, u32 idx);
+fn_internal void VectorSet(vector* v, void* val, u32 idx);
 
 /**
  * @author Sascha Paez
  * @brief  Gets the pointer to the value from a given idx
  */
-internal void* VectorGet(vector* v, u32 idx);
+fn_internal void* VectorGet(vector* v, u32 idx);
 
 /**
  * @author Sascha Paez
  * @brief  Resizes the vector into a new capacity
  */
-internal void VectorResize(vector* v, void* buffer, u32 new_len);
+fn_internal void VectorResize(vector* v, void* buffer, u32 new_len);
 
 /**
  * @author Sascha Paez
@@ -71,7 +71,7 @@ internal void VectorResize(vector* v, void* buffer, u32 new_len);
  * @note It is important to note that, as it does not manage the memory from the buffer, until the buffer is freed it will always
  * occupy the same amount of memory
  */
-internal void VectorPop(vector* v);
+fn_internal void VectorPop(vector* v);
 
 /**
  * @author Sascha Paez
@@ -84,7 +84,7 @@ internal void VectorPop(vector* v);
 
 #ifdef VECTOR_IMPL
 
-internal vector
+fn_internal vector
 VectorInit(void* buffer, u32 len, u32 capacity, u32 data_size) {
 	vector v = {};
 	v.data = buffer;
@@ -96,18 +96,18 @@ VectorInit(void* buffer, u32 len, u32 capacity, u32 data_size) {
     return v;
 }
 
-internal void
+fn_internal void
 VectorReset(vector* v) {
     memset(v, 0, sizeof(vector));
 }
 
-internal void
+fn_internal void
 VectorClear(vector* v) {
     v->len = 0;
     v->offset = 0;
 }
 
-internal void
+fn_internal void
 VectorAppend(vector* v, void* val) {
     if( v->len < v->capacity) {
         memcpy(((u8*)v->data + v->offset), val, v->data_size);
@@ -120,7 +120,7 @@ VectorAppend(vector* v, void* val) {
     }
 }
 
-internal void
+fn_internal void
 VectorPop(vector* v) {
     if(v->len > 0) {
         v->len -= 1;
@@ -128,7 +128,7 @@ VectorPop(vector* v) {
     }
 }
 
-internal void
+fn_internal void
 VectorResize(vector* v, void* buffer, u32 new_len) {
     u32 len       = v->len;
     u32 offset    = v->offset;
@@ -141,7 +141,7 @@ VectorResize(vector* v, void* buffer, u32 new_len) {
     v->len    = len;
 }
 
-internal void
+fn_internal void
 VectorSet(vector* v, void* val, u32 idx) {
     if( v == NULL ) { return; }
     if( v->data == NULL ) { return; }
@@ -152,7 +152,7 @@ VectorSet(vector* v, void* val, u32 idx) {
     memcpy(((u8*)v->data + idx_offset), val, v->data_size);
 }
 
-internal void*
+fn_internal void*
 VectorGet(vector* v, u32 idx) {
     if( v == NULL ) { return NULL; }
     if( v->data == NULL ) { return NULL; }

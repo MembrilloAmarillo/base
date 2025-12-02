@@ -37,7 +37,7 @@ typedef unsigned char bool;
 #endif
 
 
-#define internal      static
+#define fn_internal      static
 #define global        static
 #define local_persist static
 
@@ -85,32 +85,32 @@ union vec2 {
 	f32 v[2];
 };
 
-internal inline vec2 Vec2Zero() {
+fn_internal inline vec2 Vec2Zero() {
 	vec2 x = {0, 0};
 	return x;
 }
 
-internal inline vec2 Vec2New(f32 x, f32 y) {
+fn_internal inline vec2 Vec2New(f32 x, f32 y) {
 	vec2 vx = {x, y};
 	return vx;
 }
 
-internal inline vec2 Vec2Add(vec2 v1, vec2 v2) {
+fn_internal inline vec2 Vec2Add(vec2 v1, vec2 v2) {
 	vec2 x = { v1.x + v2.x, v1.y + v2.y };
 	return x;
 }
 
-internal inline vec2 Vec2Sub(vec2 v1, vec2 v2) {
+fn_internal inline vec2 Vec2Sub(vec2 v1, vec2 v2) {
 	vec2 x = { v1.x - v2.x, v1.y - v2.y };
 	return x;
 }
 
-internal inline vec2 Vec2Mul(vec2 v1, vec2 v2) {
+fn_internal inline vec2 Vec2Mul(vec2 v1, vec2 v2) {
 	vec2 x = { v1.x * v2.x, v1.y * v2.y };
 	return x;
 }
 
-internal inline vec2 Vec2ScalarMul(f32 scalar, vec2 v1) {
+fn_internal inline vec2 Vec2ScalarMul(f32 scalar, vec2 v1) {
 	vec2 x = { scalar * v1.x, scalar * v1.y };
 	return x;
 }
@@ -137,7 +137,7 @@ union vec4 {
 	f32 v[4];
 };
 
-internal inline vec4 Vec4New(f32 x, f32 y, f32 z, f32 w) {
+fn_internal inline vec4 Vec4New(f32 x, f32 y, f32 z, f32 w) {
 	vec4 v = { x, y, z, w };
 	return v;
 }

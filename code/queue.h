@@ -25,7 +25,7 @@ struct queue {
  * @return queue   Initialized queue   
  * @note For sake for user manageability, the buffer will be initialized and destroyed by them
  */
-internal queue QueueInit(void* buffer, u32 len, u32 capacity, u32 data_size);
+fn_internal queue QueueInit(void* buffer, u32 len, u32 capacity, u32 data_size);
 
 /**
  * @author Sascha Paez
@@ -33,7 +33,7 @@ internal queue QueueInit(void* buffer, u32 len, u32 capacity, u32 data_size);
  * 
  * @note For sake for user manageability, the buffer will never be freed by the function
  */
-internal void QueueClear(queue* q);
+fn_internal void QueueClear(queue* q);
 
 /**
  * @author Sascha Paez
@@ -42,7 +42,7 @@ internal void QueueClear(queue* q);
  * @note For sake for user manageability, the buffer will never be freed by the function
  * @return Pointer to the value stored in the queue, NULL if it could not be stored
  */
-internal void* QueuePush(queue* q, void* data);
+fn_internal void* QueuePush(queue* q, void* data);
 
 /**
  * @author Sascha Paez
@@ -50,7 +50,7 @@ internal void* QueuePush(queue* q, void* data);
  * 
  * @note For sake for user manageability, the buffer will never be freed by the function
  */
-internal void* QueuePopRaw(queue* q);
+fn_internal void* QueuePopRaw(queue* q);
 
 /**
  * @author Sascha Paez
@@ -66,7 +66,7 @@ internal void* QueuePopRaw(queue* q);
  * 
  * @note For sake for user manageability, the buffer will never be freed by the function
  */
-internal void* QueueGetFrontRaw(queue* q);
+fn_internal void* QueueGetFrontRaw(queue* q);
 
 /**
  * @author Sascha Paez
@@ -80,7 +80,7 @@ internal void* QueueGetFrontRaw(queue* q);
 
 #ifdef QUEUE_IMPL
 
-internal queue 
+fn_internal queue 
 QueueInit(void* buffer, u32 len, u32 capacity, u32 data_size) {
 	queue q = {};
 	q.data      = buffer;
@@ -94,13 +94,13 @@ QueueInit(void* buffer, u32 len, u32 capacity, u32 data_size) {
     return q;
 }
 
-internal void 
+fn_internal void 
 QueueClear(queue* q) {
     q->len = 0;
     q->idx_front = 0;
 }
 
-internal void* 
+fn_internal void* 
 QueuePush(queue* q, void* data) {
     if( q->len == q->capacity ) { return NULL; }
 
@@ -114,7 +114,7 @@ QueuePush(queue* q, void* data) {
     return current_offset;
 }
 
-internal void* 
+fn_internal void* 
 QueuePopRaw(queue* q) {
     if( q->len == 0 ) { return NULL; }
 
@@ -132,7 +132,7 @@ QueuePopRaw(queue* q) {
     return (void*)data;
 }
 
-internal void* 
+fn_internal void* 
 QueueGetFrontRaw(queue* q) {
     if( q->len == 0 ) { return NULL; }
 

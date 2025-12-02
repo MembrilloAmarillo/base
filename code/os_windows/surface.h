@@ -22,9 +22,9 @@ struct api_window {
  *  \param h Height of the window in pixels
  *  \return Handle to the created window
  */
-internal api_window SurfaceCreateWindow(F64 w, F64 h);
+fn_internal api_window SurfaceCreateWindow(F64 w, F64 h);
 
-internal vec2 SurfaceGetWindowSize(api_window* window);
+fn_internal vec2 SurfaceGetWindowSize(api_window* window);
 
 #endif 
 
@@ -56,7 +56,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 }
 
 
-internal api_window 
+fn_internal api_window 
 SurfaceCreateWindow(F64 w, F64 h) {
     api_window app = {0};
     app.Width = w;
@@ -110,7 +110,7 @@ SurfaceCreateWindow(F64 w, F64 h) {
     return app;
 }
 
-internal vec2 
+fn_internal vec2 
 SurfaceGetWindowSize(api_window* window) {
     RECT r;
     vec2 size = Vec2Zero();

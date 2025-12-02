@@ -77,7 +77,7 @@ udp_socket_connect UDP_CreateSocketConnect( const char* IP, U32 PORT );
 * @param BitSize   Size of the value in bits
 
 */
-internal void PackBits(u8* Buffer, u32 BufferLen, u64* BitOffset, u64 Value, u64 BitSize );
+fn_internal void PackBits(u8* Buffer, u32 BufferLen, u64* BitOffset, u64 Value, u64 BitSize );
 
 
 /**
@@ -88,7 +88,7 @@ internal void PackBits(u8* Buffer, u32 BufferLen, u64* BitOffset, u64 Value, u64
 * @param BitSize   Size of the value in bits
 * @return Value stored
 */
-internal u64 UnpackBits(u8* Buffer, u32 BufferLen, u64* BitOffset, u64 BitSize );
+fn_internal u64 UnpackBits(u8* Buffer, u32 BufferLen, u64* BitOffset, u64 BitSize );
 
 #endif
 
@@ -182,7 +182,7 @@ udp_socket_connect UDP_CreateSocketConnect( const char* IP, U32 PORT ) {
     return sock;
 }
 
-internal void
+fn_internal void
 PackBits(u8* Buffer, u32 BufferLen, u64* BitOffset, u64 Value, u64 BitSize) {
     for (u64 i = 0; i < BitSize; i += 1) {
         // Calculate the position for the current bit using the loop counter 'i'
@@ -206,7 +206,7 @@ PackBits(u8* Buffer, u32 BufferLen, u64* BitOffset, u64 Value, u64 BitSize) {
     *BitOffset += BitSize;
 }
 
-internal u64
+fn_internal u64
 UnpackBits(u8* Buffer, u32 BufferLen, u64* BitOffset, u64 BitSize) {
     // Check if the read will go out of bounds
     if (((*BitOffset + BitSize) / 8) >= BufferLen) {

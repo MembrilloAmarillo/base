@@ -262,22 +262,22 @@ struct ui_context {
 	vec4 IconsUvCoords[Icon_Details + 1];
 };
 
-internal void UI_Init(ui_context* Context, Stack_Allocator* Allocator, Stack_Allocator* TempAllocator);
+fn_internal void UI_Init(ui_context* Context, Stack_Allocator* Allocator, Stack_Allocator* TempAllocator);
 
-internal void UI_Begin(ui_context* Context);
+fn_internal void UI_Begin(ui_context* Context);
 
-internal void UI_End( ui_context* Context, draw_bucket_instance* DrawInstance );
+fn_internal void UI_End( ui_context* Context, draw_bucket_instance* DrawInstance );
 
-internal void UI_WindowBegin(ui_context* Context, rect_2d Rect, const char* Title, ui_lay_opt Options);
+fn_internal void UI_WindowBegin(ui_context* Context, rect_2d Rect, const char* Title, ui_lay_opt Options);
 
-internal void UI_WindowEnd(ui_context* Context);
+fn_internal void UI_WindowEnd(ui_context* Context);
 
-internal ui_input UI_LastEvent(ui_context* Context, api_window* Window);
+fn_internal ui_input UI_LastEvent(ui_context* Context, api_window* Window);
 
-internal void UI_DrawRect2D(ui_context* Context, rect_2d Rect, vec4 color, vec4 color_border, f32 border, f32 radius);
-internal void UI_DrawText2D(ui_context* Context, rect_2d Rect, U8_String* String, FontCache* Font, vec4 color);
+fn_internal void UI_DrawRect2D(ui_context* Context, rect_2d Rect, vec4 color, vec4 color_border, f32 border, f32 radius);
+fn_internal void UI_DrawText2D(ui_context* Context, rect_2d Rect, U8_String* String, FontCache* Font, vec4 color);
 
-internal ui_object* UI_BuildObjectWithParent(
+fn_internal ui_object* UI_BuildObjectWithParent(
 	ui_context* Context,
 	const u8* Key,
 	const u8* Text,
@@ -288,72 +288,72 @@ internal ui_object* UI_BuildObjectWithParent(
 
 #define UI_BuildObject(ctx, key, txt, rect, opts) UI_BuildObjectWithParent(ctx, key, txt, rect, opts, ctx->CurrentParent);
 
-internal ui_input UI_ConsumeEvents(ui_context* Context, ui_object* Object);
+fn_internal ui_input UI_ConsumeEvents(ui_context* Context, ui_object* Object);
 // Widgets
-internal ui_input UI_Button(ui_context* Context, const char* text);
-internal ui_input UI_Label(ui_context* Context, const char* text);
-internal ui_input UI_LabelWithKey(ui_context* Context, const char* key, const char* text);
-internal ui_input UI_TextBox(ui_context* Context, const char* text);
-internal ui_input UI_BeginTreeNode(ui_context* Context, const char* text);
-internal void     UI_EndTreeNode(ui_context* Context);
+fn_internal ui_input UI_Button(ui_context* Context, const char* text);
+fn_internal ui_input UI_Label(ui_context* Context, const char* text);
+fn_internal ui_input UI_LabelWithKey(ui_context* Context, const char* key, const char* text);
+fn_internal ui_input UI_TextBox(ui_context* Context, const char* text);
+fn_internal ui_input UI_BeginTreeNode(ui_context* Context, const char* text);
+fn_internal void     UI_EndTreeNode(ui_context* Context);
 
-internal void UI_PushNextLayoutIcon(ui_context* Context, icon_type Type);
-internal void UI_PopNextIcon(ui_context* Context);
+fn_internal void UI_PushNextLayoutIcon(ui_context* Context, icon_type Type);
+fn_internal void UI_PopNextIcon(ui_context* Context);
 
-internal ui_input UI_SetIcon(ui_context* Context, const char* Name, icon_type Type);
+fn_internal ui_input UI_SetIcon(ui_context* Context, const char* Name, icon_type Type);
 
-internal void UI_SetNextParent(ui_context* Context, ui_object* Object);
-internal void UI_PopLastParent(ui_context* Context);
-internal void UI_PushNextLayout(ui_context* Context, rect_2d Rect, ui_lay_opt Options);
-internal void UI_PushNextLayoutRow(ui_context* Context, int N_Rows, const f32* Rows );
-internal void UI_PushNextLayoutColumn(ui_context* Context, int N_Columns, const f32* Columns );
-internal void UI_PushNextLayoutBoxSize(ui_context* Context, vec2 BoxSize);
-internal void UI_PushNextLayoutPadding(ui_context* Context, vec2 Padding);
-internal void UI_PushNextLayoutOption(ui_context* Context, ui_lay_opt Options);
-internal void UI_PushLayoutSpacer(ui_context* Context, vec2 Spacer);
+fn_internal void UI_SetNextParent(ui_context* Context, ui_object* Object);
+fn_internal void UI_PopLastParent(ui_context* Context);
+fn_internal void UI_PushNextLayout(ui_context* Context, rect_2d Rect, ui_lay_opt Options);
+fn_internal void UI_PushNextLayoutRow(ui_context* Context, int N_Rows, const f32* Rows );
+fn_internal void UI_PushNextLayoutColumn(ui_context* Context, int N_Columns, const f32* Columns );
+fn_internal void UI_PushNextLayoutBoxSize(ui_context* Context, vec2 BoxSize);
+fn_internal void UI_PushNextLayoutPadding(ui_context* Context, vec2 Padding);
+fn_internal void UI_PushNextLayoutOption(ui_context* Context, ui_lay_opt Options);
+fn_internal void UI_PushLayoutSpacer(ui_context* Context, vec2 Spacer);
 
-internal void UI_Spacer(ui_context* Context, vec2 Spacer);
+fn_internal void UI_Spacer(ui_context* Context, vec2 Spacer);
 
-internal U8_String*  UI_GetTextFromBox(ui_context* Context, const char* Key);
+fn_internal U8_String*  UI_GetTextFromBox(ui_context* Context, const char* Key);
 
-internal vec2 UI_UpdateObjectSize(ui_context* Context, ui_object* Object);
+fn_internal vec2 UI_UpdateObjectSize(ui_context* Context, ui_object* Object);
 
-internal void UI_SetNextTheme(ui_context* Context, object_theme Theme);
-internal void UI_PushNextFont(ui_context* Context, FontCache* Font);
-internal void UI_PopTheme(ui_context* Context);
+fn_internal void UI_SetNextTheme(ui_context* Context, object_theme Theme);
+fn_internal void UI_PushNextFont(ui_context* Context, FontCache* Font);
+fn_internal void UI_PopTheme(ui_context* Context);
 
-internal void UI_BeginColumn(ui_context* Context);
-internal void UI_SetNextCol(ui_context* Context);
-internal void UI_EndColumn(ui_context* Context);
+fn_internal void UI_BeginColumn(ui_context* Context);
+fn_internal void UI_SetNextCol(ui_context* Context);
+fn_internal void UI_EndColumn(ui_context* Context);
 
-internal void UI_Column(ui_context* Context);
-internal void UI_Row(ui_context* Context);
-internal void UI_NextRow(ui_context* Context);
+fn_internal void UI_Column(ui_context* Context);
+fn_internal void UI_Row(ui_context* Context);
+fn_internal void UI_NextRow(ui_context* Context);
 
-internal void UI_BeginRow(ui_context* Context);
-internal void UI_EndRow(ui_context* Context);
+fn_internal void UI_BeginRow(ui_context* Context);
+fn_internal void UI_EndRow(ui_context* Context);
 
-internal void UI_Divisor(ui_context* Context, f32 Width);
+fn_internal void UI_Divisor(ui_context* Context, f32 Width);
 
-internal void UI_BeginScrollbarViewEx(ui_context* Context, vec2 MaxSize);
-internal void UI_EndScrollbarView(ui_context* Context);
+fn_internal void UI_BeginScrollbarViewEx(ui_context* Context, vec2 MaxSize);
+fn_internal void UI_EndScrollbarView(ui_context* Context);
 
 #define UI_BeginScrollbarView(Context) UI_BeginScrollbarViewEx(Context, (vec2){0, 0})
 
-internal bool IsCursorOnRect(ui_context* Context, rect_2d Rect);
+fn_internal bool IsCursorOnRect(ui_context* Context, rect_2d Rect);
 
-internal void UI_SortWindowByDepth(ui_win_stack* window, Stack_Allocator* Allocator );
+fn_internal void UI_SortWindowByDepth(ui_win_stack* window, Stack_Allocator* Allocator );
 
 #endif // _SP_UI_H_
 
 #ifdef SP_UI_IMPL
 
-internal u64
+fn_internal u64
 	UI_CustomXXHash( const u8* buffer, u64 len, u64 seed ) {
     return XXH3_64bits_withSeed(buffer, len, seed);
 }
 
-internal void
+fn_internal void
 	UI_Init(ui_context* Context, Stack_Allocator* Allocator, Stack_Allocator* TempAllocator) {
     spall_buffer_begin(&spall_ctx, &spall_buffer, 
 					   __FUNCTION__,             // name of your function
@@ -389,7 +389,7 @@ internal void
 					 );
 }
 
-internal void
+fn_internal void
 	UI_Begin(ui_context* Context) {
     Context->KeyPressed   = 0;
     Context->CursorClick = vec2{0, 0};
@@ -405,7 +405,7 @@ internal void
     StackClear(&Context->Themes);
 }
 
-internal void UI_End(ui_context* UI_Context, draw_bucket_instance* DrawInstance) {
+fn_internal void UI_End(ui_context* UI_Context, draw_bucket_instance* DrawInstance) {
 	spall_buffer_begin(&spall_ctx, &spall_buffer, 
 					   __FUNCTION__,             // name of your function
 					   sizeof(__FUNCTION__) - 1, // name len minus the null terminator
@@ -572,7 +572,7 @@ internal void UI_End(ui_context* UI_Context, draw_bucket_instance* DrawInstance)
 					 );
 }
 
-internal void
+fn_internal void
 TopDownMerge(ui_window** WorkBuffer, u32 Begin, u32 Middle, u32 End, ui_window** SrcWindows) {
     u32 i = Begin, j = Middle;
     for (u32 k = Begin; k < End; k++) {
@@ -586,7 +586,7 @@ TopDownMerge(ui_window** WorkBuffer, u32 Begin, u32 Middle, u32 End, ui_window**
     }
 }
 
-internal void
+fn_internal void
 	TopDownSplitMerge(ui_window** WorkBuffer, u32 Begin, u32 End, ui_window** SrcWindows) {
 	if (End - Begin <= 1) {
 		return;
@@ -598,13 +598,13 @@ internal void
 	TopDownMerge(SrcWindows, Begin, Middle, End, WorkBuffer);
 }
 
-internal void
+fn_internal void
 	TopDownMergeSort(ui_window** WorkBuffer, ui_window** SrcWindows, u32 N) {
 
 	TopDownSplitMerge(WorkBuffer, 0, N, SrcWindows);
 }
 
-internal void
+fn_internal void
 	UI_SortWindowByDepth(ui_win_stack* window, Stack_Allocator* Alloc ) {
 
 	ui_window** WorkBuffer = stack_push(Alloc, ui_window*, window->Current);
@@ -614,7 +614,7 @@ internal void
 	TopDownMergeSort(WorkBuffer, window->Items, window->Current);
 }
 
-internal void UI_WindowBegin(ui_context* Context, rect_2d Rect, const char* Title, ui_lay_opt Options) {
+fn_internal void UI_WindowBegin(ui_context* Context, rect_2d Rect, const char* Title, ui_lay_opt Options) {
     ui_window* win = stack_push(Context->TempAllocator, ui_window, 1);
 
     win->WindowRect = Rect;
@@ -696,7 +696,7 @@ internal void UI_WindowBegin(ui_context* Context, rect_2d Rect, const char* Titl
     NewWin->WindowRect = Object->Rect;
 }
 
-internal void UI_WindowEnd(ui_context* Context) {
+fn_internal void UI_WindowEnd(ui_context* Context) {
     if( !StackIsEmpty(&Context->Themes) ) {
         StackPop(&Context->Themes);
     }
@@ -705,7 +705,7 @@ internal void UI_WindowEnd(ui_context* Context) {
     }
 }
 
-internal U8_String* UI_GetTextFromBox(ui_context* Context, const char* Key) {
+fn_internal U8_String* UI_GetTextFromBox(ui_context* Context, const char* Key) {
     spall_buffer_begin(&spall_ctx, &spall_buffer, 
 					  __FUNCTION__,             // name of your function
 					  sizeof(__FUNCTION__) - 1, // name len minus the null terminator
@@ -722,7 +722,7 @@ internal U8_String* UI_GetTextFromBox(ui_context* Context, const char* Key) {
     return NULL;
 }
 
-internal void UI_DrawRect2D(ui_context* Context, rect_2d Rect, vec4 color, vec4 color_border, f32 border, f32 radius) {
+fn_internal void UI_DrawRect2D(ui_context* Context, rect_2d Rect, vec4 color, vec4 color_border, f32 border, f32 radius) {
 	spall_buffer_begin(&spall_ctx, &spall_buffer, 
 					   __FUNCTION__,             // name of your function
 					   sizeof(__FUNCTION__) - 1, // name len minus the null terminator
@@ -746,7 +746,7 @@ internal void UI_DrawRect2D(ui_context* Context, rect_2d Rect, vec4 color, vec4 
 					 );
 }
 
-internal void UI_DrawText2D(ui_context* Context, rect_2d Rect, U8_String* String, FontCache* Font, vec4 color) {
+fn_internal void UI_DrawText2D(ui_context* Context, rect_2d Rect, U8_String* String, FontCache* Font, vec4 color) {
 	spall_buffer_begin(&spall_ctx, &spall_buffer, 
 					   __FUNCTION__,             // name of your function
 					   sizeof(__FUNCTION__) - 1, // name len minus the null terminator
@@ -771,7 +771,7 @@ internal void UI_DrawText2D(ui_context* Context, rect_2d Rect, U8_String* String
 					 );
 }
 
-internal ui_object* UI_BuildObjectWithParent(ui_context* Context, const u8* Key, const u8* Text, rect_2d Rect, ui_lay_opt Options, ui_object* Parent )
+fn_internal ui_object* UI_BuildObjectWithParent(ui_context* Context, const u8* Key, const u8* Text, rect_2d Rect, ui_lay_opt Options, ui_object* Parent )
 {
 	spall_buffer_begin(&spall_ctx, &spall_buffer, 
 					   __FUNCTION__,             // name of your function
@@ -781,14 +781,16 @@ internal ui_object* UI_BuildObjectWithParent(ui_context* Context, const u8* Key,
     ui_object* Object = &UI_NULL_OBJECT;
 
     ui_object* IdParent = Context->CurrentParent;
-    if( HashTableContains(&Context->TableObject, (const char*)Key, Parent->HashId) ) {
-        entry* StoredWindowEntry = HashTableFindPointer(&Context->TableObject, (const char*)Key, Parent->HashId);
-		Object = (ui_object*)StoredWindowEntry->Value;
+	entry* StoredEntry = HashTableFindPointer(&Context->TableObject, (const char*)Key, Parent->HashId);
+
+    if( StoredEntry != NULL ) {
+        
+		Object = (ui_object*)StoredEntry->Value;
     } else {
         Object = stack_push(Context->Allocator, ui_object, 1);
         memset(Object, 0, sizeof(ui_object));
-        entry* val = HashTableAdd(&Context->TableObject, (const char*)Key, Object, Parent->HashId);
-        Object->HashId = val->HashId;
+        StoredEntry = HashTableAdd(&Context->TableObject, (const char*)Key, Object, Parent->HashId);
+        Object->HashId = StoredEntry->HashId;
         Object->TextCursorIdx = -1;
         Object->Rect   = Rect;
         Object->Option = Options;
@@ -980,7 +982,7 @@ internal ui_object* UI_BuildObjectWithParent(ui_context* Context, const u8* Key,
     return Object;
 }
 
-internal bool IsCursorOnRect(ui_context* Context, rect_2d Rect) {
+fn_internal bool IsCursorOnRect(ui_context* Context, rect_2d Rect) {
     vec2 Cursor = Context->CursorPos;
     if( Cursor.x >= Rect.Pos.x && Cursor.x <= Rect.Pos.x + Rect.Size.x ) {
         if( Cursor.y >= Rect.Pos.y && Cursor.y <= Rect.Pos.y + Rect.Size.y ) {
@@ -990,7 +992,7 @@ internal bool IsCursorOnRect(ui_context* Context, rect_2d Rect) {
     return false;
 }
 
-internal bool UI_CheckBoxInsideScrollView(ui_context* Context, ui_object* Object) {
+fn_internal bool UI_CheckBoxInsideScrollView(ui_context* Context, ui_object* Object) {
     if(Object->Parent != &UI_NULL_OBJECT && Object->Parent->Type == UI_ScrollbarType) {
         if( Object->Type == UI_ScrollbarTypeButton ) {
             return true;
@@ -1010,7 +1012,7 @@ internal bool UI_CheckBoxInsideScrollView(ui_context* Context, ui_object* Object
     return true;
 }
 
-internal ui_input UI_ConsumeEvents(ui_context* Context, ui_object* Object) {
+fn_internal ui_input UI_ConsumeEvents(ui_context* Context, ui_object* Object) {
     if( (Object->Option & UI_Interact) && IsCursorOnRect(Context, Object->Rect) ) {
         if( UI_CheckBoxInsideScrollView(Context, Object)) {
             return Context->CursorAction | Input_CursorHover | Context->LastInput;
@@ -1020,7 +1022,7 @@ internal ui_input UI_ConsumeEvents(ui_context* Context, ui_object* Object) {
     return Input_None;
 }
 
-internal ui_input UI_Button(ui_context* Context, const char* Title) {
+fn_internal ui_input UI_Button(ui_context* Context, const char* Title) {
 
     ui_object* Parent = Context->CurrentParent;
 
@@ -1057,7 +1059,7 @@ internal ui_input UI_Button(ui_context* Context, const char* Title) {
     return Input;
 }
 
-internal ui_input UI_Label(ui_context* Context, const char* text) {
+fn_internal ui_input UI_Label(ui_context* Context, const char* text) {
     ui_object* Parent = Context->CurrentParent;
 
     ui_layout Layout = StackGetFront(&Context->Layouts);
@@ -1077,7 +1079,7 @@ internal ui_input UI_Label(ui_context* Context, const char* text) {
     return Input;
 }
 
-internal ui_input UI_LabelWithKey(ui_context* Context, const char* Key, const char* text) {
+fn_internal ui_input UI_LabelWithKey(ui_context* Context, const char* Key, const char* text) {
     ui_object* Parent = Context->CurrentParent;
 
     ui_layout Layout = StackGetFront(&Context->Layouts);
@@ -1096,7 +1098,7 @@ internal ui_input UI_LabelWithKey(ui_context* Context, const char* Key, const ch
     return Input;
 }
 
-internal ui_input UI_TextBox(ui_context* Context, const char* text) {
+fn_internal ui_input UI_TextBox(ui_context* Context, const char* text) {
     ui_object* Parent = Context->CurrentParent;
 
     ui_layout Layout = StackGetFront(&Context->Layouts);
@@ -1152,7 +1154,7 @@ internal ui_input UI_TextBox(ui_context* Context, const char* text) {
 }
 
 
-internal ui_input UI_BeginTreeNode(ui_context* Context, const char* text) {
+fn_internal ui_input UI_BeginTreeNode(ui_context* Context, const char* text) {
     ui_object* Parent = Context->CurrentParent;
 
     ui_layout Layout = StackGetFront(&Context->Layouts);
@@ -1193,22 +1195,22 @@ internal ui_input UI_BeginTreeNode(ui_context* Context, const char* text) {
     return TreeNode->LastInputSet;
 }
 
-internal void UI_EndTreeNode(ui_context* Context) {
+fn_internal void UI_EndTreeNode(ui_context* Context) {
 	UI_PopLastParent(Context);
 }
 
-internal void UI_PushNextLayoutIcon(ui_context* Context, icon_type Type) {
+fn_internal void UI_PushNextLayoutIcon(ui_context* Context, icon_type Type) {
     ui_layout* Layout = &StackGetFront(&Context->Layouts);
     Layout->NextIconType = Type;
 }
 
 
-internal void UI_PopNextIcon(ui_context* Context) {
+fn_internal void UI_PopNextIcon(ui_context* Context) {
     ui_layout* Layout = &StackGetFront(&Context->Layouts);
     Layout->NextIconType = Icon_None;
 }
 
-internal ui_input UI_SetIcon(ui_context* Context, const char* Name, icon_type Type) {
+fn_internal ui_input UI_SetIcon(ui_context* Context, const char* Name, icon_type Type) {
 	ui_object* Parent = Context->CurrentParent;
 
     ui_layout Layout = StackGetFront(&Context->Layouts);
@@ -1257,7 +1259,7 @@ internal ui_input UI_SetIcon(ui_context* Context, const char* Name, icon_type Ty
 	}
 }
 
-internal void UI_BeginScrollbarViewEx(ui_context* Context, vec2 Size) {
+fn_internal void UI_BeginScrollbarViewEx(ui_context* Context, vec2 Size) {
 
 	spall_buffer_begin(&spall_ctx, &spall_buffer, 
 					   __FUNCTION__,             // name of your function
@@ -1291,7 +1293,7 @@ internal void UI_BeginScrollbarViewEx(ui_context* Context, vec2 Size) {
 					 );
 }
 
-internal void UI_EndScrollbarView(ui_context* Context) {
+fn_internal void UI_EndScrollbarView(ui_context* Context) {
 	spall_buffer_begin(&spall_ctx, &spall_buffer, 
 					   __FUNCTION__,             // name of your function
 					   sizeof(__FUNCTION__) - 1, // name len minus the null terminator
@@ -1382,15 +1384,15 @@ internal void UI_EndScrollbarView(ui_context* Context) {
 	spall_buffer_end(&spall_ctx, &spall_buffer, get_time_in_nanos());
 }
 
-internal void UI_SetNextParent(ui_context* Context, ui_object* Object) {
+fn_internal void UI_SetNextParent(ui_context* Context, ui_object* Object) {
     Context->CurrentParent = Object;
 }
 
-internal void UI_PopLastParent(ui_context* Context) {
+fn_internal void UI_PopLastParent(ui_context* Context) {
     Context->CurrentParent = Context->CurrentParent->Parent;
 }
 
-internal void UI_PushNextLayout(ui_context* Context, rect_2d Rect, ui_lay_opt Options) {
+fn_internal void UI_PushNextLayout(ui_context* Context, rect_2d Rect, ui_lay_opt Options) {
     StackPush(&Context->Layouts, (ui_layout){});
     ui_layout* Layout = &StackGetFront(&Context->Layouts);
 
@@ -1404,7 +1406,7 @@ internal void UI_PushNextLayout(ui_context* Context, rect_2d Rect, ui_lay_opt Op
 }
 
 
-internal void UI_PushNextLayoutRow(ui_context* Context, int N_Rows, const f32* Rows ) {
+fn_internal void UI_PushNextLayoutRow(ui_context* Context, int N_Rows, const f32* Rows ) {
 
     assert(!StackIsEmpty(&Context->Layouts));
 
@@ -1414,7 +1416,7 @@ internal void UI_PushNextLayoutRow(ui_context* Context, int N_Rows, const f32* R
     Layout->RowSizes = Rows;
 }
 
-internal void UI_PushNextLayoutColumn(ui_context* Context, int N_Columns, const f32* Columns ) {
+fn_internal void UI_PushNextLayoutColumn(ui_context* Context, int N_Columns, const f32* Columns ) {
     assert(!StackIsEmpty(&Context->Layouts));
 
     ui_layout* Layout = &StackGetFront(&Context->Layouts);
@@ -1423,7 +1425,7 @@ internal void UI_PushNextLayoutColumn(ui_context* Context, int N_Columns, const 
     Layout->ColumnSizes = Columns;
 }
 
-internal void UI_PushNextLayoutBoxSize(ui_context* Context, vec2 BoxSize) {
+fn_internal void UI_PushNextLayoutBoxSize(ui_context* Context, vec2 BoxSize) {
 	assert(!StackIsEmpty(&Context->Layouts));
 
     ui_layout* Layout = &StackGetFront(&Context->Layouts);
@@ -1431,7 +1433,7 @@ internal void UI_PushNextLayoutBoxSize(ui_context* Context, vec2 BoxSize) {
 	Layout->BoxSize = BoxSize;
 }
 
-internal void
+fn_internal void
 	UI_PushNextLayoutPadding(ui_context* Context, vec2 Padding) {
     assert(!StackIsEmpty(&Context->Layouts));
 
@@ -1439,7 +1441,7 @@ internal void
     Layout->Padding    = Padding;
 }
 
-internal void
+fn_internal void
 	UI_PushNextLayoutOption(ui_context* Context, ui_lay_opt Options) {
     assert(!StackIsEmpty(&Context->Layouts));
 
@@ -1447,14 +1449,14 @@ internal void
     Layout->Option    = Options;
 }
 
-internal void UI_PushLayoutSpacer(ui_context* Context, vec2 Spacer) {
+fn_internal void UI_PushLayoutSpacer(ui_context* Context, vec2 Spacer) {
 	assert(!StackIsEmpty(&Context->Layouts));
 
     ui_layout* Layout = &StackGetFront(&Context->Layouts);
     Layout->Spacer    = Spacer;
 }
 
-internal void UI_Spacer(ui_context* Context, vec2 Spacer) {
+fn_internal void UI_Spacer(ui_context* Context, vec2 Spacer) {
 	assert(!StackIsEmpty(&Context->Layouts));
 
     ui_layout* Layout = &StackGetFront(&Context->Layouts);
@@ -1463,7 +1465,7 @@ internal void UI_Spacer(ui_context* Context, vec2 Spacer) {
 	Context->CurrentParent->ContentSize = Vec2Add(Context->CurrentParent->ContentSize, Spacer);
 }
 
-internal void
+fn_internal void
 	UI_PushNextLayoutDisableOption(ui_context* Context, ui_lay_opt Options) {
     assert(!StackIsEmpty(&Context->Layouts));
 
@@ -1471,7 +1473,7 @@ internal void
     Layout->Option    = static_cast<ui_lay_opt>(Layout->Option ^ Options);
 }
 
-internal vec2
+fn_internal vec2
 	UI_UpdateObjectSize(ui_context* Context, ui_object* Object) {
 	if (UI_ConsumeEvents(Context, Object) & Input_LeftClickPress) {
 		Context->FocusObject = Object;
@@ -1504,23 +1506,23 @@ internal vec2
 	return Vec2Zero();
 }
 
-internal void
+fn_internal void
 	UI_SetNextTheme(ui_context* Context, object_theme Theme) {
     StackPush(&Context->Themes, Theme);
 }
 
-internal void
+fn_internal void
 	UI_PushNextFont(ui_context* Context, FontCache* Font) {
     object_theme* Theme = &StackGetFront(&Context->Themes);
     Theme->Font = Font;
 }
 
-internal void
+fn_internal void
 	UI_PopTheme(ui_context* Context) {
     StackPop(&Context->Themes);
 }
 
-internal void UI_BeginColumn(ui_context* Context) {
+fn_internal void UI_BeginColumn(ui_context* Context) {
     assert(!StackIsEmpty(&Context->Layouts));
 
     ui_layout* Layout = &StackGetFront(&Context->Layouts);
@@ -1528,7 +1530,7 @@ internal void UI_BeginColumn(ui_context* Context) {
     Layout->CurrentColumn = 0;
 }
 
-internal void UI_SetNextCol(ui_context* Context) {
+fn_internal void UI_SetNextCol(ui_context* Context) {
     assert(!StackIsEmpty(&Context->Layouts));
 
     ui_layout* Layout = &StackGetFront(&Context->Layouts);
@@ -1539,7 +1541,7 @@ internal void UI_SetNextCol(ui_context* Context) {
 	}
 }
 
-internal void UI_EndColumn(ui_context* Context) {
+fn_internal void UI_EndColumn(ui_context* Context) {
     assert(!StackIsEmpty(&Context->Layouts));
     ui_layout* Layout = &StackGetFront(&Context->Layouts);
     Layout->AxisDirection = 1;
@@ -1549,26 +1551,26 @@ internal void UI_EndColumn(ui_context* Context) {
     Layout->ContentSize.y += Layout->BoxSize.y;
 }
 
-internal void UI_Column(ui_context* Context) {
+fn_internal void UI_Column(ui_context* Context) {
     assert(!StackIsEmpty(&Context->Layouts));
     ui_layout* Layout = &StackGetFront(&Context->Layouts);
     Layout->AxisDirection = 0;
 }
 
-internal void UI_Row(ui_context* Context) {
+fn_internal void UI_Row(ui_context* Context) {
     assert(!StackIsEmpty(&Context->Layouts));
     ui_layout* Layout = &StackGetFront(&Context->Layouts);
     Layout->AxisDirection = 1;
 }
 
-internal void UI_NextRow(ui_context* Context) {
+fn_internal void UI_NextRow(ui_context* Context) {
     assert(!StackIsEmpty(&Context->Layouts));
     ui_layout* Layout = &StackGetFront(&Context->Layouts);
     Layout->AxisDirection = 1;
     Layout->ContentSize.x = 0;
 }
 
-internal void UI_BeginRow(ui_context* Context) {
+fn_internal void UI_BeginRow(ui_context* Context) {
 	assert(!StackIsEmpty(&Context->Layouts));
 
     ui_layout* Layout = &StackGetFront(&Context->Layouts);
@@ -1581,7 +1583,7 @@ internal void UI_BeginRow(ui_context* Context) {
 		Context->CurrentParent->ContentSize = Layout->ContentSize;
 	}
 }
-internal void UI_EndRow(ui_context* Context)
+fn_internal void UI_EndRow(ui_context* Context)
 {
 	assert(!StackIsEmpty(&Context->Layouts));
     ui_layout* Layout = &StackGetFront(&Context->Layouts);
@@ -1590,7 +1592,7 @@ internal void UI_EndRow(ui_context* Context)
     Layout->ContentSize.y = 0;
 }
 
-internal void UI_Divisor(ui_context* Context, f32 Width) {
+fn_internal void UI_Divisor(ui_context* Context, f32 Width) {
 	assert(!StackIsEmpty(&Context->Layouts));
     ui_layout* Layout = &StackGetFront(&Context->Layouts);
 
@@ -1602,7 +1604,7 @@ internal void UI_Divisor(ui_context* Context, f32 Width) {
 	UI_DrawRect2D(Context, Rect, Context->DefaultTheme.Panel.Background, Parent->Theme.Border, 1, 4);
 }
 
-internal ui_input UI_LastEvent(ui_context* Context, api_window* Window) {
+fn_internal ui_input UI_LastEvent(ui_context* Context, api_window* Window) {
     #ifndef NDEBUG 
 	spall_buffer_begin(&spall_ctx, &spall_buffer, 
 					   __FUNCTION__,             // name of your function
