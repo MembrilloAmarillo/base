@@ -1237,7 +1237,7 @@ internal vulkan_base
         if( ExtensionNames == NULL ) {
             fprintf(stderr, "[ERROR] Could not allocate memory %d %s", __LINE__, __FUNCTION__);
         }
-        for(u32 i = 0; i < ExtensionCount - 1; i += 1) {
+        for(u32 i = 0; i < ExtensionCount; i += 1) {
             ExtensionNames[i] = stack_push(&Base.Allocator, char, strlen(props[i].extensionName) + 1);
             if( ExtensionNames[i] == NULL ) {
                 fprintf(stderr, "[ERROR] Could not allocate memory %d %s", __LINE__, __FUNCTION__);
@@ -1254,19 +1254,18 @@ internal vulkan_base
 		InstanceInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
 		InstanceInfo.pNext = NULL;
 		InstanceInfo.pApplicationInfo = &appInfo;
-		InstanceInfo.enabledLayerCount = 1;
-		InstanceInfo.ppEnabledLayerNames = VALIDATION_LAYERS;
 		InstanceInfo.enabledExtensionCount = ExtensionCount;
 		InstanceInfo.ppEnabledExtensionNames = ExtensionNames;
-        
 
 
 		#ifndef NDEBUG
         populate_debug_messenger_create_info(&DebugCreateInfo);
         InstanceInfo.pNext = &DebugCreateInfo;   // <- add this
         InstanceInfo.enabledLayerCount = 1;
+        InstanceInfo.ppEnabledLayerNames = VALIDATION_LAYERS;
 		#else
         InstanceInfo.enabledLayerCount = 0;
+        InstanceInfo.ppEnabledLayerNames = NULL;
         InstanceInfo.pNext = NULL;
 		#endif
 
@@ -2590,13 +2589,14 @@ internal bool PrepareFrame(vulkan_base* base) {
 	bool ResizeSwapchain = false;
 
     VK_CHECK(vkWaitForFences(base->Device, 1, &base->Semaphores.InFlight[FrameIdx], VK_TRUE, UINT64_MAX));
+	VK_CHECK(vkResetFences(base->Device, 1, &base->Semaphores.InFlight[FrameIdx]));
 
 	VkResult result = vkAcquireNextImageKHR(
 		base->Device,
 		base->Swapchain.Swapchain,
 		UINT64_MAX,
 		base->Semaphores.ImageAvailable[FrameIdx],
-		VK_NULL_HANDLE,
+		(VkFence)nullptr,
 		&base->SwapchainImageIdx
 	);
 
@@ -2621,8 +2621,6 @@ internal bool PrepareFrame(vulkan_base* base) {
 	} else {
 		VK_CHECK(result);
 	}
-
-	VK_CHECK(vkResetFences(base->Device, 1, &base->Semaphores.InFlight[FrameIdx]));
 
 	return ResizeSwapchain;
 }
@@ -2681,12 +2679,7 @@ EndRender( vulkan_base* base, VkCommandBuffer cmd ) {
 
 	VkSubmitInfo2 submit = SubmitInfo(&cmdInfo, &signalInfo, &waitInfo);
 
-	VK_CHECK(vkQueueSubmit2(
-		base->GraphicsQueue,
-		1,
-		&submit,
-		base->Semaphores.InFlight[FrameIdx])
-             );
+	VK_CHECK(vkQueueSubmit2( base->GraphicsQueue, 1, &submit, base->Semaphores.InFlight[FrameIdx] ));
 
 	// prepare present
 	// this will put the image we just rendered to into the visible window.
@@ -2724,7 +2717,7 @@ EndRender( vulkan_base* base, VkCommandBuffer cmd ) {
 		}
 
 		if( result == VK_ERROR_OUT_OF_DATE_KHR ) {
-			//return ResizeSwapchain;
+			return ResizeSwapchain;
 		}
 	} else {
 		VK_CHECK(result);

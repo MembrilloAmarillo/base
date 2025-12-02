@@ -29,6 +29,8 @@
 			<AdditionalIncludePath>C:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\cppwinrt</AdditionalIncludePath>
 			<AdditionalIncludePath>C:\Program Files (x86)\Windows Kits\NETFXSDK\4.8\include\um</AdditionalIncludePath>
 			<AdditionalIncludePath>C:\VulkanSDK\1.4.328.1\Include\</AdditionalIncludePath>
+			<AdditionalIncludePath>C:\Program Files\Microsoft Visual Studio\18\Insiders\VC\Tools\MSVC\14.50.35717\include\</AdditionalIncludePath>
+			<AdditionalIncludePath>C:\Program Files\Microsoft Visual Studio\18\Insiders\VC\Auxiliary\VS\include\</AdditionalIncludePath>
 		</AdditionalIncludePaths>
 		<Defines></Defines>
 		<ConfigProperties>
@@ -48,6 +50,7 @@
 				<DebugSln></DebugSln>
 				<Defines></Defines>
 				<ForceIncludes></ForceIncludes>
+				<PrioritiseFiles></PrioritiseFiles>
 			</ConfigAndPlatform>
 			<Config>
 				<Name>Debug</Name>

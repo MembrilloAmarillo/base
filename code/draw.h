@@ -72,7 +72,7 @@ internal draw_bucket_instance
 D_DrawInit(Stack_Allocator* Alloc) {
     draw_bucket_instance D_Instance;
     D_Instance.Allocator = Alloc;
-    //D_Instance.BackBuffer2D = stack_push(Alloc, v_2d, MinVec2D_Size);
+    D_Instance.BackBuffer2D = stack_push(Alloc, v_2d, MinVec2D_Size);
     //D_Instance.BackBuffer3D = stack_push(Alloc, v_3d, MinVec3D_Size);
 
     DLIST_INIT(&D_Instance.Instance2D);
@@ -88,7 +88,7 @@ D_DrawDestroy( draw_bucket_instance* D_Instance ) {
 
 internal void
 D_BeginDraw2D( draw_bucket_instance* D_Instance ) {
-    D_Instance->BackBuffer2D = stack_push(D_Instance->Allocator, draw_bucket_2d, MinVec2D_Size);
+    //D_Instance->BackBuffer2D = stack_push(D_Instance->Allocator, draw_bucket_2d, MinVec2D_Size);
     D_Instance->Current2DBuffer = VectorNew(D_Instance->BackBuffer2D, 0, MinVec2D_Size, v_2d);
 }
 
@@ -167,7 +167,8 @@ D_DrawText2D(draw_bucket_instance* Instance, rect_2d rect, U8_String* Text, Font
 		v1.UVSize = { _u1, _v1 };
 		v1.Color = ColorVec;
 		v1.CornerRadius = 0;
-		v1.IconUvSize = Vec2Zero();			VectorAppend(&Instance->Current2DBuffer, &v1);
+		v1.IconUvSize = Vec2Zero();			
+		VectorAppend(&Instance->Current2DBuffer, &v1);
 
 			// Advance pen by glyph advance (use xadvance from packing)
 			pen_x += g.advance;

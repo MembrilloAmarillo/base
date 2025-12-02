@@ -11,13 +11,13 @@ set CC=cl
 set CXX=cl
 
 :: Debug flags
-set CFLAGS_DEBUG=/nologo /std:c++17 /FC /Z7 /DDEBUG /W3 /wd4996 /wd4576 /Od /Ob1
-set CXXFLAGS_DEBUG=/nologo /std:c++17 /FC /Z7 /W3 /wd4996 /wd4576 /Od /Ob1
+set CFLAGS_DEBUG=/nologo /std:c++17 /FC /Z7 /DDEBUG /W3 /wd4996 /wd4576 /Od /Ob1 /EHsc
+set CXXFLAGS_DEBUG=/nologo /std:c++17 /FC /Z7 /W3 /wd4996 /wd4576 /Od /Ob1 /EHsc
 set INC=/Icode /I"C:\VulkanSDK\1.4.328.1\Include"
 
 :: Release flags
-set CFLAGS_RELEASE=/O2 /W3 /wd4996 /TC
-set CXXFLAGS_RELEASE=/O2 /std:c++14 /W3 /TP
+set CFLAGS_RELEASE=/O2 /W3 /wd4996 /TC /EHsc
+set CXXFLAGS_RELEASE=/O2 /std:c++14 /W3 /TP /EHsc
 
 :: Libraries (Windows .lib files)
 set LIBS=kernel32.lib user32.lib gdi32.lib /LIBPATH:"C:\VulkanSDK\1.4.328.1\Lib" vulkan-1.lib ws2_32.lib

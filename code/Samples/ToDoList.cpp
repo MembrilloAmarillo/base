@@ -203,6 +203,17 @@ int main( void ) {
 	rgba LightPink   = HexToRGBA(0xF1AA9BFF);
 	rgba BrokenWhite = HexToRGBA(0xEEEEEEFF);
 
+	typedef struct object_stack {
+		i64 N;
+		i64 Current;
+		ui_object** Items;
+	}object_stack;
+
+	object_stack ObjStack = {};
+	ObjStack.N = 1 << 20;
+	ObjStack.Current = 0;
+	ObjStack.Items = stack_push(&TodoApp.Allocator, ui_object*, 1 << 20);
+
 	while (TodoApp.running) {		
 		f32 window_width  = TodoApp.VkBase.Window.Width;
 		f32 window_height = TodoApp.VkBase.Window.Height;
@@ -232,15 +243,15 @@ int main( void ) {
 			{
 			UI_SetNextTheme(TodoApp.UI_Context, TodoApp.UI_Context->DefaultTheme.Window);
 			ui_object* Windows = UI_BuildObject(TodoApp.UI_Context, (const uint8_t*)"Title", NULL, PanelRect, (ui_lay_opt)(UI_DrawRect | UI_DrawBorder | UI_Drag | UI_Resize | UI_Interact | UI_SetPosPersistent) );
-				UI_UpdateObjectSize(TodoApp.UI_Context, Windows);
-				UI_PopTheme(TodoApp.UI_Context);
+			UI_UpdateObjectSize(TodoApp.UI_Context, Windows);
+			UI_PopTheme(TodoApp.UI_Context);
 
-				PanelRect = Windows->Rect;
+			PanelRect = Windows->Rect;
 
-				UI_PushNextLayout(TodoApp.UI_Context, PanelRect, (ui_lay_opt)0);
-				UI_PushNextLayoutBoxSize(TodoApp.UI_Context, (vec2) { PanelRect.Size.x, 28 });
-				UI_PushNextLayoutPadding(TodoApp.UI_Context, (vec2) { 10, 5 });
-				UI_SetNextParent(TodoApp.UI_Context, Windows);
+			UI_PushNextLayout(TodoApp.UI_Context, PanelRect, (ui_lay_opt)0);
+			UI_PushNextLayoutBoxSize(TodoApp.UI_Context, (vec2) { PanelRect.Size.x, 28 });
+			UI_PushNextLayoutPadding(TodoApp.UI_Context, (vec2) { 10, 5 });
+			UI_SetNextParent(TodoApp.UI_Context, Windows);
 
 			UI_SetNextTheme(TodoApp.UI_Context, TodoApp.UI_Context->DefaultTheme.Button);
 			ui_object* TitleObj = UI_BuildObject(TodoApp.UI_Context, (const uint8_t*)("Title"), (const uint8_t*)("Your ToDo App"), PanelRect, (ui_lay_opt)(UI_DrawText | UI_AlignCenter));
@@ -271,7 +282,7 @@ int main( void ) {
 		_rect_init2.Pos = (vec2){550, 200};
 		_rect_init2.Size = (vec2){300, 300};
 		PanelRect = _rect_init2;
-			UI_SetNextParent(TodoApp.UI_Context, &TodoApp.UI_Context->RootObject);
+		UI_SetNextParent(TodoApp.UI_Context, &TodoApp.UI_Context->RootObject);
 		{
 			UI_SetNextTheme(TodoApp.UI_Context, TodoApp.UI_Context->DefaultTheme.Window);
 			ui_object* Windows = UI_BuildObject(TodoApp.UI_Context, (const uint8_t*)"New Title", NULL, PanelRect, (ui_lay_opt)(UI_DrawRect | UI_DrawBorder | UI_Drag | UI_Resize | UI_Interact | UI_SetPosPersistent) );
@@ -295,34 +306,24 @@ int main( void ) {
 			UI_BuildObject(TodoApp.UI_Context, (const uint8_t*)"TitleDivisor", NULL, PanelRect, (ui_lay_opt)UI_DrawRect);
 			
 			UI_PushNextLayoutBoxSize(TodoApp.UI_Context, (vec2) {PanelRect.Size.x, TitleObj->Size.y});
-				UI_BeginScrollbarView(TodoApp.UI_Context);
-				for (i32 i = 0; i < 500; i += 1) {
-					char buf[64] = { 0 };
-					snprintf(buf, 64, "Tarea Num. %d", i);
-					UI_Label(TodoApp.UI_Context, buf);
-				}
-				UI_EndScrollbarView(TodoApp.UI_Context);
+			UI_BeginScrollbarView(TodoApp.UI_Context);
+			for (i32 i = 0; i < 500; i += 1) {
+				char buf[64] = { 0 };
+				snprintf(buf, 64, "Tarea Num. %d", i);
+				UI_Label(TodoApp.UI_Context, buf);
+			}
+			UI_EndScrollbarView(TodoApp.UI_Context);
 
-				StackPop(&TodoApp.UI_Context->Layouts);
+			StackPop(&TodoApp.UI_Context->Layouts);
 			} 
 		}
 
 		// Drawing the UI
 		D_BeginDraw2D(&TodoApp.DrawInstance);
 		{
-			typedef struct object_stack {
-				i64 N;
-				i64 Current;
-				ui_object** Items;
-			}object_stack;
-
-			object_stack ObjStack = {};
-			ObjStack.N = 1 << 20;
-			ObjStack.Current = 0;
-			ObjStack.Items = stack_push(&TodoApp.TempAllocator, ui_object*, 1 << 20);
-
 			ui_object* Root = &TodoApp.UI_Context->RootObject;
 
+			ObjStack.Current = 0;
 
 			ui_object* Object;
 			StackPush(&ObjStack, Root);
@@ -366,10 +367,10 @@ int main( void ) {
 
 		// --------------- UI_End --------------------
 
-		line_vert LineVert = {};
-		LineVert.Rect.Pos = (vec2){195, 500};
-		LineVert.Rect.Size = (vec2){0, 200};
-		LineVert.Color = RgbaToNorm(VioletBord);
+		line_vert LineVert   = {};
+		LineVert.Rect.Pos    = (vec2){195, 500};
+		LineVert.Rect.Size   = (vec2){0, 200};
+		LineVert.Color       = RgbaToNorm(VioletBord);
 		LineVert.BorderWidth = 4.f;
 
 		R_Begin(&TodoApp.Render);
@@ -445,7 +446,7 @@ int main( void ) {
 
 		// Compute pipeline 
 		//
-		{
+		if( false ) {
 			TransitionImageDefault(
 				TodoApp.Render.CurrentCommandBuffer,
 				TodoApp.ComputeImage.Image,
@@ -454,13 +455,21 @@ int main( void ) {
 			);
 			R_BindTexture(&TodoApp.Render, "Compute Texture", 0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
 			R_DispatchCompute(&TodoApp.Render, TodoApp.ComputePipeline, ceilf(window_width / 32), ceilf(window_height / 32), 1);
+			
+			R_SendImageToSwapchain(&TodoApp.Render, TodoApp.ComputeImageHandle);
 		}
 
-		//R_ClearScreen(&Render, (vec4){0.02, 0.02, 0.02, 1.0f});
+		TransitionImageDefault(
+			TodoApp.Render.CurrentCommandBuffer,
+			TodoApp.Render.VulkanBase->Swapchain.Images[TodoApp.Render.VulkanBase->SwapchainImageIdx],
+			VK_IMAGE_LAYOUT_UNDEFINED,
+			VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL 
+		);
+
+		R_ClearScreen(&TodoApp.Render, (vec4){0.02, 0.02, 0.02, 1.0f});
 
 		// Render pass
 		//
-		R_SendImageToSwapchain(&TodoApp.Render, TodoApp.ComputeImageHandle);
 			
 		R_BeginRenderPass(&TodoApp.Render);
 		{
@@ -471,12 +480,6 @@ int main( void ) {
 			R_BindIndexBuffer(&TodoApp.Render, TodoApp.IBuffer[TodoApp.Render.VulkanBase->CurrentFrame]);
 			R_SetPipeline(&TodoApp.Render, TodoApp.UI_Pipeline);
 			R_DrawIndexed(&TodoApp.Render, 6, TodoApp.DrawInstance.Current2DBuffer.len);
-		
-			R_UpdateUniformBuffer(&TodoApp.Render, "Line Uniform Buffer", 0, &TodoApp.ScreenUbo, sizeof(screen_ubo));
-			R_BindVertexBuffer(&TodoApp.Render, TodoApp.LineBuffer[TodoApp.Render.VulkanBase->CurrentFrame]);
-			R_BindIndexBuffer(&TodoApp.Render, TodoApp.LineIBuffer[TodoApp.Render.VulkanBase->CurrentFrame]);
-			R_SetPipeline(&TodoApp.Render, TodoApp.LinePipeline);
-			R_DrawIndexed(&TodoApp.Render, 6, 1);
 		}
 		R_RenderPassEnd(&TodoApp.Render);
 		R_RenderEnd(&TodoApp.Render);
@@ -528,7 +531,7 @@ internal void TodoRenderInit(todo_render* TodoRenderer) {
     ItalicFont->BitmapOffset  = (vec2){0, 240};
 
 	R_RenderInit(&TodoRenderer->Render, &TodoRenderer->VkBase, &TodoRenderer->Allocator);
-	TodoRenderer->DrawInstance = D_DrawInit(&TodoRenderer->TempAllocator);
+	TodoRenderer->DrawInstance = D_DrawInit(&TodoRenderer->Allocator);
 
 	TodoRenderer->VBuffer[0]    = R_CreateBuffer(&TodoRenderer->Render, "Buffer 1", 12 << 20, R_BUFFER_TYPE_VERTEX);
 	TodoRenderer->VBuffer[1]    = R_CreateBuffer(&TodoRenderer->Render, "Buffer 2", 12 << 20, R_BUFFER_TYPE_VERTEX);
