@@ -71,4 +71,3 @@ shaders:
 clean:
 	rm -f UI_Sample ./data/*.spv
 
-.PHONY: all clean

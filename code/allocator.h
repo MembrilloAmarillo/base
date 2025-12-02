@@ -29,8 +29,7 @@
 #define DEFAULT_ALIGNMENT 8
 #endif
 
-typedef enum Allocator_Mode Allocator_Mode;
-enum Allocator_Mode {
+typedef enum Allocator_Mode {
     Alloc,
 	Free,
 	Free_All,
@@ -49,7 +48,7 @@ struct Allocator {
 
 typedef struct Buddy_Block Buddy_Block;
 struct Buddy_Block { // Allocation header (metadata)
-    size_t size; 
+    size_t size;
     bool   is_free;
 };
 
@@ -57,7 +56,7 @@ typedef struct Buddy_Allocator Buddy_Allocator;
 struct Buddy_Allocator {
     Buddy_Block *head; // same pointer as the backing memory data
     Buddy_Block *tail; // sentinel pointer representing the memory boundary
-    size_t alignment; 
+    size_t alignment;
 };
 
 bool is_power_of_two(uintptr_t x);
@@ -87,7 +86,7 @@ void buddy_allocator_free(Buddy_Allocator *b, void *data);
 
 typedef struct Stack_Allocator Stack_Allocator;
 struct Stack_Allocator {
-    void* data;
+    u8* data;
     i64   prev_offset;
     i64   curr_offset;
     i64   peak_used;
@@ -188,29 +187,29 @@ Buddy_Block *buddy_block_split(Buddy_Block *block, size_t size) {
             block->size = sz;
             block->is_free = true;
         }
-        
+
         if (size <= block->size) {
             return block;
         }
     }
-    
+
     // Block cannot fit the requested allocation size
     return NULL;
 }
 
 Buddy_Block *buddy_block_find_best(Buddy_Block *head, Buddy_Block *tail, size_t size) {
     // Assumes size != 0
-    
+
     Buddy_Block *best_block = NULL;
     Buddy_Block *block = head;                    // Left Buddy
     Buddy_Block *buddy = buddy_block_next(block); // Right Buddy
-     
-    // The entire memory section between head and tail is free, 
+
+    // The entire memory section between head and tail is free,
     // just call 'buddy_block_split' to get the allocation
     if (buddy == tail && block->is_free) {
         return buddy_block_split(block, size);
     }
-    
+
     // Find the block which is the 'best_block' to requested allocation sized
     while (block < tail && buddy < tail) { // make sure the buddies are within the range
         // If both buddies are free, coalesce them together
@@ -221,7 +220,7 @@ Buddy_Block *buddy_block_find_best(Buddy_Block *head, Buddy_Block *tail, size_t 
             if (size <= block->size && (best_block == NULL || block->size <= best_block->size)) {
                 best_block = block;
             }
-            
+
             block = buddy_block_next(buddy);
             if (block < tail) {
                 // Delay the buddy block for the next iteration
@@ -229,20 +228,20 @@ Buddy_Block *buddy_block_find_best(Buddy_Block *head, Buddy_Block *tail, size_t 
             }
             continue;
         }
-        
-                
-        if (block->is_free && size <= block->size && 
+
+
+        if (block->is_free && size <= block->size &&
             (best_block == NULL || block->size <= best_block->size)) {
             best_block = block;
         }
-        
+
         if (buddy->is_free && size <= buddy->size &&
-            (best_block == NULL || buddy->size < best_block->size)) { 
-            // If each buddy are the same size, then it makes more sense 
+            (best_block == NULL || buddy->size < best_block->size)) {
+            // If each buddy are the same size, then it makes more sense
             // to pick the buddy as it "bounces around" less
             best_block = buddy;
         }
-        
+
         if (block->size <= buddy->size) {
             block = buddy_block_next(buddy);
             if (block < tail) {
@@ -255,12 +254,12 @@ Buddy_Block *buddy_block_find_best(Buddy_Block *head, Buddy_Block *tail, size_t 
             buddy = buddy_block_next(buddy);
         }
     }
-    
+
     if (best_block != NULL) {
         // This will handle the case if the 'best_block' is also the perfect fit
         return buddy_block_split(best_block, size);
     }
-    
+
     // Maybe out of memory
     return NULL;
 }
@@ -269,44 +268,44 @@ void buddy_allocator_init(Buddy_Allocator *b, void *data, size_t size, size_t al
     assert(data != NULL);
     assert(is_power_of_two(size) && "size is not a power-of-two");
     assert(is_power_of_two(alignment) && "alignment is not a power-of-two");
-    
+
     // The minimum alignment depends on the size of the `Buddy_Block` header
     assert(is_power_of_two(sizeof(Buddy_Block)));
     if (alignment < sizeof(Buddy_Block)) {
         alignment = sizeof(Buddy_Block);
     }
     assert(((uintptr_t)data % alignment == 0) && "data is not aligned to minimum alignment");
-    
+
     b->head          = (Buddy_Block *)data;
     b->head->size    = size;
     b->head->is_free = true;
-    
+
     // The tail here is a sentinel value and not a true block
     b->tail = buddy_block_next(b->head);
-    
+
     b->alignment = alignment;
 }
 
 size_t buddy_block_size_required(Buddy_Allocator *b, size_t size) {
     size_t actual_size = b->alignment;
-    
+
     size += sizeof(Buddy_Block);
-    size = align_forward_size(size, b->alignment); 
-    
+    size = align_forward_size(size, b->alignment);
+
     while (size > actual_size) {
         actual_size <<= 1;
     }
-    
+
     return actual_size;
 }
 
 void buddy_block_coalescence(Buddy_Block *head, Buddy_Block *tail) {
-    for (;;) { 
+    for (;;) {
         // Keep looping until there are no more buddies to coalesce
-        
-        Buddy_Block *block = head;   
-        Buddy_Block *buddy = buddy_block_next(block);   
-        
+
+        Buddy_Block *block = head;
+        Buddy_Block *buddy = buddy_block_next(block);
+
         bool no_coalescence = true;
         while (block < tail && buddy < tail) { // make sure the buddies are within the range
             if (block->is_free && buddy->is_free && block->size == buddy->size) {
@@ -329,7 +328,7 @@ void buddy_block_coalescence(Buddy_Block *head, Buddy_Block *tail) {
                 }
             }
         }
-        
+
         if (no_coalescence) {
             return;
         }
@@ -337,57 +336,57 @@ void buddy_block_coalescence(Buddy_Block *head, Buddy_Block *tail) {
 }
 
 void *buddy_allocator_alloc(Buddy_Allocator *b, size_t size) {
-    if (size != 0) {    
+    if (size != 0) {
         size_t actual_size = buddy_block_size_required(b, size);
-        
+
         Buddy_Block *found = buddy_block_find_best(b->head, b->tail, actual_size);
         if (found == NULL) {
             // Try to coalesce all the free buddy blocks and then search again
             buddy_block_coalescence(b->head, b->tail);
             found = buddy_block_find_best(b->head, b->tail, actual_size);
         }
-            
+
         if (found != NULL) {
             found->is_free = false;
             return (void *)((char *)found + b->alignment);
         }
-        
+
         // Out of memory (possibly due to too much internal fragmentation)
     }
-    
+
     return NULL;
 }
 
 void buddy_allocator_free(Buddy_Allocator *b, void *data) {
     if (data != NULL) {
         Buddy_Block *block;
-        
-        assert(b->head <= data);
-        assert(data < b->tail);
-        
+
+        assert((uintptr_t)b->head <= (uintptr_t)data);
+        assert((uintptr_t)data < (uintptr_t)b->tail);
+
         block = (Buddy_Block *)((char *)data - b->alignment);
         block->is_free = true;
-        
+
         // NOTE: Coalescence could be done now but it is optional
         // buddy_block_coalescence(b->head, b->tail);
     }
 }
 
-void 
+void
 stack_init(Stack_Allocator* s, void* data, i64 len) {
-    s->data        = data;
+    s->data        = (u8*)data;
 	s->prev_offset = 0;
 	s->curr_offset = 0;
 	s->peak_used   = 0;
     s->buf_len     = len;
 }
 
-void* 
+void*
 stack_alloc(Stack_Allocator* s, i64 size, i64 alignment) {
     return stack_alloc_non_zeroed(s, size, alignment);
 }
 
-size_t 
+size_t
 calc_padding_with_header(uintptr_t ptr, uintptr_t alignment, size_t header_size) {
 	uintptr_t p, a, modulo, padding, needed_space;
 
@@ -419,38 +418,39 @@ calc_padding_with_header(uintptr_t ptr, uintptr_t alignment, size_t header_size)
 	return (size_t)padding;
 }
 
-void* 
+void*
 stack_alloc_non_zeroed(Stack_Allocator* s, i64 size, i64 alignment) {
     if( s->data == NULL ) {
         assert(s->data != NULL && "Allocation on an uninitialized Stack allocator.");
-    } 
+    }
 
     void* curr_addr = s->data + s->curr_offset;
-    i64 padding = calc_padding_with_header((uintptr_t)curr_addr, alignment, sizeof(Stack_Allocation_Header)); 
+    i64 padding = calc_padding_with_header((uintptr_t)curr_addr, alignment, sizeof(Stack_Allocation_Header));
 
     if( s->curr_offset + padding + size > s->buf_len ) {
         return NULL;
-    } 
+    }
 
     i64 old_offset = s->prev_offset;
     s->prev_offset = s->curr_offset;
     s->curr_offset += padding;
-    void* next_addr = curr_addr + padding;
+    void* next_addr = (u8*)curr_addr + padding;
 
-    Stack_Allocation_Header* header = next_addr - sizeof(Stack_Allocation_Header);
+    Stack_Allocation_Header* header = (Stack_Allocation_Header*)((u8*)next_addr - sizeof(Stack_Allocation_Header));
     header->padding = padding;
     header->prev_offset = old_offset;
     s->curr_offset += size;
     s->peak_used = Max(s->peak_used, s->curr_offset);
-    
-    return memset((void *)next_addr, 0, size);
+
+    memset(next_addr, 0, size);
+    return next_addr;
 }
 
-void* 
+void*
 stack_free(Stack_Allocator* s, void* old_memory) {
     if( s->data == NULL ) {
         assert(s->data != NULL && "Allocation on an uninitialized Stack allocator.");
-    } 
+    }
     if( old_memory == NULL ) {
         return NULL;
     }
@@ -477,22 +477,22 @@ stack_free(Stack_Allocator* s, void* old_memory) {
     return NULL;
 }
 
-void 
+void
 stack_free_all(Stack_Allocator* s) {
     s->prev_offset = 0;
     s->curr_offset = 0;
 }
 
-void* 
+void*
 stack_resize(Stack_Allocator* s, void* old_memory, i64 old_size, i64 size, i64 alignment) {
     return stack_resize_non_zeroed(s, old_memory, old_size, size, alignment);
 }
 
-void* 
+void*
 stack_resize_non_zeroed(Stack_Allocator* s, void* old_memory, i64 old_size, i64 size, i64 alignment) {
     if( s->data == NULL ) {
         assert(s->data != NULL && "Allocation on an uninitialized Stack allocator.");
-    } 
+    }
 
     if( old_memory == NULL ) {
         return stack_alloc_non_zeroed(s, size, alignment);
@@ -510,9 +510,9 @@ stack_resize_non_zeroed(Stack_Allocator* s, void* old_memory, i64 old_size, i64 
     if( curr_addr >= start + (uintptr_t)s->curr_offset ) {
 		return NULL;
 	}
-    if( (uintptr_t)old_memory & (uintptr_t)(alignment - 1) != 0 ) {
+    if( ((uintptr_t)old_memory) & ((uintptr_t)(alignment - 1)) != 0 ) {
         void* data = stack_alloc_non_zeroed(s, size, alignment);
-        
+
         if(data != NULL) {
             return data;
         }
@@ -535,10 +535,10 @@ stack_resize_non_zeroed(Stack_Allocator* s, void* old_memory, i64 old_size, i64 
     uintptr_t diff = size - (uintptr_t)old_size;
     s->curr_offset += diff;
     if( diff > 0 ) {
-        memset((void*)curr_addr + diff, 0, diff);
+        memset((u8*)curr_addr + diff, 0, diff);
     }
 
     return memset(old_memory, 0, size);
 }
 
-#endif 
+#endif

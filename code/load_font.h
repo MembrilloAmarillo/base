@@ -1,8 +1,6 @@
 #ifndef _LOAD_FONT_H_
 #define _LOAD_FONT_H_
 
-#include "types.h"
-
 typedef struct f_Glyph f_Glyph;
 struct f_Glyph {
 	u32 glyph   ;
@@ -42,14 +40,14 @@ internal FontCache F_BuildFont(f32 FontSize, u32 Width, u32 Height, u8* BitmapAr
 
 internal u32 F_GetKerningFromCodepoint(FontCache* fc, u32 g1, u32 g2);
 
-internal u32 F_GetGlyphFromIdx(FontCache* fc, ssize_t idx);
-internal f32 F_GetWidthFromIdx(FontCache* fc, ssize_t idx);
-internal f32 F_GetHeightFromIdx(FontCache* fc, ssize_t idx);
-internal f32 F_GetPosXInBitmapFromIdx(FontCache* fc, ssize_t idx);
-internal f32 F_GetPosYInBitmapFromIdx(FontCache* fc, ssize_t idx);
+internal u32 F_GetGlyphFromIdx(FontCache* fc, u64 idx);
+internal f32 F_GetWidthFromIdx(FontCache* fc, u64 idx);
+internal f32 F_GetHeightFromIdx(FontCache* fc, u64 idx);
+internal f32 F_GetPosXInBitmapFromIdx(FontCache* fc, u64 idx);
+internal f32 F_GetPosYInBitmapFromIdx(FontCache* fc, u64 idx);
 
-internal int F_TextWidth(FontCache* fc, const char* str, int str_len);
-internal int F_TextHeight(FontCache* fc);
+internal f32 F_TextWidth(FontCache* fc, const char* str, int str_len);
+internal f32 F_TextHeight(FontCache* fc);
 
 /** \brief Saves a single-channel bitmap as a grayscale PPM image
  *
@@ -66,23 +64,28 @@ internal void SaveBitmapAsPPM(const char* filename, const u8* bitmap, int width,
 
 internal FontCache
 F_BuildFont(f32 FontSize, u32 Width, u32 Height, u8* BitmapArray, const char* path) {
-    FontCache fc = {
-        .FontSize = FontSize,
-        .BitmapArray = BitmapArray,
-        .BitmapWidth = Width,
-        .BitmapHeight = Height,
-    };
+	FontCache fc = {};
+	fc.FontSize = FontSize;
+    fc.BitmapArray = BitmapArray;
+    fc.BitmapWidth = Width;
+    fc.BitmapHeight = Height;
+    
 
-    stbtt_pack_context ctx = {0};
+    stbtt_pack_context ctx;
     stbtt_PackBegin(&ctx, BitmapArray, (int)Width, (int)Height, 0, 1, NULL);
 
-    f_file File = OpenFile(path, RDONLY);
+    f_file File = F_OpenFile(path, RDONLY);
 
-    i32 FileSize = FileLength(&File);
+    i32 FileSize = F_FileLength(&File);
 
-    u8* data = mmap(NULL, FileSize, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, File.Fd, 0);
-    SetFileData(&File, data);
-    i32 r_len = FileRead(&File);
+    u8* data = 0;
+    #if __linux__
+    data = (u8*)mmap(NULL, FileSize, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, File.Fd, 0);
+    #elif _WIN32
+    data = (u8*)malloc(FileSize);
+    #endif
+    F_SetFileData(&File, data);
+    i32 r_len = F_FileRead(&File);
 
     if( r_len == -1 ) {
         fprintf( stderr, "[ERROR] Could not read file %s\n", path);
@@ -98,7 +101,7 @@ F_BuildFont(f32 FontSize, u32 Width, u32 Height, u8* BitmapArray, const char* pa
     stbtt_GetFontVMetrics(&info, &fc.ascent, &fc.descent, &line_gap);
     fc.line_height = (f32)(fc.ascent - fc.descent + line_gap) * fc.scale;
 
-    u8* codepoint = malloc(96);
+    u8* codepoint = (u8*)malloc(96);
     codepoint[0] = 32;
     for( u32 i = 0; i < 95; i += 1 ) {
         codepoint[i+1] = i + 32;
@@ -138,8 +141,8 @@ F_BuildFont(f32 FontSize, u32 Width, u32 Height, u8* BitmapArray, const char* pa
 
     int table_len   = stbtt_GetKerningTableLength(&info);
     fc.kerning_size = (u32)table_len;
-    fc.kerning      = malloc(sizeof(f_kerning) * table_len);
-    stbtt_kerningentry* table = malloc(sizeof(stbtt_kerningentry) * table_len);
+    fc.kerning      = (f_kerning*)malloc(sizeof(f_kerning) * table_len);
+    stbtt_kerningentry* table = (stbtt_kerningentry*)malloc(sizeof(stbtt_kerningentry) * table_len);
 
     stbtt_GetKerningTable(&info, table, table_len);
 
@@ -153,8 +156,12 @@ F_BuildFont(f32 FontSize, u32 Width, u32 Height, u8* BitmapArray, const char* pa
     free(table);
     free(codepoint);
     free(char_data_range);
+    #if __linux__
     munmap(data, FileSize);
-    CloseFile(&File);
+    #elif _WIN32
+    free(data);
+    #endif
+    F_CloseFile(&File);
     stbtt_PackEnd(&ctx);
 
     return fc;
@@ -170,50 +177,51 @@ F_GetKerningFromCodepoint(FontCache* fc, u32 g1, u32 g2) {
     return 0;
 }
 
-internal u32 F_GetGlyphFromIdx(FontCache* fc, ssize_t idx) {
+internal u32 F_GetGlyphFromIdx(FontCache* fc, u64 idx) {
     return fc->glyph[idx].glyph;
 }
 
-internal f32 F_GetWidthFromIdx(FontCache* fc, ssize_t idx) {
+internal f32 F_GetWidthFromIdx(FontCache* fc, u64 idx) {
     return fc->glyph[idx].width;
 }
 
-internal f32 F_GetHeightFromIdx(FontCache* fc, ssize_t idx) {
+internal f32 F_GetHeightFromIdx(FontCache* fc, u64 idx) {
     return fc->glyph[idx].height;
 }
 
-internal f32 F_GetPosXInBitmapFromIdx(FontCache* fc, ssize_t idx) {
+internal f32 F_GetPosXInBitmapFromIdx(FontCache* fc, u64 idx) {
     return fc->glyph[idx].x;
 }
 
-internal f32 F_GetPosYInBitmapFromIdx(FontCache* fc, ssize_t idx) {
+internal f32 F_GetPosYInBitmapFromIdx(FontCache* fc, u64 idx) {
     return fc->glyph[idx].y;
 }
 
-internal
-int F_TextWidth(FontCache* fc, const char* str, int str_len) {
+internal f32
+F_TextWidth(FontCache* fc, const char* str, int str_len) {
     if (!fc || !str) return 0;
     if (str_len < 0) str_len = (int)strlen(str);
 
-    int width = 0;
-    for (int i = 0; i < str_len && str[i] != '\0'; ++i) {
+    f32 width = 0;
+    for (int i = 0; i < str_len; ++i) {
         unsigned char ch = (unsigned char)str[i];
-        if (ch < 32 || ch > 126) {
-            // skip non-printable / unsupported
-            continue;
-        }
+        if ( (ch & 0xC0) == 0x80 ) continue;
         int g_idx = (int)ch - 32;
         f_Glyph glyph = fc->glyph[g_idx];
         // Use advance (xadvance) to advance pen, not bitmap width
-        width += (int)glyph.advance;
+        width += glyph.advance;
+        if( i < str_len - 1 ) {
+           u32 kern = F_GetKerningFromCodepoint( fc, (int)g_idx, (int) str[i+1] - 32 );
+            width += kern;
+        }
     }
     return width;
 }
 
-internal int F_TextHeight(FontCache* fc) {
+internal f32 F_TextHeight(FontCache* fc) {
     if (!fc) return 0;
     // line_height was computed as (ascent-descent+gap)*scale (a float). Round up to integer pixels.
-    return (int)ceilf(fc->FontSize + fc->line_height / 2);
+    return ceilf(fc->FontSize + fc->line_height / 2);
 }
 
 void SaveBitmapAsPPM(const char* filename, const u8* bitmap, int width, int height) {

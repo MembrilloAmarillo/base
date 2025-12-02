@@ -25,6 +25,16 @@ that we are easing the work for the os in terms of memory managment.
 #include <sys/mman.h>
 #endif
 
+#ifdef __cplusplus
+
+#include <cstddef>
+
+#define _Alignof alignof
+
+#else
+#include <stddef.h>
+#endif
+
 #define kibibyte( size ) (size << 10)
 #define mebibyte( size ) (size << 20)
 #define gigabyte( size ) (((U64)size) << 30)

@@ -13,20 +13,12 @@ void main()
     ivec2 r = ivec2(50, 50);
 
     if(texelCoord.x < size.x && texelCoord.y < size.y) {
-        vec4 color = vec4(30.0 / 255.0, 30.0 / 255.0, 30.0 / 255.0, 1.0);
-
-        // Create grid lines every 16 pixels
-        if((texelCoord.x % 32) != 0 && (texelCoord.y % 32) != 0)
-        {
-            color.rgb = vec3(12.0 / 255.0);
-        }
-
-        float dist = sqrt( pow(center.x - texelCoord.x, 2) + pow(center.y - texelCoord.y, 2) );
-        if( dist <= r.x) {
-            color.rgb = vec3(12.0 / 255.0);
-            color.r   = 30.0 / 255.0 * sqrt( 2 + r.x - dist );
-        }
+        vec4 color = vec4(10.0 / 255.0, 10.0 / 255.0, 10.0 / 255.0, 1.0);
     
+		if( texelCoord.x % 32 == 0 && texelCoord.y % 32 == 0 ) {
+			color.rgb += 4;
+		}
+
         imageStore(image, texelCoord, color);
     }
 }

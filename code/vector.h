@@ -1,15 +1,13 @@
 #ifndef _VECTOR_H_
 #define _VECTOR_H_
 
-/** 
+/**
  * @author Sascha Paez
- * 
+ *
  * @paragraph This single-header library intends to implement a simple to use vector functionality. The memory will be managed outside
- * this library as it permits the user to handle memory as they intend to, only making the library as an interface to manage the data they want to 
+ * this library as it permits the user to handle memory as they intend to, only making the library as an interface to manage the data they want to
  * handle
  */
-
-#include "types.h"
 
 typedef struct vector vector;
 struct vector {
@@ -23,13 +21,13 @@ struct vector {
 /**
  * @author Sascha Paez
  * @brief  Returns a vector struct initialized with the data passed
- * 
+ *
  * @param buffer    Buffer memory handled and initiaized by the user
  * @param len       Starting length of the vector
- * @param capacity  The maximum capacity of the vector 
+ * @param capacity  The maximum capacity of the vector
  * @param data_size The size of the type we want to handle in the vector
- * 
- * @return vector   Initialized vector   
+ *
+ * @return vector   Initialized vector
  * @note For sake for user manageability, the buffer will be initialized and destroyed by them
  */
 internal vector VectorInit(void* buffer, u32 len, u32 capacity, u32 data_size);
@@ -37,7 +35,7 @@ internal vector VectorInit(void* buffer, u32 len, u32 capacity, u32 data_size);
 /**
  * @author Sascha Paez
  * @brief  Resets the struct passed by the user
- * 
+ *
  * @note For sake for user manageability, the buffer will never be freed by the function
  */
 internal void VectorReset(vector* v);
@@ -69,15 +67,15 @@ internal void VectorResize(vector* v, void* buffer, u32 new_len);
 /**
  * @author Sascha Paez
  * @brief  Pops the last value in the vector
- * 
- * @note It is important to note that, as it does not manage the memory from the buffer, until the buffer is freed it will always 
+ *
+ * @note It is important to note that, as it does not manage the memory from the buffer, until the buffer is freed it will always
  * occupy the same amount of memory
  */
 internal void VectorPop(vector* v);
 
 /**
  * @author Sascha Paez
- * 
+ *
  * @brief Makes it nicer to create the vector, passing the type the user wants to use
  */
 #define VectorNew(buffer, len, capacity, type) VectorInit(buffer, len, capacity, sizeof(type))
@@ -88,29 +86,28 @@ internal void VectorPop(vector* v);
 
 internal vector
 VectorInit(void* buffer, u32 len, u32 capacity, u32 data_size) {
-    vector v = {
-        .data = buffer,
-        .len  = len,
-        .offset   = 0,
-        .capacity = capacity,
-        .data_size = data_size
-    };
+	vector v = {};
+	v.data = buffer;
+	v.len = len;
+	v.offset = len * data_size;
+	v.capacity = capacity;
+	v.data_size = data_size;
 
     return v;
 }
 
-internal void 
+internal void
 VectorReset(vector* v) {
     memset(v, 0, sizeof(vector));
 }
 
-internal void 
+internal void
 VectorClear(vector* v) {
     v->len = 0;
     v->offset = 0;
 }
 
-internal void 
+internal void
 VectorAppend(vector* v, void* val) {
     if( v->len < v->capacity) {
         memcpy(((u8*)v->data + v->offset), val, v->data_size);
@@ -123,7 +120,7 @@ VectorAppend(vector* v, void* val) {
     }
 }
 
-internal void 
+internal void
 VectorPop(vector* v) {
     if(v->len > 0) {
         v->len -= 1;
@@ -131,7 +128,7 @@ VectorPop(vector* v) {
     }
 }
 
-internal void 
+internal void
 VectorResize(vector* v, void* buffer, u32 new_len) {
     u32 len       = v->len;
     u32 offset    = v->offset;
@@ -144,7 +141,7 @@ VectorResize(vector* v, void* buffer, u32 new_len) {
     v->len    = len;
 }
 
-internal void 
+internal void
 VectorSet(vector* v, void* val, u32 idx) {
     if( v == NULL ) { return; }
     if( v->data == NULL ) { return; }

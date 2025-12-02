@@ -52,21 +52,43 @@ struct udp_socket_connect {
 udp_socket udp_socket_init();
 
 /**
- * @brief Function that creates a socket and binds it to the sockdf 
- * @param U32 Port number you want to bind 
+ * @brief Function that creates a socket and binds it to the sockdf
+ * @param U32 Port number you want to bind
  *
  * @return udp_socket_bind The structure with the data for that connection
  */
 udp_socket_bind UDP_CreateSocketBind( U32 PORT );
 
 /**
- * @brief Function that connects to a binded socket 
+ * @brief Function that connects to a binded socket
  * @param const char* IP of the socket you want to connect to
  * @param U32         Port number you want to connect
  *
  * @return udp_socket_connect The structure with the data for that connection
  */
 udp_socket_connect UDP_CreateSocketConnect( const char* IP, U32 PORT );
+
+/**
+ * @brief Packs a value of a given bit size into an specific bitoffset of a buffer
+* @param Buffer    Array of memory
+* @param BufferLen Length of the buffer
+* @param Bitoffset Bit offset in the buffer
+* @param Value     The value we want to pack
+* @param BitSize   Size of the value in bits
+
+*/
+internal void PackBits(u8* Buffer, u32 BufferLen, u64* BitOffset, u64 Value, u64 BitSize );
+
+
+/**
+ * @brief Unpacks a value from an specific bitrange inside a buffer
+* @param Buffer    Array of memory
+* @param BufferLen Length of the buffer
+* @param Bitoffset Bit offset in the buffer
+* @param BitSize   Size of the value in bits
+* @return Value stored
+*/
+internal u64 UnpackBits(u8* Buffer, u32 BufferLen, u64* BitOffset, u64 BitSize );
 
 #endif
 
@@ -158,6 +180,54 @@ udp_socket_connect UDP_CreateSocketConnect( const char* IP, U32 PORT ) {
     connect(sock.sockfd, (struct sockaddr *)&sock.client_addr, sizeof(sock.client_addr));
 
     return sock;
+}
+
+internal void
+PackBits(u8* Buffer, u32 BufferLen, u64* BitOffset, u64 Value, u64 BitSize) {
+    for (u64 i = 0; i < BitSize; i += 1) {
+        // Calculate the position for the current bit using the loop counter 'i'
+        u64 CurrentBit = *BitOffset + i;
+        u64 BytePos    = CurrentBit / 8;
+        u64 BitPos     = CurrentBit % 8;
+
+        // Check for out-of-bounds write
+        if (BytePos >= BufferLen) {
+            // Handle error
+            return;
+        }
+
+        // Extract the bit to write (from MSB to LSB)
+        u8 Bit = (u8)((Value >> (BitSize - 1 - i)) & 0x01);
+
+        // Write the bit into the buffer without disturbing other bits
+        Buffer[BytePos] = (Buffer[BytePos] & ~(1 << (7 - BitPos))) | (Bit << (7 - BitPos));
+    }
+
+    *BitOffset += BitSize;
+}
+
+internal u64
+UnpackBits(u8* Buffer, u32 BufferLen, u64* BitOffset, u64 BitSize) {
+    // Check if the read will go out of bounds
+    if (((*BitOffset + BitSize) / 8) >= BufferLen) {
+        // Handle error: log, return 0, or assert
+        return 0;
+    }
+
+    u64 Value = 0;
+
+    for (u64 i = 0; i < BitSize; i += 1) {
+        u64 CurrentBit = *BitOffset + i;
+        u64 BytePos    = CurrentBit / 8;
+        u64 BitPos     = CurrentBit % 8;
+
+        u8 Bit = (Buffer[BytePos] >> (7 - BitPos)) & 0x01;
+        Value = (Value << 1) | Bit;
+    }
+
+    *BitOffset += BitSize;
+
+    return Value;
 }
 
 #endif
