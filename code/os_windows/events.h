@@ -54,7 +54,7 @@ fn_internal vec2
     POINT p;
     GetCursorPos(&p);
     ScreenToClient(window->Win, &p);
-	vec2 pos = {.x = (f32)p.x, .y = (f32)p.y};
+	vec2 pos = Vec2New((f32)p.x, (f32)p.y);
 	return pos;
 }
 
@@ -88,14 +88,23 @@ fn_internal char*
 }
 
 
-fn_internal ui_input
-	GetNextEvent(api_window* window) {
+fn_internal ui_input GetNextEvent(api_window* window) {
     ui_input Input = 0;
     MSG msg;
+	
+	DWORD result = MsgWaitForMultipleObjects(
+		0,          // number of handles
+		NULL,       // array of handles
+		FALSE,      // wait for all handles? FALSE = any
+		INFINITE,   // wait forever
+		QS_ALLINPUT // wait for any message/input
+	);
+
     while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
         TranslateMessage(&msg);
         Input |= ProcessMessage(window, &msg);
         // Additional processing if needed
+		DispatchMessage(&msg);
     }
     return Input;
 }
