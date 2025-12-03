@@ -72,8 +72,10 @@ fn_internal api_window SurfaceCreateWindow(F64 w, F64 h) {
 	Window.Win = SDL_CreateWindow(
 		"GFX Context",
 		w, h,
-		SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE
+		SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY
 	);
+
+	SDL_SetWindowResizable(Window.Win, true);
 
 	if( Window.Win == NULL ) {
 		fprintf( stderr, "[SDL ERROR] Failed to create window: %s", SDL_GetError());
@@ -87,7 +89,8 @@ fn_internal api_window SurfaceCreateWindow(F64 w, F64 h) {
 fn_internal vec2 SurfaceGetWindowSize(api_window* Window) {
 	int w, h;
 	SDL_GetWindowSize(Window->Win, &w, &h);
-
+	//SDL_Vulkan_GetDrawableSize(Window->Win, &w, &h);
+	fprintf(stdout, "[INFO] New window size: %d %d\n", w, h);
 	return Vec2New(w, h);
 }
 
@@ -101,8 +104,7 @@ fn_internal vec2 GetMousePosition(api_window* window) {
 // ------------------------------------------------------
 // SDL3 Event Processing (equivalent semantics)
 // ------------------------------------------------------
-fn_internal ui_input
-    GetNextEvent(api_window* Window)
+fn_internal ui_input GetNextEvent(api_window* Window)
 {
 	ui_input Input = 0;
 	SDL_Event ev;
@@ -117,9 +119,11 @@ fn_internal ui_input
 			// --------------------------------------------------
 			// Window Resize → FrameBufferResized
 			// --------------------------------------------------
-			case SDL_EVENT_WINDOW_RESIZED: {
+			case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED: {
 				int w = ev.window.data1;
 				int h = ev.window.data2;
+
+				printf("[LOG] Window resize\n");
 
 				if (w != window_width || h != window_height)
 					Input |= FrameBufferResized;
@@ -305,7 +309,7 @@ fn_internal int
 
 #ifdef WINDOW_CREATION_IMPL
 
-	#ifndef SDL_USAGE 
+	#ifndef SDL_USAGE
 		#define EVENTS_IMPL
 		#define SURFACE_IMPL
 		#ifdef __linux__
@@ -315,5 +319,5 @@ fn_internal int
 			#include "os_windows/surface.h"
 			#include "os_windows/events.h"
 		#endif
-	#endif 
+	#endif
 #endif

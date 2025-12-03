@@ -110,6 +110,14 @@ fn_internal inline vec2 Vec2Mul(vec2 v1, vec2 v2) {
 	return x;
 }
 
+fn_internal inline bool Vec2Eq(vec2 v1, vec2 v2) {
+	return (v1.x == v2.x && v1.y == v2.y) ? true : false;
+}
+
+fn_internal inline bool Vec2nEq(vec2 v1, vec2 v2) {
+	return (v1.x != v2.x || v1.y != v2.y) ? true : false;
+}
+
 fn_internal inline vec2 Vec2ScalarMul(f32 scalar, vec2 v1) {
 	vec2 x = { scalar * v1.x, scalar * v1.y };
 	return x;

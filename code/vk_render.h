@@ -1519,6 +1519,10 @@ fn_internal void
         PresentMode = VK_PRESENT_MODE_FIFO_KHR;
     }
 
+    // TESTING FOR VSYNC
+    //
+    PresentMode = VK_PRESENT_MODE_FIFO_KHR;
+
     if( Support.Capabilities.currentExtent.width != UINT32_MAX ) {
         Extent = Support.Capabilities.currentExtent;
     } else {
@@ -1543,7 +1547,7 @@ fn_internal void
     CreateInfo.compositeAlpha   = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
     CreateInfo.presentMode      = PresentMode;
     CreateInfo.clipped          = true;
-    
+
 
     queue_family_indices indices = FindQueueFamilies(base, base->PhysicalDevice);
     u32 qFamilyIndices[] = {indices.GraphicsAndCompute, indices.Presentation};
@@ -1789,12 +1793,12 @@ fn_internal  allocated_buffer
 	bufferInfo.size  = AllocSize;
 	bufferInfo.usage = Usage;
 	bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    
+
 
 	VmaAllocationCreateInfo vmaInfo = {};
 	vmaInfo.usage = MemoryUsage;
     vmaInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
-    
+
 
     VK_CHECK(vmaCreateBuffer(allocator,
                              &bufferInfo,
@@ -1837,9 +1841,9 @@ void ClearPipelineBuilder(pipeline_builder* builder) {
 	builder->Rasterizer = {};
 	builder->Rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
 
-	builder->ColorBlendAttachment = {}; 
+	builder->ColorBlendAttachment = {};
 
-	builder->Multisampling = {}; 
+	builder->Multisampling = {};
 	builder->Multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
 
 	builder->DepthStencil = {};
@@ -1870,7 +1874,7 @@ VkPipelineShaderStageCreateInfo PipelineShaderStageCreateInfo(
     info.module = module;
     info.pName = entry;
 	info.pSpecializationInfo = NULL;
-    
+
 
     return info;
 }
@@ -1936,7 +1940,7 @@ VkPipeline BuildPipeline(pipeline_builder* builder, VkDevice device) {
 	viewport_state.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
 	viewport_state.viewportCount = 1;
 	viewport_state.scissorCount = 1;
-    
+
 
 	// Setup color blending
 	VkPipelineColorBlendStateCreateInfo color_blending = {};
@@ -1945,7 +1949,7 @@ VkPipeline BuildPipeline(pipeline_builder* builder, VkDevice device) {
     color_blending.logicOp = VK_LOGIC_OP_COPY;
     color_blending.attachmentCount = 1;
 	color_blending.pAttachments = &builder->ColorBlendAttachment;
-    
+
 
 	// Vertex input state
 	VkPipelineVertexInputStateCreateInfo vertex_input_info = {};
@@ -1976,7 +1980,7 @@ VkPipeline BuildPipeline(pipeline_builder* builder, VkDevice device) {
     pipeline_info.pColorBlendState = &color_blending;
     pipeline_info.pDepthStencilState = &builder->DepthStencil;
 	pipeline_info.layout = builder->PipelineLayout;
-    
+
 
     // Dynamic states
     VkDynamicState dynamic_states[2] = {
@@ -1988,7 +1992,7 @@ VkPipeline BuildPipeline(pipeline_builder* builder, VkDevice device) {
 	dynamic_info.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
 	dynamic_info.pDynamicStates = dynamic_states;
 	dynamic_info.dynamicStateCount = 2;
-    
+
 
     pipeline_info.pDynamicState = &dynamic_info;
 
@@ -2575,6 +2579,7 @@ void CopyImageToImage(VkCommandBuffer cmd, VkImage source, VkImage destination,
 
 fn_internal void
 	RecreateSwapchain(vulkan_base* base) {
+
     vkDeviceWaitIdle(base->Device);
 	vec2 Size = SurfaceGetWindowSize(&base->Window);
 
@@ -2593,6 +2598,10 @@ fn_internal void
     //InitDescriptors(base);
 
     base->FramebufferResized = false;
+
+    #ifndef NDEBUG
+    printf("[LOG] Swapchain recreated: %d %d\n", Size.x, Size.y);
+    #endif
 }
 
 fn_internal bool PrepareFrame(vulkan_base* base) {

@@ -355,7 +355,7 @@ fn_internal u64
 
 fn_internal void
 	UI_Init(ui_context* Context, Stack_Allocator* Allocator, Stack_Allocator* TempAllocator) {
-    spall_buffer_begin(&spall_ctx, &spall_buffer, 
+    spall_buffer_begin(&spall_ctx, &spall_buffer,
 					   __FUNCTION__,             // name of your function
 					   sizeof(__FUNCTION__) - 1, // name len minus the null terminator
 					   get_time_in_nanos()      // timestamp in nanoseconds -- start of your timing block
@@ -384,7 +384,7 @@ fn_internal void
 	Context->IsOnResize = false;
 
     HashTableInit(&Context->TableObject, Allocator, 4096, UI_CustomXXHash);
-	
+
 	spall_buffer_end(&spall_ctx, &spall_buffer, get_time_in_nanos() // timestamp in nanoseconds -- end of your timing block
 					 );
 }
@@ -406,7 +406,7 @@ fn_internal void
 }
 
 fn_internal void UI_End(ui_context* UI_Context, draw_bucket_instance* DrawInstance) {
-	spall_buffer_begin(&spall_ctx, &spall_buffer, 
+	spall_buffer_begin(&spall_ctx, &spall_buffer,
 					   __FUNCTION__,             // name of your function
 					   sizeof(__FUNCTION__) - 1, // name len minus the null terminator
 					   get_time_in_nanos()      // timestamp in nanoseconds -- start of your timing block
@@ -493,9 +493,9 @@ fn_internal void UI_End(ui_context* UI_Context, draw_bucket_instance* DrawInstan
 						Radius,
 						0,
 						Vec4New(
-							static_cast<f32>(PanelBg.r * 0.2), 
-							static_cast<f32>(PanelBg.g * 0.2), 
-							static_cast<f32>(PanelBg.b * 0.2), 
+							static_cast<f32>(PanelBg.r * 0.2),
+							static_cast<f32>(PanelBg.g * 0.2),
+							static_cast<f32>(PanelBg.b * 0.2),
 							static_cast<f32>(PanelBg.a * 0.5)
 						)
 					);
@@ -530,7 +530,7 @@ fn_internal void UI_End(ui_context* UI_Context, draw_bucket_instance* DrawInstan
 				);
 
                 if( Object->TextCursorIdx >= 0 && Object->TextStartIdx >= 0 && Object->Type == UI_InputText) {
-                    float Start = Object->Pos.x + F_TextWidth(Object->Theme.Font, (const char*)Object->Text.data, Object->TextCursorIdx - Object->TextStartIdx);
+                    float Start = Object->Pos.x + F_TextWidth(Object->Theme.Font, "H", 1) * (Object->TextCursorIdx - Object->TextStartIdx);
 					float CursorSize = F_TextWidth(Object->Theme.Font, "H", 1);
 					D_DrawRect2D(
 						DrawInstance,
@@ -541,7 +541,7 @@ fn_internal void UI_End(ui_context* UI_Context, draw_bucket_instance* DrawInstan
 					);
                 }
             } else if( Object->Text.idx == 0 && Object->Type == UI_InputText && Object->Option & UI_DrawText ) {
-                float Start = Object->Pos.x + F_TextWidth(Object->Theme.Font, (const char*)Object->Text.data, Object->TextCursorIdx);
+                float Start = Object->Pos.x + F_TextWidth(Object->Theme.Font, "H", 1 ) * Object->TextCursorIdx;
 				float CursorSize = F_TextWidth(Object->Theme.Font, "H", 1);
 				D_DrawRect2D(
 					DrawInstance,
@@ -706,7 +706,7 @@ fn_internal void UI_WindowEnd(ui_context* Context) {
 }
 
 fn_internal U8_String* UI_GetTextFromBox(ui_context* Context, const char* Key) {
-    spall_buffer_begin(&spall_ctx, &spall_buffer, 
+    spall_buffer_begin(&spall_ctx, &spall_buffer,
 					  __FUNCTION__,             // name of your function
 					  sizeof(__FUNCTION__) - 1, // name len minus the null terminator
 					  get_time_in_nanos()      // timestamp in nanoseconds -- start of your timing block
@@ -723,7 +723,7 @@ fn_internal U8_String* UI_GetTextFromBox(ui_context* Context, const char* Key) {
 }
 
 fn_internal void UI_DrawRect2D(ui_context* Context, rect_2d Rect, vec4 color, vec4 color_border, f32 border, f32 radius) {
-	spall_buffer_begin(&spall_ctx, &spall_buffer, 
+	spall_buffer_begin(&spall_ctx, &spall_buffer,
 					   __FUNCTION__,             // name of your function
 					   sizeof(__FUNCTION__) - 1, // name len minus the null terminator
 					   get_time_in_nanos()      // timestamp in nanoseconds -- start of your timing block
@@ -747,7 +747,7 @@ fn_internal void UI_DrawRect2D(ui_context* Context, rect_2d Rect, vec4 color, ve
 }
 
 fn_internal void UI_DrawText2D(ui_context* Context, rect_2d Rect, U8_String* String, FontCache* Font, vec4 color) {
-	spall_buffer_begin(&spall_ctx, &spall_buffer, 
+	spall_buffer_begin(&spall_ctx, &spall_buffer,
 					   __FUNCTION__,             // name of your function
 					   sizeof(__FUNCTION__) - 1, // name len minus the null terminator
 					   get_time_in_nanos()      // timestamp in nanoseconds -- start of your timing block
@@ -773,7 +773,7 @@ fn_internal void UI_DrawText2D(ui_context* Context, rect_2d Rect, U8_String* Str
 
 fn_internal ui_object* UI_BuildObjectWithParent(ui_context* Context, const u8* Key, const u8* Text, rect_2d Rect, ui_lay_opt Options, ui_object* Parent )
 {
-	spall_buffer_begin(&spall_ctx, &spall_buffer, 
+	spall_buffer_begin(&spall_ctx, &spall_buffer,
 					   __FUNCTION__,             // name of your function
 					   sizeof(__FUNCTION__) - 1, // name len minus the null terminator
 					   get_time_in_nanos()      // timestamp in nanoseconds -- start of your timing block
@@ -784,7 +784,7 @@ fn_internal ui_object* UI_BuildObjectWithParent(ui_context* Context, const u8* K
 	entry* StoredEntry = HashTableFindPointer(&Context->TableObject, (const char*)Key, Parent->HashId);
 
     if( StoredEntry != NULL ) {
-        
+
 		Object = (ui_object*)StoredEntry->Value;
     } else {
         Object = stack_push(Context->Allocator, ui_object, 1);
@@ -925,7 +925,7 @@ fn_internal ui_object* UI_BuildObjectWithParent(ui_context* Context, const u8* K
 
         Object->Pos  = Object->Rect.Pos;
         Object->Size = vec2{
-            (f32)F_TextWidth(Object->Theme.Font, (const char*)Object->Text.data, Object->Text.idx),
+            (f32)F_TextWidth(Object->Theme.Font, "H", 1) * Object->Text.idx,
             (f32)F_TextHeight(Object->Theme.Font)
         };
 
@@ -1261,7 +1261,7 @@ fn_internal ui_input UI_SetIcon(ui_context* Context, const char* Name, icon_type
 
 fn_internal void UI_BeginScrollbarViewEx(ui_context* Context, vec2 Size) {
 
-	spall_buffer_begin(&spall_ctx, &spall_buffer, 
+	spall_buffer_begin(&spall_ctx, &spall_buffer,
 					   __FUNCTION__,             // name of your function
 					   sizeof(__FUNCTION__) - 1, // name len minus the null terminator
 					   get_time_in_nanos()      // timestamp in nanoseconds -- start of your timing block
@@ -1294,7 +1294,7 @@ fn_internal void UI_BeginScrollbarViewEx(ui_context* Context, vec2 Size) {
 }
 
 fn_internal void UI_EndScrollbarView(ui_context* Context) {
-	spall_buffer_begin(&spall_ctx, &spall_buffer, 
+	spall_buffer_begin(&spall_ctx, &spall_buffer,
 					   __FUNCTION__,             // name of your function
 					   sizeof(__FUNCTION__) - 1, // name len minus the null terminator
 					   get_time_in_nanos()      // timestamp in nanoseconds -- start of your timing block
@@ -1605,8 +1605,8 @@ fn_internal void UI_Divisor(ui_context* Context, f32 Width) {
 }
 
 fn_internal ui_input UI_LastEvent(ui_context* Context, api_window* Window) {
-    #ifndef NDEBUG 
-	spall_buffer_begin(&spall_ctx, &spall_buffer, 
+    #ifndef NDEBUG
+	spall_buffer_begin(&spall_ctx, &spall_buffer,
 					   __FUNCTION__,             // name of your function
 					   sizeof(__FUNCTION__) - 1, // name len minus the null terminator
 					   get_time_in_nanos()      // timestamp in nanoseconds -- start of your timing block
@@ -1632,7 +1632,6 @@ fn_internal ui_input UI_LastEvent(ui_context* Context, api_window* Window) {
     }
 
     if( Input & FrameBufferResized ) {
-        //gfx->base->FramebufferResized = true;
     }
     if( Input & ClipboardPaste ) {
         StringAppend(&Context->TextInput, (const char*)&Window->ClipboardContent);
@@ -1680,10 +1679,10 @@ fn_internal ui_input UI_LastEvent(ui_context* Context, api_window* Window) {
 
     Context->LastInput = Input;
 
-	#ifndef NDEBUG 
+	#ifndef NDEBUG
 	spall_buffer_end(&spall_ctx, &spall_buffer, get_time_in_nanos() // timestamp in nanoseconds -- end of your timing block
 					 );
-	#endif 
+	#endif
 
     return Input;
 }

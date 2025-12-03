@@ -57,25 +57,7 @@ fn_internal char* GetClipboard(api_window* Window);
 
 fn_internal vec2
 GetMousePosition(api_window* window) {
-    Window window_returned;
-    int root_x, root_y;
-    int win_x, win_y;
-    u32 mask_return;
-    XQueryPointer(
-                  window->Dpy,
-                  window->Win,
-                  &window_returned,
-                  &window_returned,
-                  &root_x, &root_y,
-                  &win_x, &win_y,
-                  &mask_return
-                  );
-
-    vec2 MousePosition = {};
-    MousePosition.x = (f32)win_x;
-    MousePosition.y = (f32)win_y;
-
-    return MousePosition;
+    return window->MousePosition;
 }
 
 #include <poll.h>
@@ -83,7 +65,22 @@ GetMousePosition(api_window* window) {
 #include <X11/keysym.h>
 #include <stdint.h>
 
-// return value: ui_input as before
+fn_internal vec2 GetCurrentMousePos(api_window* window) {
+    Window root = DefaultRootWindow(window->Dpy);
+    Window child_return, root_return;
+    int root_x, root_y;
+    int win_x, win_y;
+    unsigned int mask;
+
+    // Query pointer relative to root window
+    Bool result = XQueryPointer(window->Dpy, root,
+                                &root_return, &child_return,
+                                &root_x, &root_y,
+                                &win_x, &win_y,
+                                &mask);
+    return Vec2New((f32)win_x, (f32)win_y);
+}
+
 fn_internal ui_input
 GetNextEvent(api_window* Window)
 {
@@ -91,7 +88,19 @@ GetNextEvent(api_window* Window)
     u32 window_width = Window->Width;
     u32 window_height = Window->Height;
     XEvent ev = {0};
-    while (XPending(Window->Dpy)) {
+
+    // This monstruous shit has to be done in order to block
+    // until we receive some input (counting also mouse movement)
+    // if not used, the XPending while use cpu and have higher CPU usage
+    // than when actually using the UI.
+    int x11_fd = ConnectionNumber(Window->Dpy);
+    fd_set fds;
+    FD_ZERO(&fds);
+    FD_SET(x11_fd, &fds);
+    int ret = select(x11_fd + 1, &fds, NULL, NULL, NULL);
+    if( ret == 0 ) { return Input_None; }
+
+    for(;XPending(Window->Dpy) > 0;) {
         XNextEvent(Window->Dpy, &ev);
 
         if( ev.type == FocusOut ) {
@@ -175,6 +184,7 @@ GetNextEvent(api_window* Window)
             case MotionNotify: {
                 XMotionEvent* me = (XMotionEvent*)&ev;
                 // Optional: handle mouse movement
+                Window->MousePosition = Vec2New(me->x, me->y);
                 break;
             }
 
