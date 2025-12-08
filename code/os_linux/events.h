@@ -6,6 +6,8 @@
 #include <X11/Xutil.h>
 #include <X11/XKBlib.h>
 #include <X11/keysym.h>
+#include <poll.h>
+#include <stdint.h>
 
 #include "../strings.h"
 
@@ -60,31 +62,6 @@ GetMousePosition(api_window* window) {
     return window->MousePosition;
 }
 
-#include <poll.h>
-#include <X11/Xlib.h>
-#include <X11/keysym.h>
-#include <stdint.h>
-
-<<<<<<< HEAD
-// return value: ui_input as before
-=======
-fn_internal vec2 GetCurrentMousePos(api_window* window) {
-    Window root = DefaultRootWindow(window->Dpy);
-    Window child_return, root_return;
-    int root_x, root_y;
-    int win_x, win_y;
-    unsigned int mask;
-
-    // Query pointer relative to root window
-    Bool result = XQueryPointer(window->Dpy, root,
-                                &root_return, &child_return,
-                                &root_x, &root_y,
-                                &win_x, &win_y,
-                                &mask);
-    return Vec2New((f32)win_x, (f32)win_y);
-}
-
->>>>>>> 154fcbcc98d4260859f45c905ed533ba04da06cf
 fn_internal ui_input
 GetNextEvent(api_window* Window)
 {

@@ -86,20 +86,12 @@ union vec2 {
 };
 
 fn_internal inline vec2 Vec2Zero() {
-<<<<<<< HEAD
 	vec2 x = { 0, 0 };
-=======
-	vec2 x = {0, 0};
->>>>>>> 154fcbcc98d4260859f45c905ed533ba04da06cf
 	return x;
 }
 
 fn_internal inline vec2 Vec2New(f32 x, f32 y) {
-<<<<<<< HEAD
 	vec2 vx = { x, y };
-=======
-	vec2 vx = {x, y};
->>>>>>> 154fcbcc98d4260859f45c905ed533ba04da06cf
 	return vx;
 }
 

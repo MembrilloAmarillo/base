@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 #if __linux__
 #include <X11/Xlib.h>
 #include <X11/keysymdef.h>
@@ -712,5 +711,4 @@ Vertex2DInputDescription(Stack_Allocator* Allocator) {
 	};
 
 	return VertexDescription;
->>>>>>> 154fcbcc98d4260859f45c905ed533ba04da06cf
 }

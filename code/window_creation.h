@@ -2,13 +2,8 @@
 #define _WINDOW_CREATION_H_
 
 #ifdef SDL_USAGE
-
-<<<<<<< HEAD
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_vulkan.h>
-
-=======
->>>>>>> 154fcbcc98d4260859f45c905ed533ba04da06cf
 #include "strings.h"
 
 #define ui_input u64
@@ -302,15 +297,6 @@ fn_internal int
 	return (int)SDL_GetDisplayContentScale(SDL_GetPrimaryDisplay());
 }
 #else
-<<<<<<< HEAD
-#ifdef __linux__
-#include "os_linux/surface.h"
-#include "os_linux/events.h"
-#elif _WIN32
-#include "os_windows/surface.h"
-#include "os_windows/events.h"
-#endif
-=======
 	#ifdef __linux__
 		#include "os_linux/surface.h"
 		#include "os_linux/events.h"
@@ -318,36 +304,21 @@ fn_internal int
 		#include "os_windows/surface.h"
 		#include "os_windows/events.h"
 	#endif
->>>>>>> 154fcbcc98d4260859f45c905ed533ba04da06cf
 #endif
 
 #endif //_WINDOW_CREATION_H_
 
 #ifdef WINDOW_CREATION_IMPL
 
-<<<<<<< HEAD
 #ifndef SDL_USAGE
-#define EVENTS_IMPL
-#define SURFACE_IMPL
-#ifdef __linux__
-#include "os_linux/surface.h"
-#include "os_linux/events.h"
-#elif _WIN32
-#include "os_windows/surface.h"
-#include "os_windows/events.h"
-#endif
-#endif
-=======
-	#ifndef SDL_USAGE
-		#define EVENTS_IMPL
-		#define SURFACE_IMPL
-		#ifdef __linux__
-			#include "os_linux/surface.h"
-			#include "os_linux/events.h"
-		#elif _WIN32
-			#include "os_windows/surface.h"
-			#include "os_windows/events.h"
-		#endif
+	#define EVENTS_IMPL
+	#define SURFACE_IMPL
+	#ifdef __linux__
+		#include "os_linux/surface.h"
+		#include "os_linux/events.h"
+	#elif _WIN32
+		#include "os_windows/surface.h"
+		#include "os_windows/events.h"
 	#endif
->>>>>>> 154fcbcc98d4260859f45c905ed533ba04da06cf
+#endif
 #endif
