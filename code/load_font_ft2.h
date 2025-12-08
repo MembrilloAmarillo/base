@@ -317,6 +317,11 @@ fn_internal FontCache F_BuildFont(f32 FontSize, u32 Width, u32 Height, u8* Bitma
     // done with face
     FT_Done_Face(face);
 
+
+    #ifndef NDEBUG
+    fprintf(stdout, "[INFO LOG] Loaded font: %s using freetype\n", path);
+    #endif
+    
     // done
     return fc;
 }
