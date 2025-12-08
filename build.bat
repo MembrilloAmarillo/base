@@ -1,11 +1,11 @@
-@echo off
+:: @echo off
 :: Initialize Visual Studio environment
 call "C:\Program Files\Microsoft Visual Studio\18\Insiders\VC\Auxiliary\Build\vcvarsall.bat" x64
-
+call "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvarsall.bat" x64
 :: === VARIABLES DE USUARIO ===
 :: Set these paths according to your system
-set "GLSLC_PATH=C:\VulkanSDK\1.4.328.1\Bin\glslc.exe"
-
+set "GLSLC_PATH=C:\VulkanSDK\1.4.321.1\Bin\glslc.exe"
+set SDL_PATH=".\code\third-party\SDL\VisualC\x64\Debug\"
 :: Compiler
 set CC=cl
 set CXX=cl
@@ -13,14 +13,14 @@ set CXX=cl
 :: Debug flags
 set CFLAGS_DEBUG=/nologo /std:c++17 /FC /Z7 /DDEBUG /W3 /wd4996 /wd4576 /Od /Ob1 /EHsc
 set CXXFLAGS_DEBUG=/nologo /std:c++17 /FC /Z7 /W3 /wd4996 /wd4576 /Od /Ob1 /EHsc
-set INC=/Icode /I"C:\VulkanSDK\1.4.328.1\Include"
+set INC=/Icode /I"C:\VulkanSDK\1.4.321.1\Include" /I".\code\third-party\SDL\include"
 
 :: Release flags
-set CFLAGS_RELEASE=/O2 /W3 /wd4996 /TC /EHsc
-set CXXFLAGS_RELEASE=/O2 /std:c++14 /W3 /TP /EHsc
+set CFLAGS_RELEASE=/O2 /W3 /wd4996 /std:c++17
+set CXXFLAGS_RELEASE=/O2 /std:c++17 /W3 
 
 :: Libraries (Windows .lib files)
-set LIBS=kernel32.lib user32.lib gdi32.lib /LIBPATH:"C:\VulkanSDK\1.4.328.1\Lib" vulkan-1.lib ws2_32.lib
+set LIBS=kernel32.lib ntdll.lib user32.lib gdi32.lib /LIBPATH:%SDL_PATH% SDL3.lib /LIBPATH:"C:\VulkanSDK\1.4.321.1\Lib" vulkan-1.lib ws2_32.lib
 
 :: Source files
 set XXHASH=code\third-party\xxhash.c
@@ -33,16 +33,19 @@ set RenderLibraryExe=RenderLibrary.exe
 set DEBUG_EXE=UI_Sample.exe
 set RELEASE_EXE=UI_Sample_Release.exe
 
+set SDL_USAGE=
+
 :: === MAIN TARGETS ===
-if "%1"=="" goto all
-if /i "%1"=="all" goto all
-if /i "%1"=="shaders" goto shaders
-if /i "%1"=="clean" goto clean
-if /i "%1"=="debug" goto debug
-if /i "%1"=="release" goto release
+if "%1"==""                 goto all
+if /i "%1"=="all"           goto all
+if /i "%1"=="shaders"       goto shaders
+if /i "%1"=="clean"         goto clean
+if /i "%1"=="debug"         goto debug
+if /i "%1"=="release"       goto release
 if /i "%1"=="RenderLibrary" goto render
-if /i "%1"=="DrawSample" goto draw_sample
-if /i "%1"=="todolist" goto todolist
+if /i "%1"=="DrawSample"    goto draw_sample
+if /i "%1"=="todolist"      goto todolist
+if /i "%2"=="SDL_USAGE"     SDL_USAGE=/D SDL_USAGE
 
 echo Usage: %0 [all^|debug^|release^|shaders^|clean]
 exit /b 1
@@ -94,8 +97,10 @@ if errorlevel 1 exit /b 1
 %CXX% /TP %CXXFLAGS_DEBUG% %INC% /c "%VMA%" /Fo:vk_mem_alloc.obj
 if errorlevel 1 exit /b 1
 
+echo %CXX% %CXXFLAGS_DEBUG% %INC% ./code/Samples/ToDoList.cpp %SDL_USAGE% /link xxhash.obj vk_mem_alloc.obj %LIBS% /OUT:todolist.exe
+
 :: Compile and link ToDoList
-%CXX% %CXXFLAGS_DEBUG% %INC% ./code/Samples/ToDoList.cpp /link xxhash.obj vk_mem_alloc.obj %LIBS% /OUT:todolist.exe
+%CXX% %CXXFLAGS_DEBUG% %INC% ./code/Samples/ToDoList.cpp %SDL_USAGE% /link xxhash.obj vk_mem_alloc.obj %LIBS% /OUT:todolist.exe
 if errorlevel 1 exit /b 1
 echo ToDoList build completed.
 exit /b

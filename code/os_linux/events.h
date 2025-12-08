@@ -65,6 +65,9 @@ GetMousePosition(api_window* window) {
 #include <X11/keysym.h>
 #include <stdint.h>
 
+<<<<<<< HEAD
+// return value: ui_input as before
+=======
 fn_internal vec2 GetCurrentMousePos(api_window* window) {
     Window root = DefaultRootWindow(window->Dpy);
     Window child_return, root_return;
@@ -81,6 +84,7 @@ fn_internal vec2 GetCurrentMousePos(api_window* window) {
     return Vec2New((f32)win_x, (f32)win_y);
 }
 
+>>>>>>> 154fcbcc98d4260859f45c905ed533ba04da06cf
 fn_internal ui_input
 GetNextEvent(api_window* Window)
 {
