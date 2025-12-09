@@ -38,11 +38,6 @@
 #define spall_buffer_end(ctx, buf, timestamp) ((void)0)
 #endif
 
-#define HexToRGBA(val) rgba{(uint8_t)((val & 0xff000000) >> 24), (uint8_t)((val & 0x00ff0000) >> 16), (uint8_t)((val & 0x0000ff00) >> 8), (uint8_t)(val & 0x000000ff)}
-#define HexToU8_Vec4(val) {(val & 0xff000000) >> 24, (val & 0x00ff0000) >> 16, (val & 0x0000ff00) >> 8, val & 0x000000ff}
-
-#define RgbaToNorm(val) ui_color{(f32)val.r / 255.f, (f32)val.g / 255.f, (f32)val.b / 255.f, (f32)val.a / 255.f}
-#define Vec4ToRGBA(val) rgba{val.r, val.g, val.b, val.a}
 #define RgbaNew(r, g, b, a) rgba{r, g, b, a}
 
 #define MAX_STACK_SIZE  64
@@ -110,6 +105,27 @@ struct object_theme {
     FontCache* Font;
 };
 
+fn_internal inline rgba HexToRGBA(u32 val) {
+  rgba v = rgba {
+    (uint8_t)((val & 0xff000000) >> 24),
+    (uint8_t)((val & 0x00ff0000) >> 16),
+    (uint8_t)((val & 0x0000ff00) >> 8),
+    (uint8_t)(val & 0x000000ff)
+  };
+
+  return v;
+}
+
+fn_internal inline ui_color RgbaToNorm(rgba val) {
+  ui_color v = ui_color{
+    (f32)val.r / 255.f,
+    (f32)val.g / 255.f,
+    (f32)val.b / 255.f,
+    (f32)val.a / 255.f
+  };
+
+  return v;
+}
 
 typedef struct ui_theme ui_theme;
 struct ui_theme {
@@ -355,7 +371,7 @@ fn_internal u64
 
 fn_internal void
 	UI_Init(ui_context* Context, Stack_Allocator* Allocator, Stack_Allocator* TempAllocator) {
-    spall_buffer_begin(&spall_ctx, &spall_buffer, 
+    spall_buffer_begin(&spall_ctx, &spall_buffer,
 					   __FUNCTION__,             // name of your function
 					   sizeof(__FUNCTION__) - 1, // name len minus the null terminator
 					   get_time_in_nanos()      // timestamp in nanoseconds -- start of your timing block
@@ -384,7 +400,7 @@ fn_internal void
 	Context->IsOnResize = false;
 
     HashTableInit(&Context->TableObject, Allocator, 4096, UI_CustomXXHash);
-	
+
 	spall_buffer_end(&spall_ctx, &spall_buffer, get_time_in_nanos() // timestamp in nanoseconds -- end of your timing block
 					 );
 }
@@ -406,7 +422,7 @@ fn_internal void
 }
 
 fn_internal void UI_End(ui_context* UI_Context, draw_bucket_instance* DrawInstance) {
-	spall_buffer_begin(&spall_ctx, &spall_buffer, 
+	spall_buffer_begin(&spall_ctx, &spall_buffer,
 					   __FUNCTION__,             // name of your function
 					   sizeof(__FUNCTION__) - 1, // name len minus the null terminator
 					   get_time_in_nanos()      // timestamp in nanoseconds -- start of your timing block
@@ -493,9 +509,9 @@ fn_internal void UI_End(ui_context* UI_Context, draw_bucket_instance* DrawInstan
 						Radius,
 						0,
 						Vec4New(
-							static_cast<f32>(PanelBg.r * 0.2), 
-							static_cast<f32>(PanelBg.g * 0.2), 
-							static_cast<f32>(PanelBg.b * 0.2), 
+							static_cast<f32>(PanelBg.r * 0.2),
+							static_cast<f32>(PanelBg.g * 0.2),
+							static_cast<f32>(PanelBg.b * 0.2),
 							static_cast<f32>(PanelBg.a * 0.5)
 						)
 					);
@@ -706,7 +722,7 @@ fn_internal void UI_WindowEnd(ui_context* Context) {
 }
 
 fn_internal U8_String* UI_GetTextFromBox(ui_context* Context, const char* Key) {
-    spall_buffer_begin(&spall_ctx, &spall_buffer, 
+    spall_buffer_begin(&spall_ctx, &spall_buffer,
 					  __FUNCTION__,             // name of your function
 					  sizeof(__FUNCTION__) - 1, // name len minus the null terminator
 					  get_time_in_nanos()      // timestamp in nanoseconds -- start of your timing block
@@ -723,7 +739,7 @@ fn_internal U8_String* UI_GetTextFromBox(ui_context* Context, const char* Key) {
 }
 
 fn_internal void UI_DrawRect2D(ui_context* Context, rect_2d Rect, vec4 color, vec4 color_border, f32 border, f32 radius) {
-	spall_buffer_begin(&spall_ctx, &spall_buffer, 
+	spall_buffer_begin(&spall_ctx, &spall_buffer,
 					   __FUNCTION__,             // name of your function
 					   sizeof(__FUNCTION__) - 1, // name len minus the null terminator
 					   get_time_in_nanos()      // timestamp in nanoseconds -- start of your timing block
@@ -742,12 +758,11 @@ fn_internal void UI_DrawRect2D(ui_context* Context, rect_2d Rect, vec4 color, ve
 
 	TreeInit(Object, &UI_NULL_OBJECT);
     TreePushSon(Parent, Object, &UI_NULL_OBJECT);
-	spall_buffer_end(&spall_ctx, &spall_buffer, get_time_in_nanos() // timestamp in nanoseconds -- end of your timing block
-					 );
+	spall_buffer_end(&spall_ctx, &spall_buffer, get_time_in_nanos());
 }
 
 fn_internal void UI_DrawText2D(ui_context* Context, rect_2d Rect, U8_String* String, FontCache* Font, vec4 color) {
-	spall_buffer_begin(&spall_ctx, &spall_buffer, 
+	spall_buffer_begin(&spall_ctx, &spall_buffer,
 					   __FUNCTION__,             // name of your function
 					   sizeof(__FUNCTION__) - 1, // name len minus the null terminator
 					   get_time_in_nanos()      // timestamp in nanoseconds -- start of your timing block
@@ -773,7 +788,7 @@ fn_internal void UI_DrawText2D(ui_context* Context, rect_2d Rect, U8_String* Str
 
 fn_internal ui_object* UI_BuildObjectWithParent(ui_context* Context, const u8* Key, const u8* Text, rect_2d Rect, ui_lay_opt Options, ui_object* Parent )
 {
-	spall_buffer_begin(&spall_ctx, &spall_buffer, 
+	spall_buffer_begin(&spall_ctx, &spall_buffer,
 					   __FUNCTION__,             // name of your function
 					   sizeof(__FUNCTION__) - 1, // name len minus the null terminator
 					   get_time_in_nanos()      // timestamp in nanoseconds -- start of your timing block
@@ -784,7 +799,7 @@ fn_internal ui_object* UI_BuildObjectWithParent(ui_context* Context, const u8* K
 	entry* StoredEntry = HashTableFindPointer(&Context->TableObject, (const char*)Key, Parent->HashId);
 
     if( StoredEntry != NULL ) {
-        
+
 		Object = (ui_object*)StoredEntry->Value;
     } else {
         Object = stack_push(Context->Allocator, ui_object, 1);
@@ -838,9 +853,12 @@ fn_internal ui_object* UI_BuildObjectWithParent(ui_context* Context, const u8* K
 		if( Layout->NextIconType != Icon_None ) {
 			Object->Option = static_cast<ui_lay_opt>(Object->Option | UI_DrawIcon);
 			Object->Type = static_cast<object_type>(Layout->NextIconType);
-		  //Object->Pos += Object->Rect.Size.y;
-		  Object->Size.x += Object->Rect.Size.y;
+            //Object->Pos += Object->Rect.Size.y;
+            Object->Size.x += Object->Rect.Size.y;
 		}
+
+		Object->Rect.Pos.x = floorf(Object->Rect.Pos.x);
+		Object->Rect.Pos.y = floorf(Object->Rect.Pos.y);
 
         Layout->ContentSize.v[Layout->AxisDirection] += Object->Rect.Size.v[Layout->AxisDirection] + Layout->Padding.v[Layout->AxisDirection];
 		Parent->ContentSize.v[Layout->AxisDirection] += Object->Rect.Size.v[Layout->AxisDirection] + Layout->Padding.v[Layout->AxisDirection];
@@ -969,8 +987,10 @@ fn_internal ui_object* UI_BuildObjectWithParent(ui_context* Context, const u8* K
     // Handle the scroll offset given in the last frame
     //
     if( Parent->Type == UI_ScrollbarType && Object->Type != UI_ScrollbarTypeButton ) {
-        Object->Rect.Pos.y -= Parent->ScrollRatio * Parent->LastDelta.y;
-        Object->Pos.y      -= Parent->ScrollRatio * Parent->LastDelta.y;
+        Object->Rect.Pos.y -= Parent->LastDelta.y * Parent->ScrollRatio;
+        Object->Pos.y      -= Parent->LastDelta.y * Parent->ScrollRatio;
+
+        //printf("%f\n", Parent->LastDelta.y);
     }
 
 	TreeInit(Object, &UI_NULL_OBJECT);
@@ -1261,20 +1281,20 @@ fn_internal ui_input UI_SetIcon(ui_context* Context, const char* Name, icon_type
 
 fn_internal void UI_BeginScrollbarViewEx(ui_context* Context, vec2 Size) {
 
-	spall_buffer_begin(&spall_ctx, &spall_buffer, 
+	spall_buffer_begin(&spall_ctx, &spall_buffer,
 					   __FUNCTION__,             // name of your function
 					   sizeof(__FUNCTION__) - 1, // name len minus the null terminator
 					   get_time_in_nanos()      // timestamp in nanoseconds -- start of your timing block
 					   );
 
-    char name[] = "ScrollBarView";
+    char name[64];
+    snprintf(name, 64, "ScrollBarView_%p", Context->CurrentParent);
 
     ui_layout *Layout = &StackGetFront(&Context->Layouts);
 
     ui_object* Parent = Context->CurrentParent;
 
     rect_2d Rect = Layout->Size;
-
 
     Rect.Pos.x = Rect.Pos.x + Rect.Size.x - 16;
 	Rect.Pos.y += Layout->ContentSize.y;
@@ -1285,16 +1305,25 @@ fn_internal void UI_BeginScrollbarViewEx(ui_context* Context, vec2 Size) {
 		Rect.Size = Size;
 	}
 
-	UI_DrawRect2D(Context, Rect, Context->DefaultTheme.Scrollbar.Background, Context->DefaultTheme.Scrollbar.Foreground, 1, 4);
-    Parent->Last->Type = UI_ScrollbarType;
+	//UI_DrawRect2D(Context, Rect, Context->DefaultTheme.Scrollbar.Background, Context->DefaultTheme.Scrollbar.Background, 1, 4);
 
-    Context->CurrentParent = Parent->Last;
-	spall_buffer_end(&spall_ctx, &spall_buffer, get_time_in_nanos() // timestamp in nanoseconds -- end of your timing block
-					 );
+    ui_object* Scroll = UI_BuildObjectWithParent(
+                            Context,
+                            (const u8*)name, NULL,
+                            Rect,
+                            static_cast<ui_lay_opt>(UI_DrawRect | UI_HintSize), Parent
+                        );
+    Scroll->Type = UI_ScrollbarType;
+
+    Layout->ContentSize.v[Layout->AxisDirection] -= Scroll->Rect.Size.v[Layout->AxisDirection] - Layout->Padding.v[Layout->AxisDirection];
+	Parent->ContentSize.v[Layout->AxisDirection] -= Scroll->Rect.Size.v[Layout->AxisDirection] - Layout->Padding.v[Layout->AxisDirection];
+
+    Context->CurrentParent = Scroll;
+	spall_buffer_end(&spall_ctx, &spall_buffer, get_time_in_nanos() );
 }
 
 fn_internal void UI_EndScrollbarView(ui_context* Context) {
-	spall_buffer_begin(&spall_ctx, &spall_buffer, 
+	spall_buffer_begin(&spall_ctx, &spall_buffer,
 					   __FUNCTION__,             // name of your function
 					   sizeof(__FUNCTION__) - 1, // name len minus the null terminator
 					   get_time_in_nanos()      // timestamp in nanoseconds -- start of your timing block
@@ -1307,10 +1336,12 @@ fn_internal void UI_EndScrollbarView(ui_context* Context) {
     ScrollableSize.Size.y  = (ViewportContent / ContentHeight);
 	f32 ScrollableDistance = ContentHeight - ViewportContent;
 	f32 TrackScrollableDistance = ViewportContent - ScrollableSize.Size.y;
-	f32 ScrollRatio = 6;
+	f32 ScrollRatio = Scrollbar->ContentSize.y / ViewportContent;
     ScrollableSize.Size.y  = Max(ScrollableSize.Size.y, 20.0f);
 
-    char buf[] = "EndOfScroll";
+    char buf[64];
+
+    snprintf(buf, 64, "EndOfScroll_%p", Scrollbar);
 
     assert(!StackIsEmpty(&Context->Layouts));
 
@@ -1322,14 +1353,18 @@ fn_internal void UI_EndScrollbarView(ui_context* Context) {
 	vec2 BoxSize = Layout->BoxSize;
 	UI_PushNextLayoutBoxSize(Context, ScrollableSize.Size);
 
+    f32 ContentSizeY = Layout->ContentSize.y;
+	Layout->ContentSize.y = 0;
+
     UI_SetNextTheme( Context, Context->DefaultTheme.Scrollbar );
-    ui_object* Scrollable = UI_BuildObjectWithParent(Context, (const u8*)buf, NULL, ScrollableSize, static_cast<ui_lay_opt>(UI_DrawRect | UI_Select | UI_Interact), Scrollbar);
+    ui_object* Scrollable = UI_BuildObjectWithParent(Context, (const u8*)buf, NULL, ScrollableSize, static_cast<ui_lay_opt>(UI_DrawRect | UI_DrawBorder | UI_Select | UI_Interact), Scrollbar);
     StackPop(&Context->Themes);
 	Scrollable->Type = UI_ScrollbarTypeButton;
     Scrollable->Theme = Context->DefaultTheme.Scrollbar;
     Layout->Padding = Padding;
 
-    Layout->ContentSize.y -= Max(0, ContentHeight - ViewportContent + Scrollable->Rect.Size.y);
+    Layout->ContentSize.y = ContentSizeY;
+    //Layout->ContentSize.y -= Max(0, ContentHeight - ViewportContent + Scrollable->Rect.Size.y);
 
     vec2 VerticalDelta = Vec2Zero();
     if( Context->FocusObject == Scrollable ) {
@@ -1344,13 +1379,14 @@ fn_internal void UI_EndScrollbarView(ui_context* Context) {
 		vec2 LastDelta = Scrollable->LastDelta;
 		Scrollable->LastDelta = Vec2Add(Scrollable->LastDelta, VerticalDelta);
 		Scrollable->ScrollRatio = ScrollRatio;
-		Scrollable->Rect.Pos.y += Scrollable->LastDelta.y * ScrollRatio;
+		Scrollable->Rect.Pos.y += Scrollable->LastDelta.y;
 		Scrollable->Rect.Pos.y = Max(Scrollbar->Rect.Pos.y, Scrollable->Rect.Pos.y);
 		Scrollable->Rect.Pos.y = Min(Scrollable->Rect.Pos.y, Scrollbar->Rect.Pos.y + ViewportContent);
 	}
 
-    if(Scrollable->Rect.Pos.y == Scrollbar->Rect.Pos.y) {
+    if(Scrollable->Rect.Pos.y <= Scrollbar->Rect.Pos.y && VerticalDelta.y < 0) {
         Scrollable->LastDelta = Vec2Zero();
+        Scrollable->Rect.Pos.y = Scrollbar->Rect.Pos.y;
     } else if( Scrollable->Rect.Pos.y == Scrollbar->Rect.Pos.y + Scrollbar->Rect.Size.y ) {
 		f32 OldPos = Scrollable->Rect.Pos.y;
 		f32 FarOff = (Scrollable->Rect.Pos.y + Scrollable->Rect.Size.y) - (Scrollbar->Rect.Pos.y + Scrollbar->Rect.Size.y);
@@ -1362,7 +1398,7 @@ fn_internal void UI_EndScrollbarView(ui_context* Context) {
     // scrollbar button, this is done to offset the childs when drawed again
     // on the next frame
     //
-    Scrollbar->LastDelta.y = Scrollable->ScrollRatio * Scrollable->LastDelta.y;
+    Scrollbar->LastDelta   = Scrollable->LastDelta;
     Scrollbar->ScrollRatio = Scrollable->ScrollRatio;
     //for (ui_object* Child = Scrollbar->FirstSon; Child != &UI_NULL_OBJECT; Child = Child->Right) {
     //    Child->Rect.Pos.y -= Scrollable->ScrollRatio * Scrollable->LastDelta.y;
@@ -1605,8 +1641,8 @@ fn_internal void UI_Divisor(ui_context* Context, f32 Width) {
 }
 
 fn_internal ui_input UI_LastEvent(ui_context* Context, api_window* Window) {
-    #ifndef NDEBUG 
-	spall_buffer_begin(&spall_ctx, &spall_buffer, 
+    #ifndef NDEBUG
+	spall_buffer_begin(&spall_ctx, &spall_buffer,
 					   __FUNCTION__,             // name of your function
 					   sizeof(__FUNCTION__) - 1, // name len minus the null terminator
 					   get_time_in_nanos()      // timestamp in nanoseconds -- start of your timing block
@@ -1680,10 +1716,10 @@ fn_internal ui_input UI_LastEvent(ui_context* Context, api_window* Window) {
 
     Context->LastInput = Input;
 
-	#ifndef NDEBUG 
+	#ifndef NDEBUG
 	spall_buffer_end(&spall_ctx, &spall_buffer, get_time_in_nanos() // timestamp in nanoseconds -- end of your timing block
 					 );
-	#endif 
+	#endif
 
     return Input;
 }

@@ -27,6 +27,12 @@
 #include <time.h>
 #include <stddef.h>
 
+#ifdef __linux__
+#include <sys/types.h>
+#include <dirent.h>
+#else
+#endif
+
 #include <chrono>
 
 #include "../third-party/xxhash.h"
@@ -44,7 +50,7 @@
 
 #ifdef USE_FREETYPE
 #define INCLUDE_FONT "../load_font_ft2.h"
-#else 
+#else
 #define INCLUDE_FONT "../load_font.h"
 #endif
 #include INCLUDE_FONT
@@ -176,6 +182,9 @@ struct todo_list {
 fn_internal r_vertex_input_description Vertex2DInputDescription(Stack_Allocator* Allocator);
 fn_internal r_vertex_input_description Line2DInputDescription(Stack_Allocator* Allocator);
 
+fn_internal U8_String_List* ListFilesFromDir(U8_String* Path, Stack_Allocator* Allocator);
+fn_internal U8_String_List* RecursiveSearch(U8_String* Path, Stack_Allocator* Allocator);
+
 fn_internal r_vertex_input_description
 Line2DInputDescription(Stack_Allocator* Allocator)
 {
@@ -208,6 +217,9 @@ fn_internal void TodoRenderInit(todo_render* Render);
 int main( void ) {
 	todo_render TodoApp;
 	TodoRenderInit(&TodoApp);
+
+  U8_String Dir = StringNew((const char*)"./code", CustomStrlen("./code"), &TodoApp.TempAllocator);
+	U8_String_List *Files = ListFilesFromDir(&Dir, &TodoApp.Allocator);
 
 	rgba HardDark    = HexToRGBA(0x050505FF);
 	rgba Dark        = HexToRGBA(0x121212FF);
@@ -347,6 +359,40 @@ int main( void ) {
 
 	    StackPop(&TodoApp.UI_Context->Layouts);
 	  }
+
+	  UI_SetNextParent(TodoApp.UI_Context, &TodoApp.UI_Context->RootObject);
+	  {
+      UI_SetNextTheme(TodoApp.UI_Context, TodoApp.UI_Context->DefaultTheme.Window);
+	    ui_object* Windows = UI_BuildObject(TodoApp.UI_Context, (const uint8_t*)"File Lister Panel", NULL, PanelRect, (ui_lay_opt)(UI_DrawRect | UI_DrawBorder | UI_Drag | UI_Resize | UI_Interact | UI_SetPosPersistent) );
+	    UI_UpdateObjectSize(TodoApp.UI_Context, Windows);
+	    UI_PopTheme(TodoApp.UI_Context);
+
+	    PanelRect = Windows->Rect;
+
+	    UI_PushNextLayout(TodoApp.UI_Context, PanelRect, (ui_lay_opt)0);
+	    UI_PushNextLayoutBoxSize(TodoApp.UI_Context, (vec2) { PanelRect.Size.x, 32 });
+	    UI_PushNextLayoutPadding(TodoApp.UI_Context, (vec2) { 10, 5 });
+	    UI_SetNextParent(TodoApp.UI_Context, Windows);
+
+	    UI_SetNextTheme(TodoApp.UI_Context, TodoApp.UI_Context->DefaultTheme.Button);
+	    ui_object* TitleObj = UI_BuildObject(TodoApp.UI_Context, (const uint8_t*)"File Liter Key", (const uint8_t*)"List Directories", PanelRect, (ui_lay_opt)(UI_DrawText | UI_AlignCenter));
+	    UI_PopTheme(TodoApp.UI_Context);
+
+      UI_Spacer(TodoApp.UI_Context, Vec2New(0, 10));
+      UI_Button(TodoApp.UI_Context, "Set Recursive");
+      local_persist U8_String_List* Files = NULL;
+	    if(UI_TextBox(TodoApp.UI_Context, (const char*)"Path") & Input_Return) {
+        Files = ListFilesFromDir(UI_GetTextFromBox(TodoApp.UI_Context, "Path"), &TodoApp.Allocator);
+	    }
+	    if( Files ) {
+	     UI_BeginScrollbarView(TodoApp.UI_Context);
+	     for( U8_String_List* it = Files->Next; it != Files; it = it->Next ) {
+         UI_Label(TodoApp.UI_Context, (const char*)it->val.data);
+         UI_Spacer(TodoApp.UI_Context, Vec2New(0, 10));
+	     }
+	     UI_EndScrollbarView(TodoApp.UI_Context);
+	    }
+	  }
 	}
 
 	// Drawing the UI
@@ -366,12 +412,12 @@ int main( void ) {
 
 	    if (Object->Parent->Type == UI_ScrollbarType && Object->Type != UI_ScrollbarTypeButton) {
 	      if( Object->Rect.Pos.y < Object->Parent->Rect.Pos.y ) {
-		continue;
+		      continue;
 	      }
 	      if( Object->Rect.Pos.y > Object->Parent->Rect.Pos.y + Object->Parent->Rect.Size.y ) {
-		continue;
+		      continue;
 	      } else if( Object->Rect.Pos.y + Object->Rect.Size.y > Object->Parent->Rect.Pos.y + Object->Parent->Rect.Size.y ) {
-		continue;
+		      continue;
 	      }
 	    }
 
@@ -387,6 +433,19 @@ int main( void ) {
 	      TextRect.Pos = Object->Pos;
 	      TextRect.Size = Object->Size;
 	      D_DrawText2D(&TodoApp.DrawInstance, TextRect, &Object->Text, Object->Theme.Font, Object->Theme.Foreground);
+
+        if( Object->TextCursorIdx >= 0 && Object->TextStartIdx >= 0 && Object->Type == UI_InputText) {
+          float Start = Object->Pos.x + F_TextWidth(Object->Theme.Font, "H", 1) * (Object->TextCursorIdx - Object->TextStartIdx);
+					float CursorSize = F_TextWidth(Object->Theme.Font, "H", 1);
+					D_DrawRect2D(
+						&TodoApp.DrawInstance,
+						(rect_2d) { {Start, Object->Pos.y + 2}, {CursorSize, Object->Size.y - 4} },
+						4,
+						0,
+						Vec4New(Object->Theme.Foreground.r, Object->Theme.Foreground.g,
+						Object->Theme.Foreground.b, Object->Theme.Foreground.a * 0.5)
+					);
+        }
 	    }
 	    for ( Object = Object->FirstSon; Object != &UI_NULL_OBJECT; Object = Object->Right) {
 	      // process object
@@ -556,11 +615,11 @@ fn_internal void TodoRenderInit(todo_render* TodoRenderer) {
 
   u8 *BitmapArray = stack_push(&TodoRenderer->Allocator, u8, 2100 * 1200);
 
-  *DefaultFont = F_BuildFont(22, 2100, 60, BitmapArray, "./data/RobotoMono.ttf");
-  *TitleFont   = F_BuildFont(22, 2100, 60, BitmapArray + (2100 * 60), "./data/LiterationMono.ttf");
-  *TitleFont2  = F_BuildFont(22, 2100, 60, BitmapArray + (2100 * 120), "./data/TinosNerdFontPropo.ttf");
-  *BoldFont    = F_BuildFont(18, 2100, 60, BitmapArray + (2100 * 180), "./data/LiterationMonoBold.ttf");
-  *ItalicFont  = F_BuildFont(18, 2100, 60, BitmapArray + (2100 * 240), "./data/LiterationMonoItalic.ttf");
+  *DefaultFont = F_BuildFont(24, 2100, 60, BitmapArray, "./data/RobotoMono.ttf");
+  *TitleFont   = F_BuildFont(26, 2100, 60, BitmapArray + (2100 * 60), "./data/LiterationMono.ttf");
+  *TitleFont2  = F_BuildFont(26, 2100, 60, BitmapArray + (2100 * 120), "./data/TinosNerdFontPropo.ttf");
+  *BoldFont    = F_BuildFont(24, 2100, 60, BitmapArray + (2100 * 180), "./data/LiterationMonoBold.ttf");
+  *ItalicFont  = F_BuildFont(24, 2100, 60, BitmapArray + (2100 * 240), "./data/LiterationMonoItalic.ttf");
 
   DefaultFont->BitmapOffset = Vec2Zero();
   TitleFont->BitmapOffset   = (vec2){0, 60};
@@ -660,56 +719,94 @@ fn_internal void TodoRenderInit(todo_render* TodoRenderer) {
 
   TodoRenderer->UI_Context = stack_push(&TodoRenderer->Allocator, ui_context, 1);
 
-  rgba HardDark    = HexToRGBA(0x050505FF);
+  rgba HardDark    = HexToRGBA(0x010221FF);
   rgba Dark        = HexToRGBA(0x121212FF);
-  rgba VioletBord  = HexToRGBA(0x58536DFF);
-  rgba EggYellow   = HexToRGBA(0xF0C38EFF);
-  rgba LightPink   = HexToRGBA(0xF1AA9BFF);
-  rgba BrokenWhite = HexToRGBA(0xEEEEEEFF);
+  rgba BlueTeal    = HexToRGBA(0x0A7373FF);
+  rgba EggYellow   = HexToRGBA(0xEDAA25FF);
+  rgba Red         = HexToRGBA(0xC43302FF);
+  rgba Green       = HexToRGBA(0xB7BF99FF);
+  rgba White       = HexToRGBA(0xAEAEAEFF);
 
   UI_Init(TodoRenderer->UI_Context, &TodoRenderer->Allocator, &TodoRenderer->TempAllocator);
   ui_theme DefaultTheme = {};
-  DefaultTheme.Window.Border = RgbaToNorm(LightPink);
-  DefaultTheme.Window.Background = RgbaToNorm(BrokenWhite);
-  DefaultTheme.Window.Foreground = RgbaToNorm(HardDark);
+  DefaultTheme.Window.Border = RgbaToNorm(HardDark);
+  DefaultTheme.Window.Background = RgbaToNorm(Dark);
+  DefaultTheme.Window.Foreground = RgbaToNorm(White);
   DefaultTheme.Window.Radius = 8;
   DefaultTheme.Window.BorderThickness = 4;
   DefaultTheme.Window.Font = TitleFont2;
 
-  DefaultTheme.Button.Border = RgbaToNorm(LightPink);
-  DefaultTheme.Button.Background = RgbaToNorm(BrokenWhite);
-  DefaultTheme.Button.Foreground = RgbaToNorm(HardDark);
+  DefaultTheme.Button.Border     = RgbaToNorm(Red);
+  DefaultTheme.Button.Background = RgbaToNorm(Dark);
+  DefaultTheme.Button.Foreground = RgbaToNorm(White);
   DefaultTheme.Button.Radius = 2;
-  DefaultTheme.Button.BorderThickness = 0;
+  DefaultTheme.Button.BorderThickness = 2;
   DefaultTheme.Button.Font = DefaultFont;
 
-  DefaultTheme.Panel.Border = RgbaToNorm(BrokenWhite);
-  DefaultTheme.Panel.Background = RgbaToNorm(VioletBord);
-  DefaultTheme.Panel.Foreground = RgbaToNorm(HardDark);
+  DefaultTheme.Panel.Border = RgbaToNorm(Dark);
+  DefaultTheme.Panel.Background = RgbaToNorm(HardDark);
+  DefaultTheme.Panel.Foreground = RgbaToNorm(BlueTeal);
   DefaultTheme.Panel.Radius = 8;
-  DefaultTheme.Panel.BorderThickness = 1;
+  DefaultTheme.Panel.BorderThickness = 2;
   DefaultTheme.Panel.Font = DefaultFont;
 
-  DefaultTheme.Input.Border = RgbaToNorm(Dark);
-  DefaultTheme.Input.Background = RgbaToNorm(HardDark);
-  DefaultTheme.Input.Foreground = RgbaToNorm(BrokenWhite);
+  DefaultTheme.Input.Border = RgbaToNorm(HardDark);
+  DefaultTheme.Input.Background = RgbaToNorm(Dark);
+  DefaultTheme.Input.Foreground = RgbaToNorm(White);
   DefaultTheme.Input.Radius = 2;
   DefaultTheme.Input.BorderThickness = 1;
   DefaultTheme.Input.Font = DefaultFont;
 
-  DefaultTheme.Label.Border = RgbaToNorm(LightPink);
-  DefaultTheme.Label.Background = RgbaToNorm(BrokenWhite);
-  DefaultTheme.Label.Foreground = RgbaToNorm(Dark);
+  DefaultTheme.Label.Border = RgbaToNorm(HardDark);
+  DefaultTheme.Label.Background = RgbaToNorm(Dark);
+  DefaultTheme.Label.Foreground = RgbaToNorm(White);
   DefaultTheme.Label.Radius = 2;
   DefaultTheme.Label.BorderThickness = 1;
   DefaultTheme.Label.Font = ItalicFont;
 
-  DefaultTheme.Scrollbar.Border = RgbaToNorm(LightPink);
+  DefaultTheme.Scrollbar.Border = RgbaToNorm(BlueTeal);
   DefaultTheme.Scrollbar.Background = RgbaToNorm(Dark);
-  DefaultTheme.Scrollbar.Foreground = RgbaToNorm(Dark);
+  DefaultTheme.Scrollbar.Foreground = RgbaToNorm(BlueTeal);
   DefaultTheme.Scrollbar.Radius = 8;
-  DefaultTheme.Scrollbar.BorderThickness = 1;
+  DefaultTheme.Scrollbar.BorderThickness = 0;
   DefaultTheme.Scrollbar.Font = NULL;
 
   TodoRenderer->UI_Context->DefaultTheme = DefaultTheme;
+}
+
+fn_internal U8_String_List* ListFilesFromDir(U8_String* Path, Stack_Allocator* Allocator)
+{
+  Path->data[Path->idx] = '\0';
+  U8_String_List* PathList = stack_push(Allocator, U8_String_List, 1);
+  DLIST_INIT(PathList);
+  DIR *dir;
+  struct dirent *ent;
+
+  if ((dir = opendir((const char*)Path->data)) != NULL)
+  {
+      /* print all the files and directories within directory */
+      while ((ent = readdir (dir)) != NULL) {
+          printf("%s", ent->d_name);
+          U8_String_List* List = stack_push(Allocator, U8_String_List, 1);
+          List->val = StringNew(ent->d_name, CustomStrlen(ent->d_name) + 2, Allocator);
+          if( ent->d_type == DT_DIR ) {
+            StringAppend(&List->val, "/");
+            printf("/");
+          }
+          StringAppend(&List->val, "\0");
+          printf("\n");
+          DLIST_INIT(List);
+          DLIST_INSERT(PathList, List);
+      }
+      closedir (dir);
+  }
+  else
+  {
+  /* could not open directory */
+    fprintf(stderr, "[ERROR] Listing path: %s\n", Path->data);
+    perror ("");
+    return NULL;
+  }
+
+  return PathList;
 }

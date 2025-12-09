@@ -11,6 +11,14 @@ struct U8_String {
     i64 idx;
 };
 
+typedef struct U8_String_List U8_String_List;
+struct U8_String_List {
+    U8_String_List* Root;
+	U8_String_List* Prev;
+	U8_String_List* Next;
+	U8_String val;
+};
+
 U8_String StringCreate(i64 len, Stack_Allocator* a);
 U8_String StringNew(const char* str, i64 len, Stack_Allocator* a);
 void StringDestroy(U8_String* s);
@@ -79,7 +87,7 @@ SplitFirst( U8_String* Str, char val ) {
 			ret.data = Str->data;
 			ret.len  = it;
 			ret.idx  = it;
-            
+
             return ret;
         }
     }
@@ -126,7 +134,7 @@ SplitMultiple(U8_String* Dst, i64 Size, const U8_String* Src, char val) {
 			str.data = Src->data + LastValFound;
 			str.len  = it - LastValFound;
             str.idx  = it - LastValFound;
-            
+
 			Dst[Idx] = str;
             LastValFound = it + 1;
             Idx += 1;
@@ -141,7 +149,7 @@ SplitMultiple(U8_String* Dst, i64 Size, const U8_String* Src, char val) {
     }
 }
 
-void 
+void
 StringInsert(U8_String* Dst, i64 Idx, const char* Str) {
     i64 len = UCF_Strlen(Str);
     if( Dst->idx + len < Dst->len && Dst->idx > Idx ) {
@@ -156,7 +164,7 @@ StringInsert(U8_String* Dst, i64 Idx, const char* Str) {
     }
 }
 
-void 
+void
 StringInsertStr(U8_String* Dst, i64 Idx, U8_String* Str) {
     if( Dst->idx + Str->idx < Dst->len && Dst->idx > Idx && Dst->idx > 0 ) {
         memcpy(Dst->data + Idx + Str->idx, Dst->data + Idx, Dst->idx - Idx);

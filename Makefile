@@ -1,7 +1,8 @@
 # === VARIABLES DE USUARIO ===
 CC   := clang++
 CXX  := g++
-CFLAGS  := -g -ggdb -DDEBUG -Wall -Wno-unused-function -std=c++17 -D_GNU_SOURCE -DVK_USE_PLATFORM_XLIB_KHR
+# -Wall -Wno-unused-function
+CFLAGS  := -g -ggdb -DDEBUG -std=c++17 -D_GNU_SOURCE -DVK_USE_PLATFORM_XLIB_KHR
 CXXFLAGS:= -g -ggdb -std=c++17 -Wall
 CPPFLAGS:= -D_POSIX_PTHREAD_SEMANTICS
 INC     := -Icode
