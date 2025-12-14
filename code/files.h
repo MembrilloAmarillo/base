@@ -46,6 +46,8 @@ fn_internal i32    F_FileRead(f_file* f);
 fn_internal void   F_SetFileData(f_file* f, void* data);
 fn_internal u32    F_FileOffset(f_file* f);
 
+fn_internal i64    F_FileWrite(f_file* f, void* buffer, u64 Length);
+
 #endif // _FILES_H_
 
 // --- Implementation ---
@@ -124,8 +126,9 @@ F_CloseFile(f_file* f) {
     }
 #elif _WIN32
     if (f->Fd != NULL && f->Fd != INVALID_HANDLE_VALUE) {
-        CloseHandle(f->Fd);
-        f->Fd = INVALID_HANDLE_VALUE;
+      FlushFileBuffers(f->Fd);
+      CloseHandle(f->Fd);
+      f->Fd = INVALID_HANDLE_VALUE;
     }
 #endif
 }
@@ -208,5 +211,47 @@ F_FileRead(f_file* f) {
     i32 r_len = (i32)read(f->Fd, f->Data, (unsigned int)file_length);
     return r_len;
 #endif
+}
+
+fn_internal i64 F_FileWrite(f_file* f, void* buffer, u64 Length) {
+  if (!f || !buffer) {
+    // Error: puntero inválido
+    return -1;
+  }
+
+  #ifdef _WIN32
+  DWORD bytesWritten = 0;
+  OVERLAPPED overlapped = {0};
+  BOOL result = WriteFile(
+    f->Fd,
+    (u8*)buffer,
+    (DWORD)Length,
+    &bytesWritten,
+    NULL
+  );
+
+  if (!result) {
+    DWORD err = GetLastError();
+    fprintf(stderr, "WriteFile failed! Windows Error Code: %lu\n", err);
+
+    if (err == 112) { // ERROR_HANDLE_DISK_FULL
+      fprintf(stderr, "Disk Full! Aborting write.\n");
+    }
+        
+    return -1; 
+  }
+
+  if (bytesWritten == 0) {
+    // Llegaste al EOF o no había bytes para leer
+    fprintf(stdout, "[LOG] 0 bytes written into file\n");
+    return 0;
+  }
+
+  return (i64)bytesWritten;
+  #else
+  // Linux parte
+  i64 r_len = (i64)write(f->Fd, buffer, (unsigned int)Length);
+  return r_len;
+  #endif
 }
 #endif // FILES_IMPL

@@ -53,7 +53,8 @@ fn_internal i64 StringGetCapacity(U8_String* Str) { return Str->len; }
 
 fn_internal i64 CustomStrlen(const char* str);
 fn_internal i64 CustomStreq(const char* a, const char* b);
-fn_internal u32 CustomStreqn(const char* a, const char* b, u32 n);
+fn_internal i64 CustomStrcpy(char* a, const char* b);
+fn_internal i64 CustomStreqn(const char* a, const char* b, u32 n);
 
 #endif
 
@@ -151,7 +152,7 @@ SplitMultiple(U8_String* Dst, i64 Size, const U8_String* Src, char val) {
 
 void
 StringInsert(U8_String* Dst, i64 Idx, const char* Str) {
-    i64 len = UCF_Strlen(Str);
+    i64 len = CustomStrlen(Str);
     if( Dst->idx + len < Dst->len && Dst->idx > Idx ) {
         memcpy(Dst->data + Idx + len, Dst->data + Idx, Dst->idx - Idx);
         memcpy(Dst->data + Idx, Str, len);
@@ -200,7 +201,7 @@ void StringPop(U8_String* Str) {
 
 void
 StringCpy(U8_String* Dst, const char* Src) {
-    i64 len = UCF_Strlen(Src);
+    i64 len = CustomStrlen(Src);
     if(Dst->len >= len) {
         memcpy(Dst->data, Src, len);
         Dst->idx = len;
@@ -216,7 +217,7 @@ StringCpyStr(U8_String* Dst, U8_String* Src) {
 }
 
 void StringAppend(U8_String* Dst, const char* Str) {
-    i64 len = UCF_Strlen(Str);
+    i64 len = CustomStrlen(Str);
     if( Dst->idx + len >= Dst->len ) {
         // to big of a string, skip
     } else {
@@ -266,10 +267,27 @@ fn_internal i64 CustomStreq( const char* a, const char* b ) {
     return 1;
 }
 
-fn_internal u32 CustomStreqn( const char* a, const char* b, u32 n ) {
+fn_internal i64 CustomStrcpy(char* a, const char* b) {
+  i64 count = 0;
+  char* dst = a;
+  const char* it = b;
+
+  for (; *it != '\0'; it++) {
+    *dst = *it;
+    dst++;
+    count++;
+  }
+  *dst = '\0';
+  count++;
+
+  return count;
+}
+
+
+fn_internal i64 CustomStreqn( const char* a, const char* b, u32 n ) {
     const char* a1 = a, *b1 = b;
 
-    u32 i = 0;
+    i64 i = 0;
     while( (*a1 && *b1) && (*a1 == *b1) && i < n ) {
         a1++;
         b1++;

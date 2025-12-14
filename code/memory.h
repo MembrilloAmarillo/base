@@ -68,10 +68,14 @@ fn_internal void   ArenaImplCommit  ( void* ptr, U64 size );
 fn_internal void   ArenaImplDecommit( void* ptr, U64 size );
 fn_internal void   ArenaImplRelease ( void* ptr, U64 size );
 
+fn_internal void ArenaImplCommitWithFlags(void* ptr, U64 size, U64 MemFlags, U64 PageFlags);
+
 fn_internal Arena* ArenaAlloc( U64 size );
 fn_internal Arena* ArenaAllocDefault( void );
 fn_internal void*  ArenaPush( Arena* arena, U64 size );
 fn_internal void   ArenaPop ( Arena* arena, U64 erase  );
+
+fn_internal void* ArenaPushWithFlags(Arena* arena, U64 size, U64 MemFlags, U64 PageFlags);
 
 fn_internal void   ArenaRelease( Arena* arena );
 fn_internal void   ArenaClear  ( Arena* arena );
@@ -123,6 +127,28 @@ ArenaImplCommit( void* ptr, U64 size )
 }
 
 fn_internal void
+ArenaImplCommitWithFlags(void* ptr, U64 size, U64 MemFlags, U64 PageFlags) {
+#ifdef _WIN32
+  SYSTEM_INFO info;
+  GetSystemInfo( &info );
+  U64 PageSize = info.dwPageSize;
+
+  U64 page_snapped_size = size;
+  page_snapped_size += PageSize - 1;
+  page_snapped_size -= page_snapped_size % PageSize;
+
+  VirtualAlloc( ptr, page_snapped_size, MEM_COMMIT, PAGE_READWRITE );
+#else
+  U32 PageSize = sysconf(_SC_PAGE_SIZE);
+  U64 page_snapped_size = size;
+  page_snapped_size += PageSize - 1;
+  page_snapped_size -= page_snapped_size % PageSize;
+  mprotect( ptr, page_snapped_size, PROT_READ | PROT_WRITE);
+  
+#endif
+}
+
+fn_internal void
 ArenaImplDecommit( void* ptr, U64 size )
 {
 #ifdef _WIN32
@@ -149,7 +175,7 @@ ArenaAlloc( U64 size )
     void* block = ArenaImplReserve( size );
     ArenaImplCommit( block, DEFAULT_COMMIT );
     Arena* arena      = (Arena*)block;
-    arena->pos        = sizeof( arena );
+    arena->pos        = sizeof( Arena );
     arena->commit_pos = DEFAULT_COMMIT;
     arena->size       = size;
 
@@ -193,6 +219,32 @@ ArenaPush( Arena* arena, U64 size )
     }
 
     return result;
+}
+
+fn_internal void*
+ArenaPushWithFlags( Arena* arena, U64 size, U64 MemFlags, U64 PageFlags )
+{
+  uint8_t *base = (uint8_t *)arena;
+
+  /* align pos up to max_align_t boundary */
+  U64 aligned_pos = (arena->pos + _Alignof(max_align_t) - 1) & ~(_Alignof(max_align_t) - 1);
+
+  if (aligned_pos + size > arena->size)
+    return NULL;                    // out of memory
+
+  void *result     = base + aligned_pos;
+  arena->pos       = aligned_pos + size;
+
+  /* commit pages as you already do … */
+  if (arena->commit_pos < arena->pos) {
+    U64 to_commit = arena->pos - arena->commit_pos;
+    to_commit    += DEFAULT_COMMIT - 1;
+    to_commit    -= to_commit % DEFAULT_COMMIT;
+    ArenaImplCommitWithFlags(base + arena->commit_pos, to_commit, MemFlags, PageFlags);
+    arena->commit_pos += to_commit;
+  }
+
+  return result;
 }
 
 fn_internal void

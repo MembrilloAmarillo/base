@@ -458,7 +458,16 @@ int main( void ) {
 	    snprintf(buf, 64, "Time in ms: %.8lf", duration);
 	    U8_String Text = StringNew(buf, 64, &TodoApp.TempAllocator);
 	    D_DrawText2D(&TodoApp.DrawInstance, NewRect2D(20, 20, 200, 40), &Text, TodoApp.UI_Context->DefaultTheme.Window.Font, Vec4New(0.8, 0.6, 0.55, 1.0f));
-	  }
+	    #ifdef SDL_USAGE
+      const char* StringOs = "Window manager: SDL";
+      #elif __linux__ 
+      const char* StringOs = "Window manager: Linux";
+      #else 
+      const char* StringOs = "Window manager: Windows";
+      #endif 
+      U8_String TextOs = StringNew(StringOs, CustomStrlen(StringOs), &TodoApp.TempAllocator);
+      D_DrawText2D(&TodoApp.DrawInstance, NewRect2D(20, 60, 200, 40), &TextOs, TodoApp.UI_Context->DefaultTheme.Window.Font, Vec4New(0.8, 0.6, 0.55, 1.0f));
+    }
 	}
 
 	D_EndDraw2D(&TodoApp.DrawInstance);
@@ -779,6 +788,8 @@ fn_internal U8_String_List* ListFilesFromDir(U8_String* Path, Stack_Allocator* A
   Path->data[Path->idx] = '\0';
   U8_String_List* PathList = stack_push(Allocator, U8_String_List, 1);
   DLIST_INIT(PathList);
+  
+  #ifdef __linux__
   DIR *dir;
   struct dirent *ent;
 
@@ -807,6 +818,8 @@ fn_internal U8_String_List* ListFilesFromDir(U8_String* Path, Stack_Allocator* A
     perror ("");
     return NULL;
   }
+
+  #endif
 
   return PathList;
 }

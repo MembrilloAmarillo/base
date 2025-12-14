@@ -1,7 +1,7 @@
-:: @echo off
+@echo off
 :: Initialize Visual Studio environment
-call "C:\Program Files\Microsoft Visual Studio\18\Insiders\VC\Auxiliary\Build\vcvarsall.bat" x64
-call "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvarsall.bat" x64
+:: call "C:\Program Files\Microsoft Visual Studio\18\Insiders\VC\Auxiliary\Build\vcvarsall.bat" x64
+:: call "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvarsall.bat" x64
 :: === VARIABLES DE USUARIO ===
 :: Set these paths according to your system
 set "GLSLC_PATH=C:\VulkanSDK\1.4.321.1\Bin\glslc.exe"
@@ -45,7 +45,8 @@ if /i "%1"=="release"       goto release
 if /i "%1"=="RenderLibrary" goto render
 if /i "%1"=="DrawSample"    goto draw_sample
 if /i "%1"=="todolist"      goto todolist
-if /i "%2"=="SDL_USAGE"     SDL_USAGE=/D SDL_USAGE
+if /i "%1"=="csv_test"      goto csv_test
+if /i "%2"=="SDL_USAGE"     set SDL_USAGE=/D SDL_USAGE
 
 echo Usage: %0 [all^|debug^|release^|shaders^|clean]
 exit /b 1
@@ -103,6 +104,14 @@ echo %CXX% %CXXFLAGS_DEBUG% %INC% ./code/Samples/ToDoList.cpp %SDL_USAGE% /link 
 %CXX% %CXXFLAGS_DEBUG% %INC% ./code/Samples/ToDoList.cpp %SDL_USAGE% /link xxhash.obj vk_mem_alloc.obj %LIBS% /OUT:todolist.exe
 if errorlevel 1 exit /b 1
 echo ToDoList build completed.
+exit /b
+
+:csv_test
+echo %CXX% %CFLAGS_RELEASE% %INC% ./code/Samples/CsvTest.cpp /link %LIBS% /OUT:csv_test.exe
+%CXX% %CFLAGS_RELEASE% %INC% ./code/Samples/CsvTest.cpp /link %LIBS% /OUT:csv_test.exe
+
+if errorlevel 1 exit /b 1
+echo csv_test build completed.
 exit /b
 
 :release
