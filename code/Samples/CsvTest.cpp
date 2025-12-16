@@ -3,16 +3,16 @@
 #include "../memory.h"
 #include "../allocator.h"
 #include "../files.h"
-#include "../encoders/csv_encoding.h"
 #include "../strings.h"
+#include "../encoders/csv_encoding.h"
 
-#define MEMORY_IMPL 
+#define MEMORY_IMPL
 #include "../memory.h"
 #define ALLOCATOR_IMPL
 #include "../allocator.h"
 #define FILES_IMPL
 #include "../files.h"
-#define STRINGS_IMPL 
+#define STRINGS_IMPL
 #include "../strings.h"
 
 #include "../encoders/csv_encoding.cpp"
@@ -24,7 +24,7 @@ int main( void ) {
   printf("Creating a CSV file of 5 columns, 3 million rows\n");
 
   std::chrono::time_point LastFrame = std::chrono::high_resolution_clock::now();
-  
+
   Arena* Arena = ArenaAllocDefault();
 
   csv_encoder Enc = CSV_Init("./CSVTest.csv", 5, Arena);

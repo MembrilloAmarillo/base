@@ -137,14 +137,14 @@ ArenaImplCommitWithFlags(void* ptr, U64 size, U64 MemFlags, U64 PageFlags) {
   page_snapped_size += PageSize - 1;
   page_snapped_size -= page_snapped_size % PageSize;
 
-  VirtualAlloc( ptr, page_snapped_size, MEM_COMMIT, PAGE_READWRITE );
+  VirtualAlloc( ptr, page_snapped_size, MemFlags, PageFlags );
 #else
   U32 PageSize = sysconf(_SC_PAGE_SIZE);
   U64 page_snapped_size = size;
   page_snapped_size += PageSize - 1;
   page_snapped_size -= page_snapped_size % PageSize;
-  mprotect( ptr, page_snapped_size, PROT_READ | PROT_WRITE);
-  
+  mprotect( ptr, page_snapped_size, MemFlags);
+
 #endif
 }
 

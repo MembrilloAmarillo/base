@@ -3,13 +3,16 @@ fn_internal csv_encoder CSV_Init(const char* FilePath, u64 N_Columns, Arena* Are
 
   Csv.File  = F_OpenFile( FilePath, static_cast<f_flags>(WRONLY | APPEND) );
   Csv.Arena = Arena;
+  #ifdef __linux__
+  Csv.BackBuffer = ArenaPushWithFlags(Arena, F_FileLength(&Csv.File), PROT_READ | PROT_WRITE, MAP_PRIVATE );
+  #elif _WIN32
   Csv.BackBuffer = ArenaPushWithFlags(Arena, F_FileLength(&Csv.File), MEM_COMMIT, PAGE_READWRITE );
-
+  #endif
   Csv.CurrentRow    = 0;
   Csv.CurrentColumn = 0;
   Csv.NColumns = N_Columns;
   Csv.NRows = MAX_CSV_ROWS;
-  
+
   Csv.Rows.data = PushArray(Arena, u8, gigabyte(4));
   Csv.Rows.len = gigabyte(4);
   Csv.Rows.idx = 0;
@@ -30,15 +33,15 @@ fn_internal void CSV_SetTitleNames(csv_encoder* Csv, const char* names[]) {
 
   for (u64 i = 0; i < Csv->NColumns; i++) {
     StringAppend(&Csv->Rows, Csv->ColumnNames[i]);
-    
-        
+
+
     // Write delimiter only if it's NOT the last column
-    if (i < Csv->NColumns - 1) { 
+    if (i < Csv->NColumns - 1) {
       StringAppend(&Csv->Rows, &Csv->Delimiter);
     }
   }
   // Write a newline after the headers
-  StringAppend(&Csv->Rows, "\n"); 
+  StringAppend(&Csv->Rows, "\n");
 }
 
 fn_internal void CSV_BeginRow(csv_encoder* Csv) {
@@ -58,7 +61,7 @@ fn_internal void CSV_EndRow(csv_encoder* Csv) {
 
 fn_internal void CSV_PushValue(csv_encoder* Csv, const char* Value) {
   StringAppend(&Csv->Rows, Value);
-  if (Csv->CurrentColumn < Csv->NColumns - 1) { 
+  if (Csv->CurrentColumn < Csv->NColumns - 1) {
     StringAppend(&Csv->Rows, &Csv->Delimiter);
   }
   Csv->CurrentColumn += 1;

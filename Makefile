@@ -55,6 +55,10 @@ todolist: $(SRC_C) vma_impl.o xxhash_release.o
 	@echo "Compiling $@..."
 	$(CC) $(CFLAGS) $(CPPFLAGS) $(INC) -o $@ $^ $(LIBS)
 
+csv_test: code/Samples/CsvTest.cpp
+	@echo "Compiling $@..."
+	$(CC) $(CFLAGS) $(CPPFLAGS) $(INC) -o $@ $^ $(LIBS)
+	
 # -Wextra -fPIE -Wconversion
 # -Wextra                   \
 # -Werror                   \

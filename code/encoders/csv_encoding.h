@@ -2,9 +2,9 @@
 #define _CSV_ENCODING_H_
 
 #include "../types.h"
-#include "../memory.h"
+//#include "../memory.h"
 
-#include "../strings.h"
+//#include "../strings.h"
 
 #define MAX_CSV_COLUMNS      256
 #define CSV_COLUMN_NAME_SIZE 256

@@ -460,11 +460,11 @@ int main( void ) {
 	    D_DrawText2D(&TodoApp.DrawInstance, NewRect2D(20, 20, 200, 40), &Text, TodoApp.UI_Context->DefaultTheme.Window.Font, Vec4New(0.8, 0.6, 0.55, 1.0f));
 	    #ifdef SDL_USAGE
       const char* StringOs = "Window manager: SDL";
-      #elif __linux__ 
+      #elif __linux__
       const char* StringOs = "Window manager: Linux";
-      #else 
+      #else
       const char* StringOs = "Window manager: Windows";
-      #endif 
+      #endif
       U8_String TextOs = StringNew(StringOs, CustomStrlen(StringOs), &TodoApp.TempAllocator);
       D_DrawText2D(&TodoApp.DrawInstance, NewRect2D(20, 60, 200, 40), &TextOs, TodoApp.UI_Context->DefaultTheme.Window.Font, Vec4New(0.8, 0.6, 0.55, 1.0f));
     }
@@ -745,12 +745,12 @@ fn_internal void TodoRenderInit(todo_render* TodoRenderer) {
   DefaultTheme.Window.BorderThickness = 4;
   DefaultTheme.Window.Font = TitleFont2;
 
-  DefaultTheme.Button.Border     = RgbaToNorm(Red);
-  DefaultTheme.Button.Background = RgbaToNorm(Dark);
-  DefaultTheme.Button.Foreground = RgbaToNorm(White);
-  DefaultTheme.Button.Radius = 2;
+  DefaultTheme.Button.Border          = RgbaToNorm(Dark);
+  DefaultTheme.Button.Background      = RgbaToNorm(HardDark);
+  DefaultTheme.Button.Foreground      = RgbaToNorm(White);
+  DefaultTheme.Button.Radius          = 2;
   DefaultTheme.Button.BorderThickness = 2;
-  DefaultTheme.Button.Font = DefaultFont;
+  DefaultTheme.Button.Font            = DefaultFont;
 
   DefaultTheme.Panel.Border = RgbaToNorm(Dark);
   DefaultTheme.Panel.Background = RgbaToNorm(HardDark);
@@ -766,10 +766,10 @@ fn_internal void TodoRenderInit(todo_render* TodoRenderer) {
   DefaultTheme.Input.BorderThickness = 1;
   DefaultTheme.Input.Font = DefaultFont;
 
-  DefaultTheme.Label.Border = RgbaToNorm(HardDark);
+  DefaultTheme.Label.Border     = RgbaToNorm(HardDark);
   DefaultTheme.Label.Background = RgbaToNorm(Dark);
   DefaultTheme.Label.Foreground = RgbaToNorm(White);
-  DefaultTheme.Label.Radius = 2;
+  DefaultTheme.Label.Radius     = 2;
   DefaultTheme.Label.BorderThickness = 1;
   DefaultTheme.Label.Font = ItalicFont;
 
@@ -788,7 +788,7 @@ fn_internal U8_String_List* ListFilesFromDir(U8_String* Path, Stack_Allocator* A
   Path->data[Path->idx] = '\0';
   U8_String_List* PathList = stack_push(Allocator, U8_String_List, 1);
   DLIST_INIT(PathList);
-  
+
   #ifdef __linux__
   DIR *dir;
   struct dirent *ent;

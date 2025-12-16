@@ -4,6 +4,8 @@
 #include "types.h"
 #include "allocator.h"
 
+#include <string.h>
+
 typedef struct U8_String U8_String;
 struct U8_String {
     u8* data;
