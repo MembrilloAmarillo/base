@@ -27,7 +27,7 @@
 #define Input_Right              ((ui_input)1 << 21)
 #define Input_Up                 ((ui_input)1 << 22)
 #define Input_Down               ((ui_input)1 << 23)
-#define Input_ESC                ((ui_input)1 << 24)
+#define Input_Esc                ((ui_input)1 << 24)
 #define StopUI                   ((ui_input)1 << 25)
 #define ActiveObject             ((ui_input)1 << 26)
 #define DeleteWord               ((ui_input)1 << 27)
@@ -201,8 +201,9 @@ fn_internal ui_input
                     InputState |= Input_Down;
                     break;
                 case VK_ESCAPE:
-                    InputState = StopUI;
-                    break;
+                    InputState |= StopUI;
+                    InputState |= Input_None;
+                break;
             }
             // Clipboard paste (Input_Ctrol+V)
             if ((GetKeyState(VK_CONTROL) & 0x8000) && (msg->wParam == 'V' || msg->wParam == 'v')) {

@@ -245,9 +245,9 @@ int main( void ) {
 
 
 	while (TodoApp.running) {
-        std::chrono::time_point t1 = std::chrono::high_resolution_clock::now();
-        auto duration = std::chrono::duration<double, std::milli>(t1 - LastFrame).count();
-        LastFrame = t1;
+    std::chrono::time_point t1 = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration<double, std::milli>(t1 - LastFrame).count();
+    LastFrame = t1;
 
 	f32 window_width  = TodoApp.VkBase.Window.Width;
 	f32 window_height = TodoApp.VkBase.Window.Height;
@@ -350,7 +350,7 @@ int main( void ) {
 
 	    UI_PushNextLayoutBoxSize(TodoApp.UI_Context, (vec2) {PanelRect.Size.x, TitleObj->Size.y});
 	    UI_BeginScrollbarView(TodoApp.UI_Context);
-	    for (i32 i = 0; i < 500; i += 1) {
+	    for (i32 i = 0; i < 4000; i += 1) {
 	      char buf[64] = { 0 };
 	      snprintf(buf, 64, "Tarea Num. %d", i);
 	      UI_Label(TodoApp.UI_Context, buf);
@@ -454,9 +454,9 @@ int main( void ) {
 	  }
 
 	  {
-	    char buf[64];
-	    snprintf(buf, 64, "Time in ms: %.8lf", duration);
-	    U8_String Text = StringNew(buf, 64, &TodoApp.TempAllocator);
+	    char buf[126];
+	    snprintf(buf, 126, "Render (ms): %.8lf", duration);
+	    U8_String Text = StringNew(buf, 126, &TodoApp.TempAllocator);
 	    D_DrawText2D(&TodoApp.DrawInstance, NewRect2D(20, 20, 200, 40), &Text, TodoApp.UI_Context->DefaultTheme.Window.Font, Vec4New(0.8, 0.6, 0.55, 1.0f));
 	    #ifdef SDL_USAGE
       const char* StringOs = "Window manager: SDL";

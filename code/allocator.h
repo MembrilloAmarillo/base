@@ -511,7 +511,7 @@ stack_resize_non_zeroed(Stack_Allocator* s, void* old_memory, i64 old_size, i64 
     if( curr_addr >= start + (uintptr_t)s->curr_offset ) {
 		return NULL;
 	}
-    if( ((uintptr_t)old_memory) & ((uintptr_t)(alignment - 1)) != 0 ) {
+    if( ( ((uintptr_t)old_memory) & ((uintptr_t)(alignment - 1)) ) != 0 ) {
         void* data = stack_alloc_non_zeroed(s, size, alignment);
 
         if(data != NULL) {

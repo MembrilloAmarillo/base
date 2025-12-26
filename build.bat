@@ -46,6 +46,7 @@ if /i "%1"=="RenderLibrary" goto render
 if /i "%1"=="DrawSample"    goto draw_sample
 if /i "%1"=="todolist"      goto todolist
 if /i "%1"=="csv_test"      goto csv_test
+if /i "%1"=="obj_test"      goto obj_test
 if /i "%2"=="SDL_USAGE"     set SDL_USAGE=/D SDL_USAGE
 
 echo Usage: %0 [all^|debug^|release^|shaders^|clean]
@@ -114,6 +115,26 @@ if errorlevel 1 exit /b 1
 echo csv_test build completed.
 exit /b
 
+:obj_test
+del /q vk_mem_alloc.obj 2>nul
+del /q xxhash.obj 2>nul
+
+:: Compile xxhash as C++ (same as other files)
+%CXX% /TP %CXXFLAGS_DEBUG% %INC% /c "%XXHASH%" /Fo:xxhash.obj
+if errorlevel 1 exit /b 1
+
+:: Compile VMA as C++
+%CXX% /TP %CXXFLAGS_DEBUG% %INC% /c "%VMA%" /Fo:vk_mem_alloc.obj
+if errorlevel 1 exit /b 1
+
+echo %CXX% %CXXFLAGS_DEBUG% %INC% ./code/Samples/ObjLoad.cpp %SDL_USAGE% /link xxhash.obj vk_mem_alloc.obj %LIBS% /OUT:ObjLoad.exe
+
+:: Compile and link ObjLoad
+%CXX% %CXXFLAGS_DEBUG% %INC% ./code/Samples/ObjLoad.cpp %SDL_USAGE% /link xxhash.obj vk_mem_alloc.obj %LIBS% /OUT:ObjLoad.exe
+if errorlevel 1 exit /b 1
+echo ObjLoad build completed.
+exit /b
+
 :release
 echo Compiling %RELEASE_EXE% (Release)...
 del /q vk_mem_alloc_release.obj 2>nul
@@ -144,6 +165,8 @@ if not exist "%GLSLC_PATH%" (
 "%GLSLC_PATH%" ./data/Sample.frag -o ./data/Sample.frag.spv
 "%GLSLC_PATH%" ./data/line.vert -o ./data/line.vert.spv
 "%GLSLC_PATH%" ./data/line.frag -o ./data/line.frag.spv
+"%GLSLC_PATH%" ./code/Samples/shaders/obj_showcase.vert -o ./code/Samples/shaders/obj_showcase.vert.spv
+"%GLSLC_PATH%" ./code/Samples/shaders/obj_showcase.frag -o ./code/Samples/shaders/obj_showcase.frag.spv
 
 echo Shader compilation completed.
 exit /b

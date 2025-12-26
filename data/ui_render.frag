@@ -21,6 +21,13 @@ float RoundedRectSDF(vec2 p, vec2 center, vec2 half_size, float r) {
     return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r;
 }
 
+vec4 adjust_brightness(vec4 color) {
+  float bright = 1.25;
+  vec4 luminance = vec4(1.0);
+  float contrast = 1.0;
+  return mix(color * bright, mix(luminance, color, contrast), 0.5);
+}
+
 void main()
 {
     if (uv == vec2(-2.0, -2.0) && in_is_icon == 0.f ) {
@@ -56,8 +63,30 @@ void main()
 		}
 
 	} else if(  in_is_icon == 0.f  ) {
-        float text = texture(display_texture, uv).r;
-        out_color = color * text;
+    #if 1
+      float text = texture(display_texture, uv).r;
+      out_color = color * text;
+      out_color = adjust_brightness(out_color);
+    #else 
+      float dist = texture(display_texture, uv).r; // signed distance stored in red
+      // compute smoothing width in texture-space using screen-space derivatives:
+      float screenWidth = fwidth(dist); // gives an estimate of derivative magnitude
+      // Derive a smoothing factor from pixel scale: smaller fonts => smaller smoothing
+      float smoothing = max(screenWidth, 1.0 / max(20, 1.0)); 
+
+      // Bias threshold to darken/thicken stems at small sizes:
+      float bias = 1 * clamp( (1.0 / 40) * 2.0, 0.0, 1.0 );
+      float threshold = 0.5 + bias * 0.05; // small bias toward inside
+
+      // optional: snap the final alpha toward 0/1 when near pixel centers
+      float alpha = smoothstep(threshold - smoothing, threshold + smoothing, dist);
+
+      // Optional snapping to reduce subpixel blurriness:
+      // if (v_pixelScale < someSmallSize) alpha = round(alpha);
+
+      // output alpha as color
+      out_color = vec4(vec3(1.0), alpha);
+    #endif
 	} else {
 	    //out_color.rgba = vec4(1, 1, 1, 1);
 		//vec4 icon = texture(icons_texture, in_icon_uv).rgba;

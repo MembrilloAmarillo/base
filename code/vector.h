@@ -138,7 +138,7 @@ VectorResize(vector* v, void* buffer, u32 new_len) {
     VectorReset(v);
     *v = VectorInit(buffer, 0, new_len, data_size);
     v->offset = offset;
-    v->len    = len;
+    v->len    = new_len;
 }
 
 fn_internal void

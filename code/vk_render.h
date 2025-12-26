@@ -12,6 +12,8 @@
 
 #include <vulkan/vulkan.h>
 
+#include "types.h"
+
 /* ----------------------------------------------------------------------------- */
 
 global const char* VALIDATION_LAYERS[] = { "VK_LAYER_KHRONOS_validation" };
@@ -248,7 +250,7 @@ struct vulkan_base{
     gpu_sync Semaphores;
 
     /////////////////////////////////////////////
-	// Immediate submite
+	  // Immediate submite
     VkFence         ImmFence;
     VkCommandBuffer ImmCommandBuffer;
     VkCommandPool   ImmCommandPool;
@@ -265,6 +267,10 @@ struct vulkan_base{
     bool      FramebufferResized;
     u32       CurrentFrame;
     u32       SwapchainImageIdx;
+
+    /////////////////////////////////////////////
+    // Depth buffering details
+    vk_image DepthImage;
 
     /////////////////////////////////////////////
     // Allocation
@@ -296,6 +302,12 @@ fn_internal vulkan_base VulkanInit();
 	*  \param base Pointer to the vulkan_base structure containing device and surface
 	*/
 fn_internal void CreateSwapchain(vulkan_base* base);
+
+/** \brief Creates the depth buffering resources in order for depth buffer rendering and z testing
+ * Sets up all depth buffering components including images, memory and image views.
+ * \param base Pointer to the vulkan_base structure
+ */
+fn_internal void CreateDepthResources(vulkan_base* base);
 
 /** \brief Creates image views for swapchain images
 	*
@@ -508,6 +520,15 @@ void SetMultisamplingNone(pipeline_builder* builder);
 	*  \param builder Pointer to the pipeline builder
 	*/
 void DisableDepthTest(pipeline_builder* builder);
+
+/** \brief Disables depth testing in the pipeline
+ *
+ *  Configures the pipeline to not ignore depth values, enabling both depth testing
+ *  and depth writing. 
+ *
+ *  \param builder Pointer to the pipeline builder
+ */
+void EnableDepthTest(pipeline_builder* builder);
 
 /** \brief Builds a complete graphics pipeline
 	*
@@ -1482,8 +1503,7 @@ fn_internal u32
 ///////////////////////////////////////////////////////////////////////////////
 // Vulkan Swapchain creation
 //
-fn_internal void
-	CreateSwapchain(vulkan_base* base) {
+fn_internal void CreateSwapchain(vulkan_base* base) {
     swapchain_support_details Support = QuerySwapchainSupport(base, base->PhysicalDevice);
     U32 ImageCount = Support.Capabilities.minImageCount + 1;
 
@@ -1573,6 +1593,43 @@ fn_internal void
     base->Swapchain.Extent = Extent;
     base->Swapchain.Capabilities = Support.Capabilities;
 
+}
+
+fn_internal VkFormat FindSupportedFormat(vulkan_base* base, dyn_vector<VkFormat>& Candidates, VkImageTiling Tiling, VkFormatFeatureFlags Features) {
+  for (i32 i = 0; i < Candidates.Length(); i++) {
+    VkFormat format = Candidates.At(i);
+    VkFormatProperties properties;
+    vkGetPhysicalDeviceFormatProperties(base->PhysicalDevice, format, &properties);
+
+    if (Tiling == VK_IMAGE_TILING_LINEAR && (properties.linearTilingFeatures & Features) == Features) {
+      return format;
+    }
+    if (Tiling == VK_IMAGE_TILING_OPTIMAL && (properties.optimalTilingFeatures & Features) == Features) {
+      return format;
+    }
+  }
+
+  fprintf(stderr, "[ERROR] Could not find any specified format\n");
+
+  return VkFormat{};
+}
+
+fn_internal void CreateDepthResources(vulkan_base* base) {
+  Temp temp = TempBegin(base->Arena);
+
+  dyn_vector<VkFormat> Candidates = dyn_vector<VkFormat>::Init(temp.arena, 24);
+  Candidates.Append(VK_FORMAT_D32_SFLOAT); 
+  Candidates.Append(VK_FORMAT_D32_SFLOAT_S8_UINT); 
+  Candidates.Append(VK_FORMAT_D24_UNORM_S8_UINT);
+
+  VkFormat Format = FindSupportedFormat(
+    base, 
+    Candidates, 
+    VK_IMAGE_TILING_OPTIMAL, 
+    VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT
+  );
+
+  TempEnd(temp);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1932,6 +1989,16 @@ void DisableDepthTest(pipeline_builder* builder) {
     builder->DepthStencil.stencilTestEnable = VK_FALSE;
     builder->DepthStencil.minDepthBounds = 0.0f;
     builder->DepthStencil.maxDepthBounds = 1.0f;
+}
+
+void EnableDepthTest(pipeline_builder* builder) {
+  builder->DepthStencil.depthTestEnable = VK_TRUE;
+  builder->DepthStencil.depthWriteEnable = VK_TRUE;
+  builder->DepthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
+  builder->DepthStencil.depthBoundsTestEnable = VK_TRUE;
+  builder->DepthStencil.stencilTestEnable = VK_TRUE;
+  builder->DepthStencil.minDepthBounds = 0.0f;
+  builder->DepthStencil.maxDepthBounds = 1.0f;
 }
 
 VkPipeline BuildPipeline(pipeline_builder* builder, VkDevice device) {

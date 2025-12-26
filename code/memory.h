@@ -48,6 +48,15 @@ that we are easing the work for the os in terms of memory managment.
 #define Max( a, b ) a > b ? a : b
 #define Min( a, b ) a < b ? a : b
 
+typedef struct free_block free_block;
+struct free_block {
+  void* Data;
+  u64   Size;
+
+  free_block* Next;
+  free_block* Prev;
+} free_block;
+
 typedef struct Arena Arena;
 struct Arena
 {

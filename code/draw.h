@@ -161,7 +161,7 @@ D_DrawText2D(draw_bucket_instance* Instance, rect_2d rect, U8_String* Text, Font
 #else
 			float y0 = pen_y + g.y_off + UI_Font->line_height;
 #endif
-			y0 = floorf(y0);
+			//y0 = floorf(y0);
 
 			vec4 ColorVec = {Color.r, Color.g, Color.b, Color.a};
 			// Create quad vertices in the same winding you use for indices

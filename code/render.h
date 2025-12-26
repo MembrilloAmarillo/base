@@ -62,7 +62,7 @@ typedef struct r_vertex_input_description {
     r_vertex_attribute* Attributes;     /**< An array of attribute descriptions. */
     u32                 AttributeCount; /**< The number of attributes in the array. */
     u32                 Stride;         /**< The total size, in bytes, of a single vertex struct. Use `sizeof()`. */
-	VkVertexInputRate   Rate;
+	  VkVertexInputRate   Rate;
 } r_vertex_input_description;
 
 // --- Renderer State and Management ---
@@ -92,23 +92,23 @@ struct handler_list {
 	*/
 typedef struct r_render r_render;
 struct r_render {
-    Stack_Allocator* Allocator;         /**< A general-purpose allocator for persistent resources. */
-    Stack_Allocator  PerFrameAllocator; /**< An allocator that is reset at the beginning of each frame. */
+  Stack_Allocator* Allocator;         /**< A general-purpose allocator for persistent resources. */
+  Stack_Allocator  PerFrameAllocator; /**< An allocator that is reset at the beginning of each frame. */
 
-    vulkan_base* VulkanBase;        /**< A pointer to the low-level Vulkan backend context. */
-    VkDescriptorPool DescriptorPool;    /**< The global descriptor pool used for allocating descriptor sets. */
+  vulkan_base* VulkanBase;        /**< A pointer to the low-level Vulkan backend context. */
+  VkDescriptorPool DescriptorPool;    /**< The global descriptor pool used for allocating descriptor sets. */
 
-    hash_table  Textures;          /**< A hash table mapping R_Handles to fn_internal texture resources. */
-    hash_table  Buffers;           /**< A hash table mapping R_Handles to fn_internal buffer resources. */
+  hash_table  Textures;          /**< A hash table mapping R_Handles to fn_internal texture resources. */
+  hash_table  Buffers;           /**< A hash table mapping R_Handles to fn_internal buffer resources. */
 	hash_table  Pipelines;
 
-    R_Handle         CurrentPipeline;      /**< The handle of the graphics pipeline currently bound for rendering. */
+  R_Handle         CurrentPipeline;      /**< The handle of the graphics pipeline currently bound for rendering. */
 	R_Handle         CurrentVertexBuffer;
 	R_Handle         CurrentIndexBuffer;
 	pending_binding  PendingBindings[MAX_PENDING_BINDINGS]; /**< An array of resource bindings to be applied before the next draw call. */
-    u32              PendingBindingCount;  /**< The number of currently pending resource bindings. */
+  u32              PendingBindingCount;  /**< The number of currently pending resource bindings. */
 
-    VkCommandBuffer  CurrentCommandBuffer; /**< The primary command buffer for the current frame in flight. */
+  VkCommandBuffer  CurrentCommandBuffer; /**< The primary command buffer for the current frame in flight. */
 
 	bool SetScreenToClear;
 	VkClearValue ClearColorScreen;

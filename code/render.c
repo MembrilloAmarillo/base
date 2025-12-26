@@ -35,9 +35,9 @@ R_RenderInit(r_render* Render, vulkan_base* Base, Stack_Allocator* Allocator) {
 	pool_size_ratio sizes[5];
     sizes[0].Type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; sizes[0].Ratio = 64;
     sizes[1].Type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER; sizes[1].Ratio = 64;
-	sizes[2].Type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE; sizes[2].Ratio = 64;
-	sizes[3].Type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER; sizes[3].Ratio = 64;
-	sizes[4].Type = VK_DESCRIPTOR_TYPE_SAMPLER; sizes[4].Ratio = 64;
+    sizes[2].Type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE; sizes[2].Ratio = 64;
+    sizes[3].Type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER; sizes[3].Ratio = 64;
+    sizes[4].Type = VK_DESCRIPTOR_TYPE_SAMPLER; sizes[4].Ratio = 64;
     InitDescriptorPool(Render->VulkanBase, &Render->DescriptorPool, Render->VulkanBase->Device, 64 * 5, sizes, ArrayCount(sizes));
 }
 
@@ -128,7 +128,7 @@ R_RenderEnd(r_render* Render) {
 fn_internal VkDescriptorSetLayout 
 R_CreateDescriptorSetLayout(r_render* Render, u32 NSets, VkDescriptorType* Types, VkShaderStageFlagBits StageFlags) {
 	vk_descriptor_set builder = {};
-    InitDescriptorSet(&builder, NSets, &Render->PerFrameAllocator);
+  InitDescriptorSet(&builder, NSets, &Render->PerFrameAllocator);
 	for (i32 i = 0; i < NSets; i += 1) {
 		VkDescriptorType type = Types[i];
 		AddBindingDescriptorSet(
@@ -139,14 +139,64 @@ R_CreateDescriptorSetLayout(r_render* Render, u32 NSets, VkDescriptorType* Types
 	}
 
 	VkDescriptorSetLayout SetLayout = BuildDescriptorSet(
-        &builder,
-        Render->VulkanBase->Device,
-        StageFlags,
-        0,
-        0
-    );
+    &builder,
+    Render->VulkanBase->Device,
+    StageFlags,
+    0,
+    0
+  );
 
 	return SetLayout;
+}
+
+fn_internal R_Handle
+R_CreatePipelineFromBuilder(
+  r_render* Render, 
+	const char* Id,
+	const char* VertPath, 
+	const char* FragPath, 
+  pipeline_builder* p_Build,
+	r_vertex_input_description* Description,
+  VkDescriptorSetLayout* DescriptorSetLayout,
+	u32 LayoutCount
+) {
+
+  {
+		VkVertexInputBindingDescription binding_description = {};
+		memset(&binding_description, 0, sizeof(VkVertexInputBindingDescription));
+    binding_description.binding   = 0;
+    binding_description.inputRate = Description->Rate;
+    binding_description.stride    = Description->Stride;
+
+		VkVertexInputAttributeDescription *AttributeDescriptions = stack_push(&Render->PerFrameAllocator, VkVertexInputAttributeDescription, Description->AttributeCount);
+
+		for (i32 i = 0; i < Description->AttributeCount; i += 1) {
+			AttributeDescriptions[i].location = Description->Attributes[i].Location;
+			AttributeDescriptions[i].binding = 0;
+			AttributeDescriptions[i].format = R_FormatToVkFormat(Description->Attributes[i].Format);
+			AttributeDescriptions[i].offset = Description->Attributes[i].Offset;
+		}
+		SetVertexInputBindingDescription(p_Build, &binding_description, 1);
+		SetVertexInputAttributeDescription(p_Build, AttributeDescriptions, Description->AttributeCount);
+	}
+  if (DescriptorSetLayout != NULL) {
+    SetDescriptorLayout(p_Build, DescriptorSetLayout, LayoutCount);
+  }
+	vk_pipeline NewPipeline = AddPipeline(Render->VulkanBase, p_Build, VertPath, FragPath);
+  DestroyPipelineBuilder(p_Build);
+
+	vk_pipeline* Pipeline = stack_push(Render->Allocator, vk_pipeline, 1);
+	*Pipeline = NewPipeline;
+
+  if (DescriptorSetLayout != NULL) {
+    Pipeline->Descriptors = stack_push(Render->Allocator, VkDescriptorSet, 2);
+    Pipeline->DescriptorCount = 2;
+    Pipeline->Descriptors[0] = DescriptorSetAllocate(&Render->DescriptorPool, Render->VulkanBase->Device, &DescriptorSetLayout[0]);
+    Pipeline->Descriptors[1] = DescriptorSetAllocate(&Render->DescriptorPool, Render->VulkanBase->Device, &DescriptorSetLayout[0]);
+  }
+	entry* Entry = HashTableAdd(&Render->Pipelines, Id, Pipeline, 0);
+
+	return (R_Handle)Entry->HashId;
 }
 
 fn_internal R_Handle 
@@ -190,7 +240,7 @@ R_CreatePipelineEx(
 	SetDescriptorLayout(&p_Build, DescriptorSetLayout, LayoutCount);
 
 	vk_pipeline NewPipeline = AddPipeline(Render->VulkanBase, &p_Build, VertPath, FragPath);
-    DestroyPipelineBuilder(&p_Build);
+  DestroyPipelineBuilder(&p_Build);
 
 	vk_pipeline* Pipeline = stack_push(Render->Allocator, vk_pipeline, 1);
 	*Pipeline = NewPipeline;
@@ -389,7 +439,7 @@ void R_Draw(r_render* Render, u32 VertexCount, u32 InstanceCount) {
     assert(pipeline != NULL && "CurrentPipeline handle is invalid or not found in resource manager.");
 
     if (Render->PendingBindingCount > 0) {
-		VkDescriptorSet set_for_this_frame = pipeline->Descriptors[0];
+      VkDescriptorSet set_for_this_frame = pipeline->Descriptors[Render->VulkanBase->CurrentFrame];
 
         descriptor_writer writer = DescriptorWriterInit(Render->PendingBindingCount, &Render->PerFrameAllocator);
 
@@ -432,6 +482,11 @@ void R_Draw(r_render* Render, u32 VertexCount, u32 InstanceCount) {
     }
     
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->Pipeline);
+
+    allocated_buffer* vb = (allocated_buffer*)HashTableGet(&Render->Buffers, Render->CurrentVertexBuffer, 0);
+    VkBuffer Buffers[] = {vb->Buffer};
+    VkDeviceSize offsets[] = {0};
+    vkCmdBindVertexBuffers(cmd, 0, 1, Buffers, offsets);
 
     vkCmdDraw(cmd, VertexCount, InstanceCount, 0, 0);
 
@@ -509,20 +564,20 @@ R_DrawIndexed(r_render* Render, u32 IndexCount, u32 InstanceCount) {
 
 fn_internal void 
 R_SendDataToBuffer(r_render* Render, R_Handle Buffer, void* Data, u64 Size, u64 offset) {
-    allocated_buffer* vb = (allocated_buffer*)HashTableGet(&Render->Buffers, Buffer, 0);
+  allocated_buffer* vb = (allocated_buffer*)HashTableGet(&Render->Buffers, Buffer, 0);
 
-	memcpy(
-		(u8*)vb->Info.pMappedData + offset,
-		Data,
-		Size
-	);
+  memcpy(
+    (u8*)vb->Info.pMappedData + offset,
+    Data,
+    Size
+  );
 
 	VkMappedMemoryRange flushRange = {};
-    flushRange.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
-    flushRange.memory = vb->Info.deviceMemory;
-    flushRange.offset = 0;
-    flushRange.size = Size;
-    //vkFlushMappedMemoryRanges(Render->VulkanBase->Device, 1, &flushRange);
+  flushRange.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
+  flushRange.memory = vb->Info.deviceMemory;
+  flushRange.offset = 0;
+  flushRange.size = Size;
+  //vkFlushMappedMemoryRanges(Render->VulkanBase->Device, 1, &flushRange);
 }
 
 fn_internal void
