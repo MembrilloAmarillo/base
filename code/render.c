@@ -83,8 +83,14 @@ fn_internal void R_BeginRenderPass(r_render* Render) {
 			VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
 		);
 	}
-     
-	renderingInfo = RenderingInfo(base->Swapchain.Extent, &colorAttachment, NULL);
+
+  VkClearValue DepthClear = { 1.f, 0 };
+  VkRenderingAttachmentInfo DepthInfo = AttachmentInfo(
+    base->DepthImage.ImageView, 
+    &DepthClear, 
+    base->DepthImage.Layout
+  );
+  renderingInfo = RenderingInfo(base->Swapchain.Extent, &colorAttachment, &DepthInfo);
     
 	vkCmdBeginRendering(Render->CurrentCommandBuffer, &renderingInfo);
 
