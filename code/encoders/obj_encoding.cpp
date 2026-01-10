@@ -74,6 +74,8 @@ fn_internal obj_instance OBJ_InstanceInit(const char* path, obj_load_flags flags
   i32 LineIt = 0;
 
   dyn_vector<vec4> ObjVector = dyn_vector<vec4>::Init(arena, mebibyte(25));
+  dyn_vector<vec3> ObjNormal = dyn_vector<vec3>::Init(arena, mebibyte(25));
+  dyn_vector<vec3> ObjText   = dyn_vector<vec3>::Init(arena, mebibyte(25));
 
   u8* data = PushArray(arena, u8, FileLength);
   F_SetFileData(&ObjFile, data);
@@ -133,7 +135,24 @@ fn_internal obj_instance OBJ_InstanceInit(const char* path, obj_load_flags flags
         //fprintf(stdout, "[OBJ] V: %.3f %.3f %.3f | W: %.2f | C: %.2f %.2f %.2f\n", x, y, z, w, r, g, b);
         ObjVector.Append(Vec4New(x, y, z, w));
       } else if (OBJ_Peek((const char*)data, it) == 't') {
+        it += 2; // Skip "t "
+
+        // 1. Always parse the geometry (X, Y, Z)
+        f32 x = OBJ_ParseFloat((const char*)data, &it);
+        f32 y = OBJ_ParseFloat((const char*)data, &it);
+
+        ObjText.Append( { x, y, 0 });
+
       } else if (OBJ_Peek((const char*)data, it) == 'n') {
+        it += 2; // Skip "n "
+
+        // 1. Always parse the geometry (X, Y, Z)
+        f32 x = OBJ_ParseFloat((const char*)data, &it);
+        f32 y = OBJ_ParseFloat((const char*)data, &it);
+        f32 z = OBJ_ParseFloat((const char*)data, &it);
+
+        ObjNormal.Append({x, y, z});
+
       } else if (OBJ_Peek((const char*)data, it) == 'p') {
       }
     } else if (data[it] == 'f') {
@@ -148,6 +167,7 @@ fn_internal obj_instance OBJ_InstanceInit(const char* path, obj_load_flags flags
   F_CloseFile(&ObjFile);
 
   Instance.Vec4Vertices = ObjVector;
-
+  Instance.Vec3TexCoords = ObjText;
+  Instance.Vec3VertexNormals = ObjNormal;
   return Instance;
 }

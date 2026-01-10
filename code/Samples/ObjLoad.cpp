@@ -124,9 +124,15 @@ int main(void) {
   Stack_Allocator Allocator;
   stack_init(&Allocator, (void*)BackBuffer, mebibyte(256));
 
+#if 0
   const char* path = "/home/polaris/Downloads/kenney_mini-characters/Models/OBJ format/character-female-d.obj";
   obj_instance ObjInstance = OBJ_InstanceInit(path, static_cast<obj_load_flags>(0), Arena);
+#endif
+  Temp temp = TempBegin(Arena);
 
+  const char* path = "C:/Users/sasch/Downloads/kenney_mini-characters/Models/OBJ format/taza.obj";
+  obj_instance ObjInstance = OBJ_InstanceInit(path, static_cast<obj_load_flags>(0), Arena);
+  dyn_vector<v_3d> ObjVector = dyn_vector<v_3d>::Init(temp.arena, ObjInstance.Vec4Vertices.Length());
   if (false) {
     for (i32 i = 0; i < ObjInstance.Vec4Vertices.Length(); i++) {
       vec4 v = ObjInstance.Vec4Vertices.At(i);
@@ -197,18 +203,33 @@ int main(void) {
 
   R_Handle ObjBuffer;
   R_Handle StagingBuffer;
+
   /// Vertex buffer
   {
-    ObjBuffer     = R_CreateBuffer(&Renderer, "ObjBuffer", ObjInstance.Vec4Vertices.SizeBytes(), R_BUFFER_TYPE_VERTEX);
-    StagingBuffer = R_CreateBuffer(&Renderer, "StagingBuffer", ObjInstance.Vec4Vertices.SizeBytes(), R_BUFFER_TYPE_STAGING);
+    for (i32 i = 0; i < ObjInstance.Vec4Vertices.Length(); i++){
+      ObjVector.Append(Vec3D::New(
+        ObjInstance.Vec4Vertices.At(i).xyz,
+        ObjInstance.Vec3TexCoords.At(i).xy,
+        ObjInstance.Vec3VertexNormals.At(i),
+        { 1, 1, 1, 1 }
+      ));
+    }
+    ObjBuffer     = R_CreateBuffer(&Renderer, "ObjBuffer", ObjVector.SizeBytes(), R_BUFFER_TYPE_VERTEX);
+    StagingBuffer = R_CreateBuffer(&Renderer, "StagingBuffer", ObjVector.SizeBytes(), R_BUFFER_TYPE_STAGING);
 
     VkBufferCopy BCopy = {};
+
     BCopy.srcOffset = 0;
     BCopy.dstOffset = 0;
-    BCopy.size = ObjInstance.Vec4Vertices.SizeBytes();
+    BCopy.size = ObjVector.SizeBytes();
 
+<<<<<<< HEAD
     R_SendDataToBuffer(&Renderer, StagingBuffer, ObjInstance.Vec4Vertices.Data, ObjInstance.Vec4Vertices.SizeBytes(), 0);
 
+=======
+    R_SendDataToBuffer(&Renderer, StagingBuffer, ObjVector.Data, ObjVector.SizeBytes(), 0);
+
+>>>>>>> 0dce4ffec50e1cb9b2560a17f335e39ec95a245b
     VkCommandBuffer ImmCommand = ImmediateSubmitBegin(&Base);
     Renderer.CurrentCommandBuffer = ImmCommand;
     R_CopyStageToBuffer(&Renderer, StagingBuffer, ObjBuffer, BCopy);
@@ -217,6 +238,7 @@ int main(void) {
     Renderer.CurrentCommandBuffer = VK_NULL_HANDLE;
   }
 
+  bool FirstFrame = true;
   for (; AppRunning;) {
     ui_input Input = GetNextEvent(&Base.Window);
 
@@ -249,7 +271,7 @@ int main(void) {
       R_BindVertexBuffer(&Renderer, ObjBuffer);
       //R_BindIndexBuffer(&TodoApp.Render, TodoApp.IBuffer[TodoApp.Render.VulkanBase->CurrentFrame]);
       R_SetPipeline(&Renderer, Obj3D_Pipeline);
-      R_Draw(&Renderer, ObjInstance.Vec4Vertices.Length(), 1);
+      R_Draw(&Renderer, ObjVector.Length(), 1);
     }
     R_RenderPassEnd(&Renderer);
 
@@ -260,6 +282,8 @@ int main(void) {
   auto duration = std::chrono::duration<double, std::milli>(t1 - LastFrame).count();
 
   printf("Time in s: %.8lf\n", duration / 1000);
+
+  TempEnd(temp);
 
   return 0;
 }

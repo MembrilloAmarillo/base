@@ -176,6 +176,20 @@ struct v_3d {
     vec4 Color;
 };
 
+// Initializer
+
+namespace Vec3D {
+  v_3d New(vec3 Pos, vec2 UV, vec3 Normal, vec4 Color) {
+    v_3d r = { 0 };
+    r.Position = {Pos.x, Pos.y, Pos.z};
+    r.UV = {UV.x, UV.y};
+    r.Normal = {Normal.x, Normal.y, Normal.z};
+    r.Color = {Color.x, Color.y, Color.z, Color.w};
+
+    return r;
+  }
+}
+
 typedef struct v_2d v_2d;
 struct v_2d {
     vec2 LeftCorner;
@@ -1476,6 +1490,8 @@ fn_internal vulkan_base
     //
     InitDescriptors(&Base);
 
+    CreateDepthResources(&Base);
+
     ///////////////////////////////////////////////////////////////////////////
     // Free memory from temporal data
     //
@@ -1593,7 +1609,6 @@ fn_internal void CreateSwapchain(vulkan_base* base) {
     base->Swapchain.Format = SurfaceFormat.format;
     base->Swapchain.Extent = Extent;
     base->Swapchain.Capabilities = Support.Capabilities;
-
 }
 
 fn_internal VkFormat FindSupportedFormat(vulkan_base* base, dyn_vector<VkFormat>& Candidates, VkImageTiling Tiling, VkFormatFeatureFlags Features) {
@@ -1629,6 +1644,30 @@ fn_internal void CreateDepthResources(vulkan_base* base) {
     VK_IMAGE_TILING_OPTIMAL,
     VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT
   );
+
+  VkExtent3D Extent = {base->Swapchain.Extent.width, base->Swapchain.Extent.height, 1};
+
+  base->DepthImage = CreateImageDefault(
+    base, 
+    Extent, 
+    Format, 
+    VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, 
+    false
+  );
+
+  VkCommandBuffer initCmd = ImmediateSubmitBegin(base);
+  TransitionImage( 
+    initCmd, 
+    base->DepthImage.Image,
+    VK_IMAGE_LAYOUT_UNDEFINED,
+    VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
+    VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,
+    VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+    VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,
+    VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT
+  );
+  ImmediateSubmitEnd(base, initCmd);
+  base->DepthImage.Layout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
 
   TempEnd(temp);
 }
@@ -2383,46 +2422,46 @@ fn_internal VkImageViewCreateInfo
     return info;
 }
 
-fn_internal vk_image
-	CreateImageDefault(vulkan_base* base, VkExtent3D Size, VkFormat Format, VkImageUsageFlags Usage, bool is_mipmapped)
+fn_internal vk_image CreateImageDefault(vulkan_base* base, VkExtent3D Size, VkFormat Format, VkImageUsageFlags Usage, bool is_mipmapped)
 {
-    vk_image new_image = {};
-    new_image.Format = Format;
-    new_image.Extent = Size;
-    VkImageCreateInfo ImgInfo = ImageCreateInfo(Format, Usage, Size);
+  vk_image new_image = {};
+  new_image.Format = Format;
+  new_image.Extent = Size;
+  VkImageCreateInfo ImgInfo = ImageCreateInfo(Format, Usage, Size);
 
-    if( is_mipmapped ) {
-        ImgInfo.mipLevels = (u32)(floor(log2(Max(Size.width, Size.height)))) + 1;
-    }
+  if( is_mipmapped ) {
+      ImgInfo.mipLevels = (u32)(floor(log2(Max(Size.width, Size.height)))) + 1;
+  }
 
-    VmaAllocationCreateInfo AllocInfo = {};
-    AllocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
-    AllocInfo.requiredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+  VmaAllocationCreateInfo AllocInfo = {};
+  AllocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+  AllocInfo.requiredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 
-    VK_CHECK(vmaCreateImage(base->GPUAllocator, &ImgInfo, &AllocInfo, &new_image.Image, &new_image.Alloc, 0));
+  VK_CHECK(vmaCreateImage(base->GPUAllocator, &ImgInfo, &AllocInfo, &new_image.Image, &new_image.Alloc, 0));
 
-    VkImageAspectFlags AspectFlags = VK_IMAGE_ASPECT_COLOR_BIT;
+  VkImageAspectFlags AspectFlags = VK_IMAGE_ASPECT_COLOR_BIT;
 
-    if( Format == VK_FORMAT_D32_SFLOAT ) {
-        AspectFlags = VK_IMAGE_ASPECT_DEPTH_BIT;
-    }
+  if( Format == VK_FORMAT_D32_SFLOAT ) {
+      AspectFlags = VK_IMAGE_ASPECT_DEPTH_BIT;
+  }
 
-    VkImageViewCreateInfo ViewInfo = ImageViewCreateInfo(Format, new_image.Image, AspectFlags);
-    ViewInfo.subresourceRange.levelCount = ImgInfo.mipLevels;
+  VkImageViewCreateInfo ViewInfo = ImageViewCreateInfo(Format, new_image.Image, AspectFlags);
+  ViewInfo.subresourceRange.levelCount = ImgInfo.mipLevels;
 
-    VK_CHECK(vkCreateImageView(base->Device, &ViewInfo, 0, &new_image.ImageView));
+  VK_CHECK(vkCreateImageView(base->Device, &ViewInfo, 0, &new_image.ImageView));
+  
+  if (Format != VK_FORMAT_D32_SFLOAT) {
+    VkCommandBuffer initCmd = ImmediateSubmitBegin(base);
+    TransitionImage(initCmd, new_image.Image,
+                    VK_IMAGE_LAYOUT_UNDEFINED,
+                    VK_IMAGE_LAYOUT_GENERAL,
+                    VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, VK_ACCESS_2_NONE,
+                    VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_WRITE_BIT);
+    ImmediateSubmitEnd(base, initCmd);
+    new_image.Layout = VK_IMAGE_LAYOUT_GENERAL;
 
-	VkCommandBuffer initCmd = ImmediateSubmitBegin(base);
-	TransitionImage(initCmd, new_image.Image,
-					VK_IMAGE_LAYOUT_UNDEFINED,
-					VK_IMAGE_LAYOUT_GENERAL,
-					VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, VK_ACCESS_2_NONE,
-					VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_WRITE_BIT);
-	ImmediateSubmitEnd(base, initCmd);
-	new_image.Layout = VK_IMAGE_LAYOUT_GENERAL;
-
-
-    return new_image;
+  }
+  return new_image;
 }
 
 /**
@@ -2662,6 +2701,8 @@ fn_internal void RecreateSwapchain(vulkan_base* base) {
     ClearDescriptorPool(&base->GlobalDescriptorAllocator, base->Device);
     //InitDescriptors(base);
 
+    CreateDepthResources(base);
+
     base->FramebufferResized = false;
 }
 
@@ -2828,8 +2869,7 @@ fn_internal VkRenderingAttachmentInfo
 
 // ------------------------------------------------------------------
 
-fn_internal VkRenderingInfo
-	RenderingInfo(VkExtent2D Extent, VkRenderingAttachmentInfo *ColorInfo, VkRenderingAttachmentInfo* DepthInfo)  {
+fn_internal VkRenderingInfo RenderingInfo(VkExtent2D Extent, VkRenderingAttachmentInfo *ColorInfo, VkRenderingAttachmentInfo* DepthInfo)  {
     VkRenderingInfo renderInfo = {};
     renderInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
     renderInfo.pNext = 0;

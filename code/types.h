@@ -43,22 +43,6 @@ typedef long double max_align_t;
 
 #define ArrayCount(Array) (sizeof(Array) / sizeof((Array)[0]))
 
-typedef union vec3 vec3;
-union vec3 {
-	struct {
-		f32 x;
-		f32 y;
-		f32 z;
-	};
-	struct {
-		f32 r;
-		f32 g;
-		f32 b;
-	};
-
-	f32 v[3];
-};
-
 typedef union rgba rgba;
 union rgba {
 	struct {
@@ -84,6 +68,33 @@ union vec2 {
 
 	f32 v[2];
 };
+
+typedef union vec3 vec3;
+union vec3 {
+	struct {
+		f32 x;
+		f32 y;
+		f32 z;
+	};
+	struct {
+		f32 r;
+		f32 g;
+		f32 b;
+	};
+
+  struct {
+    vec2 xy;
+    f32 z;
+  };
+
+  struct {
+    f32 x;
+    vec2 yz;
+  };
+
+	f32 v[3];
+};
+
 
 fn_internal inline vec2 Vec2Zero() {
 	vec2 x = { 0, 0 };
@@ -140,6 +151,10 @@ union vec4 {
 	struct {
 		vec2 xy;
 		vec2 zw;
+	};
+  struct {
+		vec3 xyz;
+    f32 w;
 	};
 
 	f32 v[4];
