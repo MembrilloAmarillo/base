@@ -13,6 +13,7 @@
 #include <vulkan/vulkan.h>
 
 #include "types.h"
+#include "DynamicVector.h"
 
 /* ----------------------------------------------------------------------------- */
 
@@ -524,7 +525,7 @@ void DisableDepthTest(pipeline_builder* builder);
 /** \brief Disables depth testing in the pipeline
  *
  *  Configures the pipeline to not ignore depth values, enabling both depth testing
- *  and depth writing. 
+ *  and depth writing.
  *
  *  \param builder Pointer to the pipeline builder
  */
@@ -1618,14 +1619,14 @@ fn_internal void CreateDepthResources(vulkan_base* base) {
   Temp temp = TempBegin(base->Arena);
 
   dyn_vector<VkFormat> Candidates = dyn_vector<VkFormat>::Init(temp.arena, 24);
-  Candidates.Append(VK_FORMAT_D32_SFLOAT); 
-  Candidates.Append(VK_FORMAT_D32_SFLOAT_S8_UINT); 
+  Candidates.Append(VK_FORMAT_D32_SFLOAT);
+  Candidates.Append(VK_FORMAT_D32_SFLOAT_S8_UINT);
   Candidates.Append(VK_FORMAT_D24_UNORM_S8_UINT);
 
   VkFormat Format = FindSupportedFormat(
-    base, 
-    Candidates, 
-    VK_IMAGE_TILING_OPTIMAL, 
+    base,
+    Candidates,
+    VK_IMAGE_TILING_OPTIMAL,
     VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT
   );
 
@@ -1839,8 +1840,7 @@ fn_internal void
     vkDestroyDescriptorPool(device, *allocator, 0);
 }
 
-fn_internal  allocated_buffer
-	CreateBuffer(VmaAllocator allocator, VkDeviceSize AllocSize, VkBufferUsageFlags Usage, VmaMemoryUsage MemoryUsage)
+fn_internal allocated_buffer CreateBuffer(VmaAllocator allocator, VkDeviceSize AllocSize, VkBufferUsageFlags Usage, VmaMemoryUsage MemoryUsage)
 {
     allocated_buffer out = {};
 
@@ -1867,8 +1867,7 @@ fn_internal  allocated_buffer
     return out;
 }
 
-fn_internal void
-	DestroyBuffer(VmaAllocator* allocator, allocated_buffer* buf)
+fn_internal void DestroyBuffer(VmaAllocator* allocator, allocated_buffer* buf)
 {
     vmaDestroyBuffer(*allocator, buf->Buffer, buf->Allocation);
 }

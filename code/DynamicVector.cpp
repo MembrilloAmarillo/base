@@ -1,6 +1,6 @@
 template<typename T>
 dyn_vector<T> dyn_vector<T>::Init(Arena* MemArena, u64 Size) {
-  
+
   dyn_vector<T> Vec = {};
 
   Vec.MemArena  = MemArena;
@@ -14,14 +14,14 @@ dyn_vector<T> dyn_vector<T>::Init(Arena* MemArena, u64 Size) {
 template<typename T>
 void dyn_vector<T>::Append(T & value) {
   Data[Len] = value;
-  Offset += sizeof(T);
+  Offset += sizeof(value);
   Len++;
 }
 
 template<typename T>
 void dyn_vector<T>::Append(T value) {
   Data[Len] = value;
-  Offset += sizeof(T);
+  Offset += sizeof(value);
   Len++;
 }
 
@@ -29,6 +29,7 @@ template<typename T>
 void dyn_vector<T>::PushFirst(T & value) {
   memcpy((u8*)Data + sizeof(T), (u8*)Data, Offset - sizeof(Offset));
   *Data = value;
+  Offset += sizeof(value);
   Len++;
 }
 

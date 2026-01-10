@@ -37,7 +37,7 @@ XXHASH := code/third-party/xxhash.c
 SRC_C := code/Samples/ToDoList.cpp
 VMA   := code/third-party/vk_mem_alloc.c
 
-all: todolist shaders
+all: todolist obj_load shaders
 
 vma_impl.o: $(VMA)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
@@ -51,6 +51,10 @@ xxhash.o: $(XXHASH)
 xxhash_release.o: $(XXHASH)
 	$(CC) $(CFLAGS_OPT) -c $< -o $@
 
+obj_load: code/Samples/ObjLoad.cpp vma_impl.o xxhash_release.o
+	@echo "Compiling $@..."
+	$(CC) $(CFLAGS) $(CPPFLAGS) $(INC) -o $@ $^ $(LIBS)
+
 todolist: $(SRC_C) vma_impl.o xxhash_release.o
 	@echo "Compiling $@..."
 	$(CC) $(CFLAGS) $(CPPFLAGS) $(INC) -o $@ $^ $(LIBS)
@@ -58,7 +62,7 @@ todolist: $(SRC_C) vma_impl.o xxhash_release.o
 csv_test: code/Samples/CsvTest.cpp
 	@echo "Compiling $@..."
 	$(CC) $(CFLAGS) $(CPPFLAGS) $(INC) -o $@ $^ $(LIBS)
-	
+
 # -Wextra -fPIE -Wconversion
 # -Wextra                   \
 # -Werror                   \

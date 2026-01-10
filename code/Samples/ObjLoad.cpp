@@ -123,8 +123,8 @@ int main(void) {
   u8 *BackBuffer = PushArray(Arena, u8, mebibyte(256));
   Stack_Allocator Allocator;
   stack_init(&Allocator, (void*)BackBuffer, mebibyte(256));
-  
-  const char* path = "C:/Users/sasch/Downloads/kenney_mini-characters/Models/OBJ format/character-female-d.obj";
+
+  const char* path = "/home/polaris/Downloads/kenney_mini-characters/Models/OBJ format/character-female-d.obj";
   obj_instance ObjInstance = OBJ_InstanceInit(path, static_cast<obj_load_flags>(0), Arena);
 
   if (false) {
@@ -140,7 +140,7 @@ int main(void) {
 
   //VkDescriptorType ObjLoadDescriptorTypes[] = { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER };
   //VkDescriptorSetLayout Layout3D = R_CreateDescriptorSetLayout(&Renderer, 1, ObjLoadDescriptorTypes, VK_SHADER_STAGE_VERTEX_BIT);
-   
+
   // Create Pipelines
   R_Handle Obj3D_Pipeline;
   {
@@ -168,27 +168,27 @@ int main(void) {
     VertexDescription.Attributes[0].Location = 0;
     VertexDescription.Attributes[0].Format = R_FORMAT_VEC3;
     VertexDescription.Attributes[0].Offset = 0;
-    
+
     VertexDescription.Attributes[1].Location = 1;
     VertexDescription.Attributes[1].Format = R_FORMAT_VEC2;
     VertexDescription.Attributes[1].Offset = sizeof(v_3d);
-    
+
     VertexDescription.Attributes[2].Location = 2;
     VertexDescription.Attributes[2].Format = R_FORMAT_VEC3;
     VertexDescription.Attributes[2].Offset = sizeof(v_3d) + sizeof(v_2d);
-    
+
     VertexDescription.Attributes[3].Location = 3;
     VertexDescription.Attributes[3].Format = R_FORMAT_VEC4;
     VertexDescription.Attributes[3].Offset = 2*sizeof(v_3d) + sizeof(v_2d);
 
     Obj3D_Pipeline = R_CreatePipelineFromBuilder(
-      &Renderer, 
-      "Obj 3D Pipeline", 
-      "./code/Samples/shaders/obj_showcase.vert.spv", 
-      "./code/Samples/shaders/obj_showcase.frag.spv", 
-      &Obj3dBuilder, 
-      &VertexDescription, 
-      NULL, 
+      &Renderer,
+      "Obj 3D Pipeline",
+      "./code/Samples/shaders/obj_showcase.vert.spv",
+      "./code/Samples/shaders/obj_showcase.frag.spv",
+      &Obj3dBuilder,
+      &VertexDescription,
+      NULL,
       0
     );
 
@@ -208,7 +208,7 @@ int main(void) {
     BCopy.size = ObjInstance.Vec4Vertices.SizeBytes();
 
     R_SendDataToBuffer(&Renderer, StagingBuffer, ObjInstance.Vec4Vertices.Data, ObjInstance.Vec4Vertices.SizeBytes(), 0);
-    
+
     VkCommandBuffer ImmCommand = ImmediateSubmitBegin(&Base);
     Renderer.CurrentCommandBuffer = ImmCommand;
     R_CopyStageToBuffer(&Renderer, StagingBuffer, ObjBuffer, BCopy);

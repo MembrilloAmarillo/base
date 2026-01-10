@@ -55,7 +55,7 @@ struct free_block {
 
   free_block* Next;
   free_block* Prev;
-} free_block;
+};
 
 typedef struct Arena Arena;
 struct Arena

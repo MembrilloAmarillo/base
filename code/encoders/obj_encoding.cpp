@@ -12,7 +12,7 @@ fn_internal i64 OBJ_Peek(const char* buffer, i64 idx) {
 
 fn_internal f32 OBJ_ParseFloat(const char* buffer, i64* idx) {
   i64 i = *idx;
-    
+
   // 1. Skip leading whitespace
   while (buffer[i] == ' ') i++;
 
@@ -56,7 +56,7 @@ fn_internal f32 OBJ_ParseFloat(const char* buffer, i64* idx) {
     // (Using a loop is faster than powf() for typical OBJ small integers)
     f32 multiplier = 1.0f;
     while (exponent > 0.0f) { multiplier *= 10.0f; exponent -= 1.0f; }
-        
+
     if (expSign < 0.0f) res /= multiplier;
     else                res *= multiplier;
   }
@@ -73,8 +73,7 @@ fn_internal obj_instance OBJ_InstanceInit(const char* path, obj_load_flags flags
 
   i32 LineIt = 0;
 
-  dyn_vector<vec4> 
-    = dyn_vector<vec4>::Init(arena, mebibyte(25));
+  dyn_vector<vec4> ObjVector = dyn_vector<vec4>::Init(arena, mebibyte(25));
 
   u8* data = PushArray(arena, u8, FileLength);
   F_SetFileData(&ObjFile, data);
@@ -91,19 +90,19 @@ fn_internal obj_instance OBJ_InstanceInit(const char* path, obj_load_flags flags
         f32 x = OBJ_ParseFloat((const char*)data, &it);
         f32 y = OBJ_ParseFloat((const char*)data, &it);
         f32 z = OBJ_ParseFloat((const char*)data, &it);
-        
+
         // Defaults
         f32 w = 1.0f;
         f32 r = 1.0f, g = 1.0f, b = 1.0f; // White by default
 
         // 2. Parse any remaining values on the line
-        f32 extras[4]; 
+        f32 extras[4];
         i32 extra_count = 0;
 
         while (extra_count < 4) {
           // Manually skip spaces to check for Newline without consuming it
           while (data[it] == ' ' || data[it] == '\t') it++;
-            
+
           // If we hit a newline or end of file, stop looking
           if (data[it] == '\n' || data[it] == '\r' || data[it] == '\0') break;
 
@@ -115,7 +114,7 @@ fn_internal obj_instance OBJ_InstanceInit(const char* path, obj_load_flags flags
         if (extra_count == 1) {
           // Case: v x y z w
           w = extras[0];
-        } 
+        }
         else if (extra_count == 3) {
           // Case: v x y z r g b
           r = extras[0];
@@ -138,9 +137,9 @@ fn_internal obj_instance OBJ_InstanceInit(const char* path, obj_load_flags flags
       } else if (OBJ_Peek((const char*)data, it) == 'p') {
       }
     } else if (data[it] == 'f') {
-    
-    } 
-    
+
+    }
+
     if (data[it] == '\n') {
       LineIt++;
     }
@@ -149,6 +148,6 @@ fn_internal obj_instance OBJ_InstanceInit(const char* path, obj_load_flags flags
   F_CloseFile(&ObjFile);
 
   Instance.Vec4Vertices = ObjVector;
-  
+
   return Instance;
 }
