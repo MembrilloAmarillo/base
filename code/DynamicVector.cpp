@@ -19,7 +19,7 @@ void dyn_vector<T>::Append(T & value) {
 }
 
 template<typename T>
-void dyn_vector<T>::Append(T value) {
+void dyn_vector<T>::AppendByCopy(T value) {
   Data[Len] = value;
   Offset += sizeof(value);
   Len++;

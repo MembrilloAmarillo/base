@@ -14,7 +14,7 @@ struct dyn_vector {
   global dyn_vector Init(Arena* MemArena, u64 Size);
 
   void Append(T & value);
-  void Append(T value);
+  void AppendByCopy(T value);
   void Insert(T & value, u64 idx);
   void PushFirst(T & value);
   void Pop();

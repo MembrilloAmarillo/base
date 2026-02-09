@@ -1634,9 +1634,9 @@ fn_internal void CreateDepthResources(vulkan_base* base) {
   Temp temp = TempBegin(base->Arena);
 
   dyn_vector<VkFormat> Candidates = dyn_vector<VkFormat>::Init(temp.arena, 24);
-  Candidates.Append(VK_FORMAT_D32_SFLOAT);
-  Candidates.Append(VK_FORMAT_D32_SFLOAT_S8_UINT);
-  Candidates.Append(VK_FORMAT_D24_UNORM_S8_UINT);
+  Candidates.AppendByCopy(VK_FORMAT_D32_SFLOAT);
+  Candidates.AppendByCopy(VK_FORMAT_D32_SFLOAT_S8_UINT);
+  Candidates.AppendByCopy(VK_FORMAT_D24_UNORM_S8_UINT);
 
   VkFormat Format = FindSupportedFormat(
     base,
@@ -1644,6 +1644,10 @@ fn_internal void CreateDepthResources(vulkan_base* base) {
     VK_IMAGE_TILING_OPTIMAL,
     VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT
   );
+  if (Format == VK_FORMAT_UNDEFINED) {
+    fprintf(stderr, "[ERROR] Could not find a supported depth format\n");
+    exit(-1);
+  }
 
   VkExtent3D Extent = {base->Swapchain.Extent.width, base->Swapchain.Extent.height, 1};
 
@@ -1951,8 +1955,7 @@ void ClearPipelineBuilder(pipeline_builder* builder) {
     builder->ShaderStages.len = 0;
 }
 
-void
-	DestroyPipelineBuilder(pipeline_builder* builder) {
+void DestroyPipelineBuilder(pipeline_builder* builder) {
     //stack_free(builder->Allocator, builder->ss_buffer);
     //stack_free(builder->Allocator, builder->ss_buffer);
 }

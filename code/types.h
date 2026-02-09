@@ -84,14 +84,8 @@ union vec3 {
 
   struct {
     vec2 xy;
-    f32 z;
+    f32 _z;
   };
-
-  struct {
-    f32 x;
-    vec2 yz;
-  };
-
 	f32 v[3];
 };
 
@@ -152,9 +146,9 @@ union vec4 {
 		vec2 xy;
 		vec2 zw;
 	};
-  struct {
+	struct {
 		vec3 xyz;
-    f32 w;
+		f32 _w;
 	};
 
 	f32 v[4];

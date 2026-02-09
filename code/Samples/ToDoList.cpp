@@ -47,6 +47,7 @@
 #include "../queue.h"
 #include "../files.h"
 #include "../HashTable.h"
+#include "../DynamicVector.h"
 
 #ifdef USE_FREETYPE
 #define INCLUDE_FONT "../load_font_ft2.h"
@@ -97,6 +98,8 @@
 
 #include "../HashTable.h"
 #include "../HashTable.c"
+
+#include "../DynamicVector.cpp"
 
 #define SP_UI_IMPL
 #include "../new_ui.h"

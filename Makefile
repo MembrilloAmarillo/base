@@ -5,8 +5,8 @@ CXX  := g++
 CFLAGS  := -g -ggdb -DDEBUG -std=c++17 -D_GNU_SOURCE -DVK_USE_PLATFORM_XLIB_KHR
 CXXFLAGS:= -g -ggdb -std=c++17 -Wall
 CPPFLAGS:= -D_POSIX_PTHREAD_SEMANTICS
-INC     := -Icode
-LIBS    := -lzmq -lsocketcan -lm -lpthread -ldl -lrt -lX11 -lvulkan -lstdc++
+INC     := -Icode -I/home/polaris/devel/vulkan/1.4.335.0/x86_64/include/
+LIBS    := -lm -lpthread -ldl -lrt -lX11 -lvulkan -lstdc++
 
 CFLAGS_OPT := -Wall -Wno-unused-function -std=c++17 -D_GNU_SOURCE -O3
 CXXFLAGS_OPT := -std=c++17 -Wall -O3
@@ -35,15 +35,17 @@ endif
 
 XXHASH := code/third-party/xxhash.c
 SRC_C := code/Samples/ToDoList.cpp
+DRAW_SAMPLE_C := code/Samples/DrawSample.c
+OBJ_LOAD_C := code/Samples/ObjLoad.cpp
 VMA   := code/third-party/vk_mem_alloc.c
 
-all: todolist obj_load shaders
+all: todolist obj_load shaders draw_sample csv_test
 
 vma_impl.o: $(VMA)
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) $(INC) -c $< -o $@
 
 vma_impl_release.o: $(VMA)
-	$(CXX) $(CXXFLAGS_OPT) -c $< -o $@
+	$(CXX) $(CXXFLAGS_OPT) $(INC) -c $< -o $@
 
 xxhash.o: $(XXHASH)
 	$(CC) $(CFLAGS) -c $< -o $@
@@ -58,6 +60,11 @@ obj_load: code/Samples/ObjLoad.cpp vma_impl.o xxhash_release.o
 todolist: $(SRC_C) vma_impl.o xxhash_release.o
 	@echo "Compiling $@..."
 	$(CC) $(CFLAGS) $(CPPFLAGS) $(INC) -o $@ $^ $(LIBS)
+
+draw_sample: code/Samples/DrawSample.c vma_impl.o xxhash_release.o
+	@echo "Compiling $@..."
+	$(CC) $(CFLAGS) $(CPPFLAGS) $(INC) -o $@ $^ $(LIBS)
+	
 
 csv_test: code/Samples/CsvTest.cpp
 	@echo "Compiling $@..."

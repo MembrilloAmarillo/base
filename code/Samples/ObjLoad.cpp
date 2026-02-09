@@ -130,7 +130,7 @@ int main(void) {
 #endif
   Temp temp = TempBegin(Arena);
 
-  const char* path = "C:/Users/sasch/Downloads/kenney_mini-characters/Models/OBJ format/taza.obj";
+  const char* path = "/home/polaris/Downloads/taza.obj";
   obj_instance ObjInstance = OBJ_InstanceInit(path, static_cast<obj_load_flags>(0), Arena);
   dyn_vector<v_3d> ObjVector = dyn_vector<v_3d>::Init(temp.arena, ObjInstance.Vec4Vertices.Length());
   if (false) {
@@ -214,6 +214,8 @@ int main(void) {
         { 1, 1, 1, 1 }
       ));
     }
+
+    fprintf(stdout, "[Info] ObjVector Size In Bytes: %lu\n", ObjVector.SizeBytes());
     ObjBuffer     = R_CreateBuffer(&Renderer, "ObjBuffer", ObjVector.SizeBytes(), R_BUFFER_TYPE_VERTEX);
     StagingBuffer = R_CreateBuffer(&Renderer, "StagingBuffer", ObjVector.SizeBytes(), R_BUFFER_TYPE_STAGING);
 
@@ -223,13 +225,8 @@ int main(void) {
     BCopy.dstOffset = 0;
     BCopy.size = ObjVector.SizeBytes();
 
-<<<<<<< HEAD
-    R_SendDataToBuffer(&Renderer, StagingBuffer, ObjInstance.Vec4Vertices.Data, ObjInstance.Vec4Vertices.SizeBytes(), 0);
-
-=======
     R_SendDataToBuffer(&Renderer, StagingBuffer, ObjVector.Data, ObjVector.SizeBytes(), 0);
 
->>>>>>> 0dce4ffec50e1cb9b2560a17f335e39ec95a245b
     VkCommandBuffer ImmCommand = ImmediateSubmitBegin(&Base);
     Renderer.CurrentCommandBuffer = ImmCommand;
     R_CopyStageToBuffer(&Renderer, StagingBuffer, ObjBuffer, BCopy);
