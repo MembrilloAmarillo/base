@@ -220,15 +220,15 @@ if ((Element)->Next)                                  \
 // Is just a replacement where you can set the null object
 // to NULL or maybe another default fallback structure
 //
-#define TreeInit(Root, NULL_OBJ)                                \
+#define Tree_Init(Root, NULL_OBJ)                                \
 (Root)->Parent = (Root); \
 (Root)->Left = (Root)->Right = (Root)->FirstSon = NULL_OBJ; \
 (Root)->Last = NULL_OBJ;
 
-#define TreeClear(Root, NULL_OBJ) \
-TreeInit(Root, NULL_OBJ);
+#define Tree_Clear(Root, NULL_OBJ) \
+Tree_Init(Root, NULL_OBJ);
 
-#define TreePushSon(Node, Son, NULL_OBJ)             \
+#define Tree_Push_Son(Node, Son, NULL_OBJ)             \
 if ((Node)->FirstSon == NULL_OBJ) { \
 (Node)->FirstSon = Son; \
 (Son)->Left = (Son)->Right = NULL_OBJ; \
@@ -242,9 +242,9 @@ if ((Node)->FirstSon == NULL_OBJ) { \
 	(Node)->Last = Son; \
 }
 
-#define TreePop(Node, NULL_OBJ)                       \
+#define Tree_Pop(Node, NULL_OBJ)                       \
 if ((Node)->Parent == NULL) { \
-TreeClear(Node, NULL_OBJ)                     \
+Tree_Clear(Node, NULL_OBJ)                     \
 } else { \
 if (Node == (Node)->Parent->FirstSon) { \
 	(Node)->Parent->FirstSon = (Node)->Right; \

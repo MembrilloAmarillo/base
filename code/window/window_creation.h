@@ -6,10 +6,8 @@
 
 #ifdef SDL_USAGE
 
-#define VK_NO_PROTOTYPES
 #define VK_USE_PLATFORM_WAYLAND_KHR
 #include <vulkan/vulkan.h>
-#include <volk/volk.h>
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_vulkan.h>
 

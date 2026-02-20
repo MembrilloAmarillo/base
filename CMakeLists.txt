@@ -86,6 +86,24 @@ if(KTX_C_SOURCES)
   target_compile_options(ktxlib PRIVATE)
 endif()
 
+# ImGui library
+file(GLOB IMGUI_SOURCES
+  "code/third-party/imgui/imgui.cpp"
+  "code/third-party/imgui/imgui_draw.cpp"
+  "code/third-party/imgui/imgui_widgets.cpp"
+  "code/third-party/imgui/imgui_tables.cpp"
+  "code/third-party/imgui/imgui_demo.cpp"
+  "code/third-party/imgui/backends/imgui_impl_vulkan.cpp"
+  "code/third-party/imgui/backends/imgui_impl_sdl3.cpp"
+)
+
+add_library(imgui_lib STATIC ${IMGUI_SOURCES})
+target_include_directories(imgui_lib PUBLIC
+  "${CMAKE_SOURCE_DIR}/code/third-party/imgui"
+  "${CMAKE_SOURCE_DIR}/code/third-party/imgui/backends"
+)
+target_compile_options(imgui_lib PRIVATE -w)  # Suppress warnings from imgui
+
 # Common link libraries
 set(COMMON_LIBS ${VULKAN_LIBS} m pthread dl rt)
 if(SLANG_LIBRARY)
@@ -150,6 +168,20 @@ endif()
 target_compile_options(test_vulkan_perf PRIVATE -g -ggdb -DDEBUG -Wall -fdiagnostics-all-candidates -O2)
 target_compile_definitions(test_vulkan_perf PRIVATE _POSIX_PTHREAD_SEMANTICS)
 target_link_libraries(test_vulkan_perf PRIVATE ${COMMON_LIBS})
+
+# ui_test target
+add_executable(ui_test code/test/ui_test.cpp)
+target_include_directories(ui_test PRIVATE ${CMAKE_SOURCE_DIR}/code)
+target_link_libraries(ui_test PRIVATE imgui_lib ${COMMON_LIBS})
+if(KTX_C_SOURCES)
+  target_link_libraries(ui_test PRIVATE ktxlib)
+endif()
+if(USE_SDL)
+  separate_arguments(SDL3_RAW_LIBS)
+  target_link_libraries(ui_test PRIVATE ${SDL_LIBRARY})
+endif()
+target_compile_options(ui_test PRIVATE -g -ggdb -DDEBUG -Wall -fdiagnostics-all-candidates)
+target_compile_definitions(ui_test PRIVATE _POSIX_PTHREAD_SEMANTICS)
 
 
 message(STATUS "CMake configuration finished. Use: mkdir build && cmake -S . -B build -DUSE_SDL=ON -DCMAKE_BUILD_TYPE=Debug && cmake --build build --target test_vulkan")

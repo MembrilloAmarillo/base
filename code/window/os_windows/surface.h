@@ -1,10 +1,9 @@
 #ifndef _SURFACE_WIN32_H_
 #define _SURFACE_WIN32_H_
 
-#define VK_NO_PROTOTYPES
 #define VK_USE_PLATFORM_WAYLAND_KHR
 #include <vulkan/vulkan.h>
-#include <volk/volk.h>
+
 
 typedef struct api_window api_window;
 struct api_window {

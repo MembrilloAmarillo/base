@@ -7,10 +7,8 @@
 #include <X11/XKBlib.h>
 #include <X11/keysym.h>
 
-#define VK_NO_PROTOTYPES
 #define VK_USE_PLATFORM_WAYLAND_KHR
 #include <vulkan/vulkan.h>
-#include <volk/volk.h>
 
 typedef struct api_clipboard api_clipboard;
 struct api_clipboard {

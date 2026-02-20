@@ -463,7 +463,7 @@ void Vk_Bindless_Table::Unregister(U32 handle) {
 
 void Vk_Render::Init(F64 w, F64 h, Allocator* Alloc) {
     window = SurfaceCreateWindow(w, h);
-    volkInitialize();
+    //volkInitialize();
 
 	// Instance
 	VkApplicationInfo app_info{
@@ -490,10 +490,11 @@ void Vk_Render::Init(F64 w, F64 h, Allocator* Alloc) {
 	};
 
 	Check(vkCreateInstance(&instanceCI, nullptr, &instance));
-	volkLoadInstance(instance);
+	//volkLoadInstance(instance);
+	auto vkCreateDebugUtilsMessengerEXT = (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT");
 
 	// Create debug utils messenger
-	VkDebugUtilsMessengerCreateInfoEXT debug_ci{
+	VkDebugUtilsMessengerCreateInfoEXT debug_ci {
 		.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
 		.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT,
 		.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT,
@@ -577,7 +578,7 @@ void Vk_Render::Init(F64 w, F64 h, Allocator* Alloc) {
     // Make sure volk resolves device-level function pointers for this VkDevice.
     // Without this, calls that depend on device dispatch may crash with an
     // invalid dispatch pointer inside the loader trampoline.
-    volkLoadDevice(device);
+    //volkLoadDevice(device);
     vkGetDeviceQueue(device, queue_family, 0, &queue);
 
 	// VMA

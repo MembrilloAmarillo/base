@@ -20,11 +20,8 @@
 #include <bitset>
 #include <functional>
 
-#define VK_NO_PROTOTYPES
 #define VK_USE_PLATFORM_WAYLAND_KHR
 #include <vulkan/vulkan.h>
-#include <volk/volk.h>
-
 // Include SDL3 before any X11 headers that might be pulled in
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_vulkan.h>
