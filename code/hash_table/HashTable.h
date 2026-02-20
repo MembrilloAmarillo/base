@@ -1,0 +1,92 @@
+#ifndef _HASH_TABLE_H_
+#define _HASH_TABLE_H_
+
+#include "../memory/allocator.h"
+
+typedef struct entry entry;
+struct entry {
+    entry* Root;
+    entry* Prev;
+    entry* Next;
+
+    U64 HashId;
+    const char* Id;
+    void* Value;
+};
+
+typedef struct hash_table hash_table;
+struct hash_table {
+    U64 Count;
+    U64 Allocated;
+    U64 SlotsFilled;
+    U64 MinSize;
+
+    U64 LoadFactorPercent;
+
+    Allocator* Alloc;
+
+    // TODO(s.p): Maybe do it dynamic
+    //
+    entry* Entries;
+
+    bool CustomFunction;
+
+    U64 (*HashFunction)(const U8* key, U64 length, U64 seed);
+};
+
+/**
+ * @brief Inits the hash table values
+ * @param Table         hash_table pointer to the struct
+ * @param BackingBuffer pointer to an Allocator for managing the memory
+ * @param HashFunction  pointer to a custom hash function
+ */
+void  HashTableInit( hash_table *Table, Allocator* Alloc, u64 BufSize, U64 (*HashFunction)(const U8* key, U64 length, U64 seed) );
+/**
+ * @brief Adds a pointer to a value into the table
+ * @param Table hash_table pointer to the struct
+ * @param Id    char* with the Id relative to the value being added
+ * @param Value void* pointer to the value
+ * @return entry* to the entry added, if already existed, pointer to that entry
+ */
+entry* HashTableAdd( hash_table *Table, const char* Id, void* Value, U64 parent );
+/**
+ * @brief Sets a pointer to a value into an already existing entry
+ * @param Table hash_table pointer to the struct
+ * @param Id    char* with the Id
+ * @param Value void* pointer to the value
+ */
+void* HashTableSet( hash_table *Table, const char* Id, void* Value, U64 parent );
+
+/**
+ * @brief Indicates if an entry already exists
+ * @param Table     hash_table pointer to the struct
+ * @param Id        char* with the Id
+ * @return bool true if exists, if not, false
+ */
+bool HashTableContains( hash_table *Table, const char* Id, U64 parent );
+
+/**
+ * @brief Returns the value of an entry, if exists
+ * @param Table     hash_table pointer to the struct
+ * @param Id        char* with the Id
+ * @return entry*    Non-null if exists, if not, NULL
+ */
+entry* HashTableFindPointer( hash_table *Table, const char* Id, U64 parent );
+
+/**
+* @brief Return the value of a given hash id
+* @param Table     hash_table pointer to the struct
+* @param Id        Hash Id value
+* @return void*    Pointer to parameter
+*/
+void* HashTableGet(hash_table *Table, u64 Id, U64 parent);
+
+// --------------------------------------------------------------- //
+
+static U64 UCF_Strlen(const char* str );
+
+static u32 UCF_Streq( const char* a, const char* b );
+
+static u32 UCF_Streqn( const char* a, const char* b, u32 n );
+
+#endif
