@@ -30,6 +30,7 @@
 #include "../rendering/vk_buffer.cpp"
 #include "../rendering/vk_descriptor.cpp"
 #include "../rendering/vk_image.cpp"
+#include "../rendering/vk_pipeline.cpp"
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "../third-party/stb_image.h"

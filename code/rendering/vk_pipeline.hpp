@@ -15,14 +15,14 @@ public:
     struct Create_Info {
         Allocator* allocator;
         dyn_vector<const Descriptor*> sets;
-        dyn_vector<const VkPushConstantRange> push_constant_ranges;
+        dyn_vector<VkPushConstantRange> push_constant_ranges;
     };
 
-    static Pipeline_Layout From_Shader_Reflection(const Device& device, dyn_vector<const Shader_Module* const> shaders);
+    static Pipeline_Layout From_Shader_Reflection(const Device* device, dyn_vector<const Shader_Module* const> shaders);
 
     // Manual construction
     Pipeline_Layout() = default;
-    Pipeline_Layout(const Device& device, const Create_Info& info);
+    Pipeline_Layout(const Device* device, const Create_Info& info);
 
     // Move semantics
     Pipeline_Layout(Pipeline_Layout&& other) noexcept;
@@ -36,6 +36,7 @@ public:
 
     VkPipelineLayout Get_Handle() const noexcept { return m_layout.Get(); }
     const Descriptor* Get_Descriptor_set(U32 set_index) const;
+
 private:
     Allocator *m_allocator;
     Pipeline_Layout_Handle m_layout;
