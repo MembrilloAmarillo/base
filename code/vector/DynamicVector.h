@@ -3,6 +3,7 @@
 
 #include <cstring>
 #include <cassert>
+#include <initializer_list>
 
 #include "../util/types.h"
 #include "../memory/memory.h"
@@ -17,6 +18,23 @@ struct dyn_vector {
   };
 
   static dyn_vector Init(Allocator* Mem, u64 Size);
+
+  dyn_vector& operator=(std::initializer_list<T> values) {
+    if (values.size() <= Size) {
+        Len = 0;
+        for (const T& v : values) {  // Range-based for works
+            Data[Len++] = v;
+        }
+    } else {
+        Resize(values.size());
+        Len = 0;
+        for (const T& v : values) {
+            Data[Len++] = v;
+        }
+    }
+    return *this;
+  }
+
   void Destroy() {
     Mem_Allocator::Delete<T>(Mem, Data);
   }

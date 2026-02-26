@@ -59,7 +59,7 @@ else()
   endif()
 endif()
 
-
+find_library(SPIRV_LIBRARY NAMES spirv-reflect-static spirvreflect  HINTS "$ENV{VULKAN_SDK}/lib" REQUIRED)
 find_library(Slang_LIBRARY NAMES slang slang-compiler HINTS "$ENV{VULKAN_SDK}/lib" REQUIRED)
 
 # SDL integration (optional)
@@ -111,10 +111,16 @@ if(SLANG_LIBRARY)
 else()
   list(APPEND COMMON_LIBS slang)
 endif()
+
+if(SPIRV_LIBRARY)
+  list(APPEND COMMON_LIBS ${SPIRV_LIBRARY})
+endif()
+
 if(USE_SDL AND SDL3_LIBS_LIST)
   # SDL3 libs string may contain flags; attach as INTERFACE_LINK_LIBRARIES when creating targets
   set(SDL3_RAW_LIBS ${SDL3_LIBS_LIST})
 endif()
+
 
 if(DEBUG_TRACE)
   message(STATUS "Debug trace enabled")
@@ -153,35 +159,6 @@ target_compile_options(test_vulkan PRIVATE -g -ggdb -DDEBUG -Wall -fdiagnostics-
 target_compile_definitions(test_vulkan PRIVATE _POSIX_PTHREAD_SEMANTICS)
 target_link_libraries(test_vulkan PRIVATE ${COMMON_LIBS})
 
-# test_vulkan_perf: performance profiling test
-add_executable(test_vulkan_perf code/test/vulkan_perf.cpp)
-target_include_directories(test_vulkan_perf PRIVATE ${CMAKE_SOURCE_DIR}/code)
-if(KTX_C_SOURCES)
-  target_link_libraries(test_vulkan_perf PRIVATE ktxlib)
-endif()
-
-if(USE_SDL)
-  separate_arguments(SDL3_RAW_LIBS)
-  target_link_libraries(test_vulkan_perf PRIVATE ${SDL_LIBRARY})
-endif()
-
-target_compile_options(test_vulkan_perf PRIVATE -g -ggdb -DDEBUG -Wall -fdiagnostics-all-candidates -O2)
-target_compile_definitions(test_vulkan_perf PRIVATE _POSIX_PTHREAD_SEMANTICS)
-target_link_libraries(test_vulkan_perf PRIVATE ${COMMON_LIBS})
-
-# ui_test target
-add_executable(ui_test code/test/ui_test.cpp)
-target_include_directories(ui_test PRIVATE ${CMAKE_SOURCE_DIR}/code)
-target_link_libraries(ui_test PRIVATE imgui_lib ${COMMON_LIBS})
-if(KTX_C_SOURCES)
-  target_link_libraries(ui_test PRIVATE ktxlib)
-endif()
-if(USE_SDL)
-  separate_arguments(SDL3_RAW_LIBS)
-  target_link_libraries(ui_test PRIVATE ${SDL_LIBRARY})
-endif()
-target_compile_options(ui_test PRIVATE -g -ggdb -DDEBUG -Wall -fdiagnostics-all-candidates)
-target_compile_definitions(ui_test PRIVATE _POSIX_PTHREAD_SEMANTICS)
 
 
 message(STATUS "CMake configuration finished. Use: mkdir build && cmake -S . -B build -DUSE_SDL=ON -DCMAKE_BUILD_TYPE=Debug && cmake --build build --target test_vulkan")
