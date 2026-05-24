@@ -23,9 +23,9 @@ int main() {
     } 
     for (int i = 0; i < 2000; i++) { 
         vec.Delete(0); 
-        assert(vec.Length() == 1999 - i); 
-        for (int j = 0; j < vec.Length(); j++) { 
-            assert(vec.At(j) == j + i + 1); 
+        assert(vec.Length() == static_cast<U64>(1999 - i)); 
+        for (U64 j = 0; j < vec.Length(); j++) { 
+            assert(vec.At(j) == static_cast<int>(j) + i + 1); 
         } 
     } 
 
@@ -43,7 +43,7 @@ int main() {
 
     vec.Destroy(); vec2.Destroy();
 
-    printf("Total free bytes: %llu, total allocated bytes: %llu\n", allocator.total_freed, allocator.total_allocated);
-    printf("Arena commited size: %llu bytes\n", arena_ptr->commit_pos);
+    printf("Total free bytes: %lu, total allocated bytes: %lu\n", allocator.total_freed, allocator.total_allocated);
+    printf("Arena committed size: %lu bytes\n", arena_ptr->commit_pos);
     return 0; 
 }

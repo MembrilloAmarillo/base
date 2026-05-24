@@ -1,6 +1,13 @@
 #ifndef _VK_SWAPCHAIN_HPP_
 #define _VK_SWAPCHAIN_HPP_
 
+#include <cstdint>
+#include <vector>
+#include <vulkan/vulkan.h>
+
+#include "vk_handle.hpp"
+#include "vk_device.hpp"
+
 // Swapchain configuration
 struct Swapchain_Create_Info {
     VkSurfaceKHR surface = VK_NULL_HANDLE;
@@ -15,7 +22,6 @@ struct Swapchain_Create_Info {
 // Per-frame synchronization resources using Vulkan_Handle
 struct Frame_Sync_Objects {
     Vulkan_Handle<VkSemaphore, Semaphore_Deleter> image_available;
-    Vulkan_Handle<VkSemaphore, Semaphore_Deleter> render_finished;
     Vulkan_Handle<VkFence, Fence_Deleter> in_flight;
 
     // Construction helper
@@ -54,14 +60,12 @@ public:
     uint32_t Acquire_Next_Image(uint64_t timeout = UINT64_MAX);
     void Present_Image(uint32_t image_index, const std::vector<VkSemaphore>& wait_semaphores);
     const Frame_Sync_Objects& Get_Frame_Sync(uint32_t frame_index) const;
+    VkSemaphore Get_Render_Finished_Semaphore(uint32_t image_index) const;
 
     // Resize handling
     void Recreate(uint32_t new_width, uint32_t new_height);
     bool Needs_Recreate() const noexcept { return m_needs_recreate; }
     void Reset_Recreate_Flag() { m_needs_recreate = false; }
-
-    // Populate VK_Render for compatibility
-    void Populate_VK_Render(VK_Render& render) const;
 
 private:
     // Core handle using Vulkan_Handle RAII
@@ -78,9 +82,11 @@ private:
     VkColorSpaceKHR m_color_space = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
     VkExtent2D m_extent = {0, 0};
     VkPresentModeKHR m_present_mode = VK_PRESENT_MODE_FIFO_KHR;
+    uint32_t m_requested_min_image_count = 2;
 
     // Per-frame sync objects
     std::vector<Frame_Sync_Objects> m_frame_sync;
+    std::vector<Vulkan_Handle<VkSemaphore, Semaphore_Deleter>> m_image_render_finished;
     uint32_t m_current_frame = 0;
     static constexpr uint32_t MAX_FRAMES_IN_FLIGHT = 2;
 
@@ -97,6 +103,9 @@ private:
     void Create_Image_Views();
     void Create_Sync_Objects();
     void Destroy_Resources();
+    VkSurfaceCapabilitiesKHR Get_Surface_Capabilities() const;
+    std::vector<VkPresentModeKHR> Get_Available_Present_Modes() const;
+    std::vector<VkSurfaceFormatKHR> Get_Available_Surface_Formats() const;
 
     // Utility functions
     VkSurfaceFormatKHR Choose_Swap_Surface_Format(

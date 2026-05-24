@@ -2,15 +2,15 @@
 
 
 Image::Image(const Image_Create_Info& info) :
-    m_device(info.device)
-    , m_allocator(info.allocator)
+    m_allocator(info.allocator)
     , m_gpu_allocator(info.gpu_allocator)
-    , m_usage(info.usage_category)
+    , m_device(info.device)
     , m_flags(info.flags)
     , m_format(info.format)
     , m_extent(info.extent)
     , m_mip_levels(info.mip_levels)
     , m_tiling(info.tiling)
+    , m_usage(info.usage_category)
     , m_mode(info.mode)
     , m_queue_family_indices(info.queue_family_indices)
     , m_image(VK_NULL_HANDLE)
@@ -30,9 +30,9 @@ Image::Image(const Image_Create_Info& info) :
         .arrayLayers = 1,
         .samples = VK_SAMPLE_COUNT_1_BIT,
         .tiling = (m_tiling == Image_Tiling::Optimal) ? VK_IMAGE_TILING_OPTIMAL : VK_IMAGE_TILING_LINEAR,
-        .usage = Derive_Vulkan_Usage(m_usage) | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+        .usage = static_cast<VkImageUsageFlags>(Derive_Vulkan_Usage(m_usage) | VK_IMAGE_USAGE_TRANSFER_DST_BIT),
         .sharingMode = m_mode,
-        .queueFamilyIndexCount = m_queue_family_indices.Length(),
+        .queueFamilyIndexCount = static_cast<U32>(m_queue_family_indices.Length()),
         .pQueueFamilyIndices = m_queue_family_indices.Memory(),
         .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED
     };
@@ -102,7 +102,7 @@ Image::Image(const Image_Create_Info& info) :
             .a = VK_COMPONENT_SWIZZLE_IDENTITY
         },
         .subresourceRange = {
-            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+            .aspectMask = aspect_flags,
             .baseMipLevel = 0,
             .levelCount = image_ci.mipLevels,
             .baseArrayLayer = 0,
@@ -121,13 +121,45 @@ Image::Image(const Image_Create_Info& info) :
 
 
 void Image::Upload_Data_To_Image(void* data, size_t width, size_t height, size_t channels) {
-    if( width * height * channels <= 0 ) {
-        printf("[Vulkan Error] Trying to upload data with total size of 0, w:%d h:%d c:%d\n",
+    if (data == nullptr || width == 0 || height == 0 || channels == 0) {
+        printf("[Vulkan Error] Trying to upload invalid data, w:%zu h:%zu c:%zu\n",
             width, height, channels);
         return;
     }
 
-    VkDeviceSize size = static_cast<VkDeviceSize>(width * height * channels);
+    VkBufferImageCopy region{
+        .bufferOffset = 0,
+        .bufferRowLength = 0,
+        .bufferImageHeight = 0,
+        .imageSubresource = {
+            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+            .mipLevel = 0,
+            .baseArrayLayer = 0,
+            .layerCount = 1
+        },
+        .imageOffset = {0, 0, 0},
+        .imageExtent = {static_cast<U32>(width), static_cast<U32>(height), 1}
+    };
+
+    Upload_Data_To_Image(
+        data,
+        static_cast<VkDeviceSize>(width * height * channels),
+        &region,
+        1,
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+    );
+}
+
+void Image::Upload_Data_To_Image(
+    void* data,
+    VkDeviceSize size,
+    const VkBufferImageCopy* regions,
+    U32 region_count,
+    VkImageLayout final_layout) {
+    if (data == nullptr || size == 0 || regions == nullptr || region_count == 0) {
+        printf("[Vulkan Error] Invalid image upload payload\n");
+        return;
+    }
 
     Buffer_Create_Info buffer_ci {
         .size = size,
@@ -140,62 +172,59 @@ void Image::Upload_Data_To_Image(void* data, size_t width, size_t height, size_t
     Buffer staging_buffer(*m_device, buffer_ci);
 
 	m_device->Submit_Immediate_Commands([&](VkCommandBuffer cmd) {
-        // Barrier: UNDEFINED → TRANSFER_DST_OPTIMAL
-        VkImageMemoryBarrier barrier{
-            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+        VkImageMemoryBarrier2 to_transfer{
+            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+            .srcStageMask = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
             .srcAccessMask = 0,
-            .dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+            .dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+            .dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT,
             .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
             .newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
             .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
             .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-            .image = m_image,  // Your stored VkImage
+            .image = m_image,
             .subresourceRange = {
                 .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
                 .baseMipLevel = 0,
-                .levelCount = 1,
+                .levelCount = m_mip_levels > 0 ? m_mip_levels : 1,
                 .baseArrayLayer = 0,
                 .layerCount = 1
             }
         };
-
-        vkCmdPipelineBarrier(cmd,
-                             VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                             VK_PIPELINE_STAGE_TRANSFER_BIT,
-                             0, 0, nullptr, 0, nullptr, 1, &barrier);
-
-        // Copy buffer to image
-        VkBufferImageCopy region{
-            .bufferOffset = 0,
-            .bufferRowLength = 0,
-            .bufferImageHeight = 0,
-            .imageSubresource = {
-                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                .mipLevel = 0,
-                .baseArrayLayer = 0,
-                .layerCount = 1
-            },
-            .imageOffset = {0, 0, 0},
-            .imageExtent = {static_cast<uint32_t>(width),
-                           static_cast<uint32_t>(height), 1}
+        VkDependencyInfo dependency{
+            .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+            .imageMemoryBarrierCount = 1,
+            .pImageMemoryBarriers = &to_transfer
         };
+        vkCmdPipelineBarrier2(cmd, &dependency);
 
         vkCmdCopyBufferToImage(cmd,
                                staging_buffer.Get_Handle(),
                                m_image,
                                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                               1, &region);
+                               region_count, regions);
 
-        // Barrier: TRANSFER_DST → SHADER_READ_ONLY_OPTIMAL
-        barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-        barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-        barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-        barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-
-        vkCmdPipelineBarrier(cmd,
-                             VK_PIPELINE_STAGE_TRANSFER_BIT,
-                             VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                             0, 0, nullptr, 0, nullptr, 1, &barrier);
+        VkImageMemoryBarrier2 to_shader_read{
+            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+            .srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+            .srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT,
+            .dstStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
+            .dstAccessMask = VK_ACCESS_2_SHADER_SAMPLED_READ_BIT,
+            .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            .newLayout = final_layout,
+            .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .image = m_image,
+            .subresourceRange = {
+                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                .baseMipLevel = 0,
+                .levelCount = m_mip_levels > 0 ? m_mip_levels : 1,
+                .baseArrayLayer = 0,
+                .layerCount = 1
+            }
+        };
+        dependency.pImageMemoryBarriers = &to_shader_read;
+        vkCmdPipelineBarrier2(cmd, &dependency);
     });
 }
 

@@ -1,6 +1,8 @@
 #include <fstream>
 #include <stdexcept>
 #include <cstring>
+#include <algorithm>
+#include <array>
 
 #include "vk_device.hpp"
 #include "vk_shader_module.hpp"
@@ -19,6 +21,7 @@ Shader_Module::Shader_Module(const Device& device, std::span<const uint32_t> spi
 // ============================================================================
 Shader_Module::Shader_Module(const Device& device, const char* file_path) {
     m_device = &device;
+#if HAS_SLANG
     slang::createGlobalSession(slang_global_session.writeRef());
 	auto slang_target = std::to_array<slang::TargetDesc>({
 			{
@@ -52,6 +55,10 @@ Shader_Module::Shader_Module(const Device& device, const char* file_path) {
 
     Load_From_Binary(spirv_code);
     Perform_Reflection(spirv_code);
+#else
+    (void)file_path;
+    throw std::runtime_error("slang headers not found: cannot compile shader source at runtime");
+#endif
 }
 
 // ============================================================================
@@ -60,10 +67,14 @@ Shader_Module::Shader_Module(const Device& device, const char* file_path) {
 Shader_Module::Shader_Module(Shader_Module&& other) noexcept
     : m_module(std::move(other.m_module))
     , m_reflection(std::move(other.m_reflection))
+#if HAS_SPIRV_REFLECT
     , m_reflect_module(other.m_reflect_module)
+#endif
     , m_device(other.m_device) {
 
+#if HAS_SPIRV_REFLECT
     other.m_reflect_module = {};
+#endif
     other.m_device = nullptr;
 }
 
@@ -73,10 +84,14 @@ Shader_Module& Shader_Module::operator=(Shader_Module&& other) noexcept {
 
         m_module = std::move(other.m_module);
         m_reflection = std::move(other.m_reflection);
+#if HAS_SPIRV_REFLECT
         m_reflect_module = other.m_reflect_module;
+#endif
         m_device = other.m_device;
 
+#if HAS_SPIRV_REFLECT
         other.m_reflect_module = {};
+#endif
         other.m_device = nullptr;
     }
     return *this;
@@ -139,6 +154,7 @@ void Shader_Module::Load_From_File(const char* file_path) {
 // Perform SPIRV-Reflect analysis
 // ============================================================================
 void Shader_Module::Perform_Reflection(std::span<const uint32_t> spirv_code) {
+#if HAS_SPIRV_REFLECT
     SpvReflectResult result = spvReflectCreateShaderModule(
         spirv_code.size() * sizeof(uint32_t),
         spirv_code.data(),
@@ -216,16 +232,23 @@ void Shader_Module::Perform_Reflection(std::span<const uint32_t> spirv_code) {
             m_reflection.output_variables.data()
         );
     }
+#else
+    (void)spirv_code;
+    m_reflection.stage = VK_SHADER_STAGE_VERTEX_BIT;
+    m_reflection.entry_point_name = "main";
+#endif
 }
 
 // ============================================================================
 // Cleanup SPIRV-Reflect data
 // ============================================================================
 void Shader_Module::Cleanup_Reflection() {
+#if HAS_SPIRV_REFLECT
     if (m_reflect_module._internal) {  // Check if initialized
         spvReflectDestroyShaderModule(&m_reflect_module);
         m_reflect_module = {};
     }
+#endif
 }
 
 // ============================================================================
@@ -234,6 +257,7 @@ void Shader_Module::Cleanup_Reflection() {
 std::vector<VkDescriptorSetLayoutBinding> Shader_Module::Get_Descriptor_Set_Layout_Bindings(uint32_t set_index) const {
     std::vector<VkDescriptorSetLayoutBinding> bindings;
 
+#if HAS_SPIRV_REFLECT
     for (const auto* spv_binding : m_reflection.descriptor_bindings) {
         if (spv_binding->set != set_index) continue;
 
@@ -246,6 +270,9 @@ std::vector<VkDescriptorSetLayoutBinding> Shader_Module::Get_Descriptor_Set_Layo
 
         bindings.push_back(binding);
     }
+#else
+    (void)set_index;
+#endif
 
     return bindings;
 }
@@ -256,6 +283,7 @@ std::vector<VkDescriptorSetLayoutBinding> Shader_Module::Get_Descriptor_Set_Layo
 std::vector<VkPushConstantRange> Shader_Module::Get_Push_Constant_Ranges() const {
     std::vector<VkPushConstantRange> ranges;
 
+#if HAS_SPIRV_REFLECT
     for (const auto* push_constant : m_reflection.push_constants) {
         VkPushConstantRange range{};
         range.stageFlags = m_reflection.stage;
@@ -264,6 +292,7 @@ std::vector<VkPushConstantRange> Shader_Module::Get_Push_Constant_Ranges() const
 
         ranges.push_back(range);
     }
+#endif
 
     return ranges;
 }
@@ -274,6 +303,7 @@ std::vector<VkPushConstantRange> Shader_Module::Get_Push_Constant_Ranges() const
 std::vector<VkVertexInputAttributeDescription> Shader_Module::Get_Vertex_Input_Attributes(uint32_t binding) const {
     std::vector<VkVertexInputAttributeDescription> attributes;
 
+#if HAS_SPIRV_REFLECT
     // Filter and sort by location
     std::vector<SpvReflectInterfaceVariable*> sorted_inputs;
     for (auto* input_var : m_reflection.input_variables) {
@@ -300,6 +330,9 @@ std::vector<VkVertexInputAttributeDescription> Shader_Module::Get_Vertex_Input_A
 
         attributes.push_back(attr);
     }
+#else
+    (void)binding;
+#endif
 
     return attributes;
 }

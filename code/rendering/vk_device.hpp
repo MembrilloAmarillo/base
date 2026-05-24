@@ -7,11 +7,14 @@
 #include <optional>
 #include <cstdint>
 #include <functional>
+#include <string>
 
-#include <vma/vk_mem_alloc.h>
+#include "../util/types.h"
+#include "../third-party/vk_mem_alloc.h"
 
 // Forward declarations
 class Instance;
+struct Allocator;
 
 // Queue family indices helper
 struct Queue_Family_Indices {
@@ -25,7 +28,7 @@ struct Queue_Family_Indices {
     }
 };
 
-const char* VkResult_To_String(VkResult result) {
+inline const char* VkResult_To_String(VkResult result) {
     switch (result) {
         case VK_SUCCESS: return "VK_SUCCESS";
         case VK_NOT_READY: return "VK_NOT_READY";
@@ -83,6 +86,7 @@ public:
     VkDevice Get_Handle() const noexcept { return m_device; }
     VkPhysicalDevice Get_Physical_Device() const noexcept { return m_physical_device; }
     bool Is_Valid() const noexcept { return m_device != VK_NULL_HANDLE; }
+    void Wait_Idle() const noexcept { if (m_device != VK_NULL_HANDLE) { vkDeviceWaitIdle(m_device); } }
 
     bool Is_UMA() const noexcept { return is_uma; }
 
@@ -144,7 +148,7 @@ private:
     // Command pools (one per family for primary use)
     VkCommandPool m_graphics_command_pool = VK_NULL_HANDLE;
 
-    VmaAllocator m_vma_allocator;
+    VmaAllocator m_vma_allocator = nullptr;
 
     bool is_uma = false;
 

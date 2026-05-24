@@ -1,4 +1,5 @@
 #include "vk_instance.hpp"
+#include <cstring>
 
 Instance::Instance(const Create_Info& info) {
     Create_Instance(info);
@@ -170,6 +171,9 @@ std::vector<VkPhysicalDevice> Instance::Enumerate_Physical_Devices() const {
 // Static helpers
 std::vector<const char*> Instance::Get_Required_Extensions(bool enable_validation) {
     std::vector<const char*> extensions;
+    (void)enable_validation;
+
+    extensions.push_back(VK_KHR_SURFACE_EXTENSION_NAME);
 
     // Platform-specific surface extensions would be added here
     #ifdef VK_USE_PLATFORM_WIN32_KHR
@@ -181,10 +185,6 @@ std::vector<const char*> Instance::Get_Required_Extensions(bool enable_validatio
     #ifdef VK_USE_PLATFORM_WAYLAND_KHR
     extensions.push_back(VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME);
     #endif
-
-    if (enable_validation) {
-        extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-    }
 
     return extensions;
 }
@@ -242,4 +242,3 @@ VKAPI_ATTR VkBool32 VKAPI_CALL Instance::Debug_Callback(
 
     return VK_FALSE;  // Don't abort
 }
-

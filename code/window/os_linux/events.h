@@ -22,6 +22,7 @@
 #define Input_CursorHover        ((ui_input)1 << 6)
 #define Input_Backspace          ((ui_input)1 << 7)
 #define Input_Ctrol              ((ui_input)1 << 8)
+#define Input_Ctrl               Input_Ctrol
 #define Input_Shift              ((ui_input)1 << 9)
 #define Input_Alt                ((ui_input)1 << 10)
 #define Input_Return             ((ui_input)1 << 11)
@@ -66,19 +67,18 @@ fn_internal ui_input
 GetNextEvent(api_window* Window)
 {
     ui_input Input = 0;
-    u32 window_width = Window->Width;
-    u32 window_height = Window->Height;
+    int window_width = (int)Window->Width;
+    int window_height = (int)Window->Height;
     XEvent ev = {0};
 
-    // This monstruous shit has to be done in order to block
-    // until we receive some input (counting also mouse movement)
-    // if not used, the XPending while use cpu and have higher CPU usage
-    // than when actually using the UI.
+    // Non-blocking check so render loops can animate even without input.
+    // Present/vsync should naturally throttle frame rate.
     int x11_fd = ConnectionNumber(Window->Dpy);
     fd_set fds;
     FD_ZERO(&fds);
     FD_SET(x11_fd, &fds);
-    int ret = select(x11_fd + 1, &fds, NULL, NULL, NULL);
+    timeval timeout = {0, 0};
+    int ret = select(x11_fd + 1, &fds, NULL, NULL, &timeout);
     if( ret == 0 ) { return Input_None; }
 
     for(;XPending(Window->Dpy) > 0;) {
@@ -98,7 +98,6 @@ GetNextEvent(api_window* Window)
             ui_input input;
         } KeyMap;
 
-        int mouse_button_pressed = 0;
         static KeyMap keys_to_check[] = {
             { XK_BackSpace, Input_Backspace},
             { XK_Return,    Input_Return   },
@@ -150,7 +149,11 @@ GetNextEvent(api_window* Window)
                     if (data && nitems > 0) {
                         printf("Pasted content: %s\n", data);
                         memset(Window->ClipboardContent, 0, 256);
-                        memcpy(Window->ClipboardContent, data, CustomStrlen((const char*)data));
+                        u64 clip_len = CustomStrlen((const char*)data);
+                        if (clip_len > sizeof(Window->ClipboardContent) - 1) {
+                            clip_len = sizeof(Window->ClipboardContent) - 1;
+                        }
+                        memcpy(Window->ClipboardContent, data, clip_len);
                         XFree(data);
                     } else {
                         printf("Clipboard is empty or data could not be read.\n");

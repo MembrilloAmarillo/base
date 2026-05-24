@@ -20,21 +20,61 @@
 #include <bitset>
 #include <functional>
 
-#define VK_USE_PLATFORM_WAYLAND_KHR
+#ifdef _WIN32
+#define VK_USE_PLATFORM_WIN32_KHR
+#elif defined(__linux__)
+#define VK_USE_PLATFORM_XLIB_KHR
+#endif
 #include <vulkan/vulkan.h>
 // Include SDL3 before any X11 headers that might be pulled in
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_vulkan.h>
 
-#define VMA_IMPLEMENTATION
-#include <vma/vk_mem_alloc.h>
+#include "../third-party/vk_mem_alloc.h"
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/quaternion.hpp>
+
+#ifdef None
+    #pragma push_macro("None")
+    #undef None
+    #define VK_RENDER_RESTORE_X11_NONE
+#endif
+#ifdef Bool
+    #pragma push_macro("Bool")
+    #undef Bool
+    #define VK_RENDER_RESTORE_X11_BOOL
+#endif
+#ifdef True
+    #pragma push_macro("True")
+    #undef True
+    #define VK_RENDER_RESTORE_X11_TRUE
+#endif
+#ifdef False
+    #pragma push_macro("False")
+    #undef False
+    #define VK_RENDER_RESTORE_X11_FALSE
+#endif
 #include <slang/slang.h>
 #include <slang/slang-com-ptr.h>
+#ifdef VK_RENDER_RESTORE_X11_NONE
+    #pragma pop_macro("None")
+    #undef VK_RENDER_RESTORE_X11_NONE
+#endif
+#ifdef VK_RENDER_RESTORE_X11_BOOL
+    #pragma pop_macro("Bool")
+    #undef VK_RENDER_RESTORE_X11_BOOL
+#endif
+#ifdef VK_RENDER_RESTORE_X11_TRUE
+    #pragma pop_macro("True")
+    #undef VK_RENDER_RESTORE_X11_TRUE
+#endif
+#ifdef VK_RENDER_RESTORE_X11_FALSE
+    #pragma pop_macro("False")
+    #undef VK_RENDER_RESTORE_X11_FALSE
+#endif
 #include <ktx.h>
 #include <ktxvulkan.h>
 #include <stdio.h>
@@ -67,6 +107,9 @@
 #include "../vector/DynamicVector.h"
 
 #include "../window/window_creation.h"
+#include "vk_instance.hpp"
+#include "vk_device.hpp"
+#include "vk_image.hpp"
 
 // Undefine X11 macros AFTER window headers to prevent conflicts
 #ifdef Window
@@ -128,14 +171,7 @@ class Shader_Loader {
     Slang::ComPtr<slang::IModule> slang_module;
     Slang::ComPtr<ISlangBlob> spirv;
 
-    VkShaderModule shader_module;
-
-    static inline void Check(VkResult result, const std::source_location& loc = std::source_location::current()) {
-        if (result != VK_SUCCESS) {
-            printf("Vulkan call returned an error at %s:%u (%s) => %d\n", loc.file_name(), (unsigned)loc.line(), loc.function_name(), (int)result);
-            exit(result);
-        }
-    }
+    VkShaderModule shader_module { VK_NULL_HANDLE };
 
     Shader_Loader(Slang::ComPtr<slang::IGlobalSession> slang_global_session) {
         this->slang_global_session = slang_global_session;
@@ -151,6 +187,11 @@ class Shader_Loader {
 
     void Load_Module(VkDevice device, const char* module_name, const char* path) {
         slang_module = slang_session->loadModuleFromSource(module_name, path, nullptr, nullptr);
+        if (!slang_module) {
+            fprintf(stderr, "Failed to load Slang module '%s' from '%s'\n", module_name, path);
+            fflush(stderr);
+            exit(EXIT_FAILURE);
+        }
 
         slang_module->getTargetCode(0, spirv.writeRef());
         size_t spirv_size = spirv ? spirv->getBufferSize() : 0;
@@ -168,402 +209,47 @@ class Shader_Loader {
             .pCode = (U32*)spirv_ptr
         };
 
-        Check(vkCreateShaderModule(device, &shader_module_ci, nullptr, &shader_module));
+        Vk::Check(vkCreateShaderModule(device, &shader_module_ci, nullptr, &shader_module));
     }
-};
 
-class Vk_Descriptor {
-private:
-    struct DescriptorBinding {
-        U32 binding;
-        VkDescriptorType type;
-        U32 count;
-        VkShaderStageFlags stages;
-    };
-
-    struct PendingWrite {
-        VkWriteDescriptorSet write;
-        VkDescriptorBufferInfo buffer_info;  // Storage for single buffer write
-        VkDescriptorImageInfo* image_infos;  // Allocated storage for image writes
-        U32 image_count;
-        Allocator* image_alloc;  // Allocator for image_infos cleanup
-    };
-
-    Allocator* allocator;
-    VkDevice device;
-    VkDescriptorPool descriptor_pool;
-    VkDescriptorSetLayout descriptor_set_layout;
-    VkDescriptorSet descriptor_set;
-
-    dyn_vector<DescriptorBinding> bindings;
-    dyn_vector<PendingWrite> pending_writes;
-
-    // Helper to find binding by index and validate type
-    const DescriptorBinding* FindBinding(U32 binding) const {
-        for (U64 i = 0; i < bindings.Length(); ++i) {
-            if (bindings[i].binding == binding) {
-                return &bindings[i];
-            }
+    void Load_Module_From_Source_String(VkDevice device, const char* module_name, const char* virtual_path, const char* source) {
+        Slang::ComPtr<ISlangBlob> diagnostics;
+        slang_module = slang_session->loadModuleFromSourceString(module_name, virtual_path, source, diagnostics.writeRef());
+        if (diagnostics && diagnostics->getBufferPointer()) {
+            fprintf(stderr, "%s\n", static_cast<const char*>(diagnostics->getBufferPointer()));
         }
-        return nullptr;
-    }
-
-    void ValidateBindingType(U32 binding, VkDescriptorType expected_type) {
-        const DescriptorBinding* b = FindBinding(binding);
-        if (!b) {
-            fprintf(stderr, "Error: Binding %u not found in descriptor set\n", binding);
+        if (!slang_module) {
+            fprintf(stderr, "Failed to compile Slang module '%s'\n", module_name);
+            fflush(stderr);
             exit(EXIT_FAILURE);
         }
-        if (b->type != expected_type) {
-            fprintf(stderr, "Error: Binding %u has type %d, but expected %d\n", binding, (int)b->type, (int)expected_type);
+
+        Slang::ComPtr<ISlangBlob> spirv_diagnostics;
+        SlangResult result = slang_module->getTargetCode(0, spirv.writeRef(), spirv_diagnostics.writeRef());
+        if (spirv_diagnostics && spirv_diagnostics->getBufferPointer()) {
+            fprintf(stderr, "%s\n", static_cast<const char*>(spirv_diagnostics->getBufferPointer()));
+        }
+        if (SLANG_FAILED(result)) {
+            fprintf(stderr, "Failed to produce SPIR-V for module '%s'\n", module_name);
+            fflush(stderr);
             exit(EXIT_FAILURE);
         }
-    }
 
-    static inline void Check(VkResult result, const std::source_location& loc = std::source_location::current()) {
-        if (result != VK_SUCCESS) {
-            printf("Vulkan call returned an error at %s:%u (%s) => %d\n", loc.file_name(), (unsigned)loc.line(), loc.function_name(), (int)result);
-            exit(result);
-        }
-    }
-
-public:
-    // Builder class for fluent API
-    class Builder {
-    private:
-        Allocator* allocator;
-        VkDevice device;
-        dyn_vector<DescriptorBinding> bindings;
-
-    public:
-        Builder(Allocator* alloc, VkDevice dev)
-            : allocator(alloc), device(dev),
-              bindings(dyn_vector<DescriptorBinding>::Init(alloc, 16)) {}
-
-        Builder& Add_Binding(U32 binding, VkDescriptorType type, U32 count, VkShaderStageFlags stages) {
-            // Validate no duplicate bindings
-            for (U64 i = 0; i < bindings.Length(); ++i) {
-                if (bindings[i].binding == binding) {
-                    fprintf(stderr, "Error: Binding %u already added to descriptor\n", binding);
-                    exit(EXIT_FAILURE);
-                }
-            }
-            DescriptorBinding b{binding, type, count, stages};
-            bindings.AppendByCopy(b);
-            return *this;
+        size_t spirv_size = spirv ? spirv->getBufferSize() : 0;
+        const void* spirv_ptr = spirv ? spirv->getBufferPointer() : nullptr;
+        if (spirv_size == 0 || spirv_ptr == nullptr) {
+            fprintf(stderr, "Failed to produce SPIR-V for module '%s' (codeSize=0)\n", module_name);
+            fflush(stderr);
+            exit(EXIT_FAILURE);
         }
 
-        Builder& Uniform_Buffer(U32 binding, VkShaderStageFlags stages, U32 count = 1) {
-            return Add_Binding(binding, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, count, stages);
-        }
-
-        Builder& Storage_Buffer(U32 binding, VkShaderStageFlags stages, U32 count = 1) {
-            return Add_Binding(binding, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, count, stages);
-        }
-
-        Builder& Combined_Image_Sampler(U32 binding, VkShaderStageFlags stages, U32 count = 1) {
-            return Add_Binding(binding, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, count, stages);
-        }
-
-        Builder& Storage_Image(U32 binding, VkShaderStageFlags stages, U32 count = 1) {
-            return Add_Binding(binding, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, count, stages);
-        }
-
-        Builder& Sampler(U32 binding, VkShaderStageFlags stages, U32 count = 1) {
-            return Add_Binding(binding, VK_DESCRIPTOR_TYPE_SAMPLER, count, stages);
-        }
-
-        Builder& Sampled_Image(U32 binding, VkShaderStageFlags stages, U32 count = 1) {
-            return Add_Binding(binding, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, count, stages);
-        }
-
-        Builder& Acceleration_Structure(U32 binding, VkShaderStageFlags stages, U32 count = 1) {
-            return Add_Binding(binding, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, count, stages);
-        }
-
-        Vk_Descriptor Build();
-    };
-
-    // Factory method to create a builder
-    static Builder Create(Allocator* alloc, VkDevice device) {
-        return Builder(alloc, device);
-    }
-
-    // Default constructor for legacy compatibility
-    Vk_Descriptor() : allocator(nullptr), device(VK_NULL_HANDLE),
-                      descriptor_pool(VK_NULL_HANDLE),
-                      descriptor_set_layout(VK_NULL_HANDLE),
-                      descriptor_set(VK_NULL_HANDLE) {}
-
-    // Private constructor called by Builder
-    Vk_Descriptor(Allocator* alloc, VkDevice dev,
-                  const dyn_vector<DescriptorBinding>& binding_list)
-        : allocator(alloc), device(dev),
-          bindings(dyn_vector<DescriptorBinding>::Init(alloc, binding_list.Length())),
-          pending_writes(dyn_vector<PendingWrite>::Init(alloc, binding_list.Length())) {
-
-        // Copy bindings
-        for (U64 i = 0; i < binding_list.Length(); ++i) {
-            bindings.AppendByCopy(binding_list[i]);
-        }
-
-        // Create Vulkan layout bindings
-        dyn_vector<VkDescriptorSetLayoutBinding> vk_bindings =
-            dyn_vector<VkDescriptorSetLayoutBinding>::Init(alloc, binding_list.Length());
-
-        for (U64 i = 0; i < bindings.Length(); ++i) {
-            VkDescriptorSetLayoutBinding vk_binding{
-                .binding = bindings[i].binding,
-                .descriptorType = bindings[i].type,
-                .descriptorCount = bindings[i].count,
-                .stageFlags = bindings[i].stages
-            };
-            vk_bindings.AppendByCopy(vk_binding);
-        }
-
-        // Create descriptor set layout
-        VkDescriptorSetLayoutCreateInfo layout_ci{
-            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-            .bindingCount = (U32)vk_bindings.Length(),
-            .pBindings = vk_bindings.Memory()
+        VkShaderModuleCreateInfo shader_module_ci {
+            .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+            .codeSize = spirv_size,
+            .pCode = reinterpret_cast<const U32*>(spirv_ptr)
         };
-        Check(vkCreateDescriptorSetLayout(dev, &layout_ci, nullptr, &descriptor_set_layout));
 
-        // Build pool sizes (aggregate by type)
-        dyn_vector<VkDescriptorPoolSize> pool_sizes =
-            dyn_vector<VkDescriptorPoolSize>::Init(alloc, bindings.Length());
-
-        for (U64 i = 0; i < bindings.Length(); ++i) {
-            // Check if this type already exists in pool_sizes
-            bool found = false;
-            for (U64 j = 0; j < pool_sizes.Length(); ++j) {
-                if (pool_sizes[j].type == bindings[i].type) {
-                    pool_sizes[j].descriptorCount += bindings[i].count;
-                    found = true;
-                    break;
-                }
-            }
-            if (!found) {
-                VkDescriptorPoolSize ps{
-                    .type = bindings[i].type,
-                    .descriptorCount = bindings[i].count
-                };
-                pool_sizes.AppendByCopy(ps);
-            }
-        }
-
-        // Create descriptor pool
-        VkDescriptorPoolCreateInfo pool_ci{
-            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-            .maxSets = 1,
-            .poolSizeCount = (U32)pool_sizes.Length(),
-            .pPoolSizes = pool_sizes.Memory()
-        };
-        Check(vkCreateDescriptorPool(dev, &pool_ci, nullptr, &descriptor_pool));
-
-        // Allocate descriptor set
-        VkDescriptorSetAllocateInfo alloc_info{
-            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-            .descriptorPool = descriptor_pool,
-            .descriptorSetCount = 1,
-            .pSetLayouts = &descriptor_set_layout
-        };
-        Check(vkAllocateDescriptorSets(dev, &alloc_info, &descriptor_set));
-
-        vk_bindings.Destroy();
-        pool_sizes.Destroy();
-    }
-
-    // Accessors
-    VkDescriptorSetLayout Get_Layout() const { return descriptor_set_layout; }
-    VkDescriptorSet Get_Set() const { return descriptor_set; }
-
-    // Typed write methods with validation
-    void Write_Buffer(U32 binding, const VkDescriptorBufferInfo& buffer_info) {
-        ValidateBindingType(binding, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
-
-        PendingWrite pw{};
-        pw.write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        pw.write.dstSet = descriptor_set;
-        pw.write.dstBinding = binding;
-        pw.write.descriptorCount = 1;
-        pw.write.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        pw.write.pBufferInfo = &pw.buffer_info;
-        pw.buffer_info = buffer_info;
-        pw.image_infos = nullptr;
-        pw.image_count = 0;
-
-        pending_writes.AppendByCopy(pw);
-    }
-
-    void Write_Storage_Buffer(U32 binding, const VkDescriptorBufferInfo& buffer_info) {
-        ValidateBindingType(binding, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
-
-        PendingWrite pw{};
-        pw.write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        pw.write.dstSet = descriptor_set;
-        pw.write.dstBinding = binding;
-        pw.write.descriptorCount = 1;
-        pw.write.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        pw.write.pBufferInfo = &pw.buffer_info;
-        pw.buffer_info = buffer_info;
-        pw.image_infos = nullptr;
-        pw.image_count = 0;
-
-        pending_writes.AppendByCopy(pw);
-    }
-
-    void Write_Image(U32 binding, const VkDescriptorImageInfo* image_infos, U32 count) {
-        ValidateBindingType(binding, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
-
-        PendingWrite pw{};
-        pw.write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        pw.write.dstSet = descriptor_set;
-        pw.write.dstBinding = binding;
-        pw.write.descriptorCount = count;
-        pw.write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-
-        // Allocate and copy image infos so they remain valid
-        if (image_infos && count > 0) {
-            pw.image_infos = Mem_Allocator::Make<VkDescriptorImageInfo>(allocator, count);
-            memcpy(pw.image_infos, image_infos, sizeof(VkDescriptorImageInfo) * count);
-        } else {
-            pw.image_infos = nullptr;
-        }
-        pw.write.pImageInfo = pw.image_infos;
-
-        pw.buffer_info = {};
-        pw.image_count = count;
-        pw.image_alloc = allocator;
-
-        pending_writes.AppendByCopy(pw);
-    }
-
-    void Write_Storage_Image(U32 binding, const VkDescriptorImageInfo* image_infos, U32 count) {
-        ValidateBindingType(binding, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
-
-        PendingWrite pw{};
-        pw.write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        pw.write.dstSet = descriptor_set;
-        pw.write.dstBinding = binding;
-        pw.write.descriptorCount = count;
-        pw.write.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-
-        // Allocate and copy image infos so they remain valid
-        if (image_infos && count > 0) {
-            pw.image_infos = Mem_Allocator::Make<VkDescriptorImageInfo>(allocator, count);
-            memcpy(pw.image_infos, image_infos, sizeof(VkDescriptorImageInfo) * count);
-        } else {
-            pw.image_infos = nullptr;
-        }
-        pw.write.pImageInfo = pw.image_infos;
-
-        pw.buffer_info = {};
-        pw.image_count = count;
-        pw.image_alloc = allocator;
-
-        pending_writes.AppendByCopy(pw);
-    }
-
-    void Write_Sampler(U32 binding, const VkSampler& sampler) {
-        ValidateBindingType(binding, VK_DESCRIPTOR_TYPE_SAMPLER);
-
-        // Note: This is simplified; for real samplers you'd want to store a VkDescriptorImageInfo
-        fprintf(stderr, "Write_Sampler not fully implemented yet\n");
-    }
-
-    // Flush all pending writes in a single Vulkan call
-    void Flush() {
-        if (pending_writes.Length() == 0) {
-            return;
-        }
-
-        dyn_vector<VkWriteDescriptorSet> writes =
-            dyn_vector<VkWriteDescriptorSet>::Init(allocator, pending_writes.Length());
-
-        for (U64 i = 0; i < pending_writes.Length(); ++i) {
-            VkWriteDescriptorSet write = pending_writes[i].write;
-
-            // Fix dangling pointers: point to buffer/image info within pending_writes
-            if (write.descriptorType == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER ||
-                write.descriptorType == VK_DESCRIPTOR_TYPE_STORAGE_BUFFER) {
-                write.pBufferInfo = &pending_writes[i].buffer_info;
-            } else if (write.descriptorType == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER ||
-                       write.descriptorType == VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE ||
-                       write.descriptorType == VK_DESCRIPTOR_TYPE_STORAGE_IMAGE) {
-                write.pImageInfo = pending_writes[i].image_infos;
-            }
-
-            writes.AppendByCopy(write);
-        }
-
-        vkUpdateDescriptorSets(device, (U32)writes.Length(), writes.Memory(), 0, nullptr);
-        writes.Destroy();
-
-        // Clean up allocated image_infos
-        for (U64 i = 0; i < pending_writes.Length(); ++i) {
-            if (pending_writes[i].image_infos != nullptr && pending_writes[i].image_alloc != nullptr) {
-                Mem_Allocator::Delete(pending_writes[i].image_alloc, pending_writes[i].image_infos);
-            }
-        }
-
-        pending_writes.Len = 0;  // Clear pending writes
-    }
-
-    // Proper destructor with resource cleanup
-    ~Vk_Descriptor() {
-        if (device != VK_NULL_HANDLE) {
-            if (descriptor_set_layout != VK_NULL_HANDLE) {
-                vkDestroyDescriptorSetLayout(device, descriptor_set_layout, nullptr);
-            }
-            if (descriptor_pool != VK_NULL_HANDLE) {
-                vkDestroyDescriptorPool(device, descriptor_pool, nullptr);
-            }
-        }
-        if (allocator) {
-            // Clean up allocated image_infos in pending writes
-            for (U64 i = 0; i < pending_writes.Length(); ++i) {
-                if (pending_writes[i].image_infos != nullptr && pending_writes[i].image_alloc != nullptr) {
-                    Mem_Allocator::Delete(pending_writes[i].image_alloc, pending_writes[i].image_infos);
-                }
-            }
-            bindings.Destroy();
-            pending_writes.Destroy();
-        }
-    }
-
-    // Prevent copying
-    Vk_Descriptor(const Vk_Descriptor&) = delete;
-    Vk_Descriptor& operator=(const Vk_Descriptor&) = delete;
-
-    // Allow moving
-    Vk_Descriptor(Vk_Descriptor&& other) noexcept
-        : allocator(other.allocator), device(other.device),
-          descriptor_pool(other.descriptor_pool),
-          descriptor_set_layout(other.descriptor_set_layout),
-          descriptor_set(other.descriptor_set),
-          bindings(other.bindings),
-          pending_writes(other.pending_writes) {
-        other.descriptor_pool = VK_NULL_HANDLE;
-        other.descriptor_set_layout = VK_NULL_HANDLE;
-        other.descriptor_set = VK_NULL_HANDLE;
-    }
-
-    Vk_Descriptor& operator=(Vk_Descriptor&& other) noexcept {
-        if (this != &other) {
-            this->~Vk_Descriptor();
-            allocator = other.allocator;
-            device = other.device;
-            descriptor_pool = other.descriptor_pool;
-            descriptor_set_layout = other.descriptor_set_layout;
-            descriptor_set = other.descriptor_set;
-            bindings = other.bindings;
-            pending_writes = other.pending_writes;
-            other.descriptor_pool = VK_NULL_HANDLE;
-            other.descriptor_set_layout = VK_NULL_HANDLE;
-            other.descriptor_set = VK_NULL_HANDLE;
-        }
-        return *this;
+        Vk::Check(vkCreateShaderModule(device, &shader_module_ci, nullptr, &shader_module));
     }
 };
 
@@ -678,8 +364,8 @@ class Vk_Pipeline : public Shader_Loader {
     Allocator* allocator;
 
     U64 handler;
-    VkPipeline pipeline;
-    VkPipelineLayout pipeline_layout;
+    VkPipeline pipeline { VK_NULL_HANDLE };
+    VkPipelineLayout pipeline_layout { VK_NULL_HANDLE };
 
     dyn_vector<VkVertexInputBindingDescription>    vertex_bindings;
     dyn_vector<VkVertexInputAttributeDescription>  vertex_attributes;
@@ -690,11 +376,19 @@ class Vk_Pipeline : public Shader_Loader {
 
     // To explicitly specify if depth stencil is necessary
     //
-    VkPipelineDepthStencilStateCreateInfo depth_ci;
+    VkPipelineDepthStencilStateCreateInfo depth_ci{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
+        .depthTestEnable = VK_FALSE,
+        .depthWriteEnable = VK_FALSE,
+        .depthCompareOp = VK_COMPARE_OP_ALWAYS
+    };
+    bool alpha_blend_enabled { false };
+    VkCullModeFlags cull_mode { VK_CULL_MODE_BACK_BIT };
+    VkFrontFace front_face { VK_FRONT_FACE_CLOCKWISE };
 
     Vk_Pipeline(Allocator* allocator, Slang::ComPtr<slang::IGlobalSession> slang_global_session) :
-        allocator(allocator),
-        Shader_Loader(slang_global_session)
+        Shader_Loader(slang_global_session),
+        allocator(allocator)
     {
         // by default, 1 push constant, 1 descriptor set layout, 2 dynamic states (viewport, scissor),
         // 2 shader stages (vertex, fragment)
@@ -709,16 +403,27 @@ class Vk_Pipeline : public Shader_Loader {
     ~Vk_Pipeline() {}
 
     void Destroy(VkDevice device) {
-        Shader_Loader_Destroy(device);
-        vkDestroyPipeline(device, pipeline, nullptr);
+        if (shader_module != VK_NULL_HANDLE) {
+            Shader_Loader_Destroy(device);
+            shader_module = VK_NULL_HANDLE;
+        }
+        if (pipeline != VK_NULL_HANDLE) {
+            vkDestroyPipeline(device, pipeline, nullptr);
+            pipeline = VK_NULL_HANDLE;
+        }
+        if (pipeline_layout != VK_NULL_HANDLE) {
+            vkDestroyPipelineLayout(device, pipeline_layout, nullptr);
+            pipeline_layout = VK_NULL_HANDLE;
+        }
     }
 
-    void Push_Descriptor_Set_Layout(VkDescriptorSetLayout layout) {
+    Vk_Pipeline& Push_Descriptor_Set_Layout(VkDescriptorSetLayout layout) {
         descriptor_set_layouts.Append(layout);
+        return *this;
     }
 
     // Insert bindless layout at the beginning (set 0)
-    void Prepend_Bindless_Layout(VkDescriptorSetLayout bindless_layout) {
+    Vk_Pipeline& Prepend_Bindless_Layout(VkDescriptorSetLayout bindless_layout) {
         // Insert bindless layout at position 0
         // This is a bit inefficient but fine for this use case
         dyn_vector<VkDescriptorSetLayout> temp = dyn_vector<VkDescriptorSetLayout>::Init(allocator, descriptor_set_layouts.Length() + 1);
@@ -728,31 +433,48 @@ class Vk_Pipeline : public Shader_Loader {
         }
         descriptor_set_layouts.Destroy();
         descriptor_set_layouts = temp;
+        return *this;
     }
 
-    void Set_Push_Constant_Range(VkPushConstantRange constant) {
+    Vk_Pipeline& Set_Push_Constant_Range(VkPushConstantRange constant) {
         push_contant_ranges.Append(constant);
+        return *this;
     }
 
-    void Push_Dynamic_State(VkDynamicState state) {
+    Vk_Pipeline& Push_Dynamic_State(VkDynamicState state) {
         dynamic_states.Append(state);
+        return *this;
     }
 
-    void Push_Dynamic_States(dyn_vector<VkDynamicState>& states) {
+    Vk_Pipeline& Push_Dynamic_States(dyn_vector<VkDynamicState>& states) {
         for( auto state : states ) {
             dynamic_states.Append(state);
         }
+        return *this;
     }
 
-    void Set_Depth() {
+    Vk_Pipeline& Set_Depth() {
         depth_ci = {
             .sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
             .depthTestEnable = VK_TRUE,
             .depthWriteEnable = VK_TRUE,
             .depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL
         };
+        return *this;
     }
-    void Set_Shader_Stages(Shader_Stages_Flag flags) {
+    Vk_Pipeline& Set_Cull_Mode(VkCullModeFlags mode) {
+        cull_mode = mode;
+        return *this;
+    }
+    Vk_Pipeline& Enable_Alpha_Blend() {
+        alpha_blend_enabled = true;
+        return *this;
+    }
+    Vk_Pipeline& Set_Front_Face(VkFrontFace face) {
+        front_face = face;
+        return *this;
+    }
+    Vk_Pipeline& Set_Shader_Stages(Shader_Stages_Flag flags) {
         if( flags & Shader_Loader::VERTEX ) {
             shader_stages.AppendByCopy(
     	  { .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, .stage = VK_SHADER_STAGE_VERTEX_BIT, .module = shader_module, .pName = "VSMain"}
@@ -773,8 +495,9 @@ class Vk_Pipeline : public Shader_Loader {
     	  { .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, .stage = VK_SHADER_STAGE_COMPUTE_BIT, .module = shader_module, .pName = "CSMain"}
             );
         }
+        return *this;
     }
-    void Push_Vertex_Binding(U32 binding, U32 stride, VkVertexInputRate rate) {
+    Vk_Pipeline& Push_Vertex_Binding(U32 binding, U32 stride, VkVertexInputRate rate) {
         vertex_bindings.AppendByCopy(
             {
     		.binding = binding,
@@ -782,11 +505,13 @@ class Vk_Pipeline : public Shader_Loader {
     		.inputRate = rate
     	   }
         );
+        return *this;
     }
-    void Push_Vertex_Attributes(U32 location, U32 binding, VkFormat format, U32 offset = 0) {
+    Vk_Pipeline& Push_Vertex_Attributes(U32 location, U32 binding, VkFormat format, U32 offset = 0) {
         vertex_attributes.AppendByCopy(
             { .location = location, .binding = binding, .format = format, .offset = offset }
         );
+        return *this;
     }
 
     void Create(VkDevice device, VkFormat image_format, VkFormat depth_format) {
@@ -798,7 +523,7 @@ class Vk_Pipeline : public Shader_Loader {
         	.pushConstantRangeCount = static_cast<U32>(push_contant_ranges.Length()),
         	.pPushConstantRanges = push_contant_ranges.Memory()
         };
-        Check(vkCreatePipelineLayout(device, &pipelineLayoutCI, nullptr, &pipeline_layout));
+        Vk::Check(vkCreatePipelineLayout(device, &pipelineLayoutCI, nullptr, &pipeline_layout));
 
         VkPipelineVertexInputStateCreateInfo vertexInputState{
     		.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
@@ -817,12 +542,21 @@ class Vk_Pipeline : public Shader_Loader {
     	VkPipelineViewportStateCreateInfo viewport_state { .sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO, .viewportCount = 1, .scissorCount = 1 };
     	VkPipelineRasterizationStateCreateInfo rasterization_state {
             .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
-            .cullMode = VK_CULL_MODE_BACK_BIT,
-            .frontFace = VK_FRONT_FACE_CLOCKWISE,
+            .cullMode = cull_mode,
+            .frontFace = front_face,
             .lineWidth = 1.0
         };
     	VkPipelineMultisampleStateCreateInfo multi_sample_state{ .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO, .rasterizationSamples = VK_SAMPLE_COUNT_1_BIT };
     	VkPipelineColorBlendAttachmentState blend_attachment{ .colorWriteMask = 0xF };
+        if (alpha_blend_enabled) {
+            blend_attachment.blendEnable = VK_TRUE;
+            blend_attachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+            blend_attachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+            blend_attachment.colorBlendOp = VK_BLEND_OP_ADD;
+            blend_attachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+            blend_attachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+            blend_attachment.alphaBlendOp = VK_BLEND_OP_ADD;
+        }
     	VkPipelineColorBlendStateCreateInfo color_blend_state{
     	   .sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
     	   .attachmentCount = 1,
@@ -851,7 +585,7 @@ class Vk_Pipeline : public Shader_Loader {
     		.pDynamicState = &dynamic_state,
     		.layout = pipeline_layout
     	};
-    	Check(vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineCI, nullptr, &pipeline));
+    	Vk::Check(vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineCI, nullptr, &pipeline));
     }
 };
 
@@ -871,6 +605,8 @@ class Vk_Texture {
 
     // Legacy method - returns descriptor image info (deprecated, kept for compatibility)
     VkDescriptorImageInfo Load_From_Ktx(Vk_Render *render, const char *path);
+    VkDescriptorImageInfo Load_From_R8_Data(Vk_Render *render, const void* pixels, U32 width, U32 height);
+    void Destroy(Vk_Render *render);
 
     void Load_From_Png( const char* path, VkDevice device, VmaAllocator& allocator );
     void Load_From_Data( const char* path, VkDevice device, VmaAllocator& allocator );
@@ -888,18 +624,16 @@ class Vk_Texture {
     	Vk::Check(vkCreateSampler(device, &sampler_ci , nullptr, &sampler));
     }
 
-    VkImage       Get_Image()      const { return image;      }
-    VkImageView   Get_Image_View() const { return image_view; }
+    VkImage       Get_Image()      const { return image_resource ? image_resource->Get_Handle() : VK_NULL_HANDLE; }
+    VkImageView   Get_Image_View() const { return image_resource ? image_resource->Get_View_Handle() : VK_NULL_HANDLE; }
     VkSampler     Get_Sampler()    const { return sampler;    }
     VkImageLayout Get_Layout()     const { return layout;     }
 
 private:
     Allocator* allocator;
-    VkImage image;
-    VkImageView image_view;
-    VkSampler sampler;
-    VkImageLayout layout;
-    VmaAllocation allocation;
+    std::unique_ptr<Image> image_resource;
+    VkSampler sampler{VK_NULL_HANDLE};
+    VkImageLayout layout{VK_IMAGE_LAYOUT_UNDEFINED};
 };
 
 template <typename T>
@@ -1134,7 +868,7 @@ class Vk_Render {
     public:
 
     Vk_Render() {}
-    ~Vk_Render() {}
+    ~Vk_Render() { Shutdown(); }
 
     // Memory
     //
@@ -1158,6 +892,8 @@ class Vk_Render {
     VkImageView             depth_image_view;
     dyn_vector<VkImage>     swapchain_images;
     dyn_vector<VkImageView> swapchain_image_views;
+    dyn_vector<VkImageLayout> swapchain_image_layouts;
+    VkImageLayout          depth_image_layout { VK_IMAGE_LAYOUT_UNDEFINED };
     VkCommandBuffer         command_buffers[max_frames_in_flight];
     VkFence                 fences[max_frames_in_flight];
     VkSemaphore             present_semaphores[max_frames_in_flight];
@@ -1198,6 +934,9 @@ class Vk_Render {
     // Current rendering state (for binding)
     VkPipeline current_pipeline { VK_NULL_HANDLE };
     VkPipelineLayout current_pipeline_layout { VK_NULL_HANDLE };
+    bool initialized { false };
+    std::unique_ptr<Instance> instance_owner;
+    std::unique_ptr<Device> device_owner;
 
     static inline void Check(VkResult result, const std::source_location& loc = std::source_location::current()) {
         if (result != VK_SUCCESS) {
@@ -1225,6 +964,8 @@ class Vk_Render {
     }
 
     void Init(F64 w, F64 h, Allocator* Alloc);
+    void Shutdown();
+    void Recreate_Swapchain();
 
     // ========================================================================
     // Hybrid Frame Loop API
@@ -1241,6 +982,7 @@ class Vk_Render {
     void Record_Frame(std::function<void()> record_callback);
 
     VkDevice Get_Device() const { return device; }
+    Device* Get_Device_Object() const { return device_owner.get(); }
     const dyn_vector<VkImage>*     Get_Swapchain_Images()      const { return &swapchain_images; }
     const dyn_vector<VkImageView>* Get_Swapchain_Image_Views() const { return &swapchain_image_views; }
 

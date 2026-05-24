@@ -17,8 +17,12 @@ typedef double f64;
 
 typedef float F32;
 typedef double F64;
+typedef uint8_t U8;
+typedef uint16_t U16;
+typedef uint32_t U32;
+typedef uint64_t U64;
 
-#define U64_MAX ((u64)(1ULL << 63) - 1)
+#define U64_MAX UINT64_MAX
 
 #if !defined(__cplusplus)
 #if (defined(_MSC_VER) && _MSC_VER < 1800) || (!defined(_MSC_VER) && !defined(__STDC_VERSION__))

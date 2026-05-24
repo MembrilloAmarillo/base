@@ -1,6 +1,8 @@
 #ifndef _VULKAN_HANDLE_HPP_
 #define _VULKAN_HANDLE_HPP_
 
+#include <vulkan/vulkan.h>
+
 template<typename Handle_Type, typename Deleter>
 class Vulkan_Handle {
 public:
@@ -47,6 +49,7 @@ public:
 
     // Access
     Handle_Type Get() const noexcept { return m_handle; }
+    Handle_Type Get_Handle() const noexcept { return m_handle; }
     explicit operator bool() const noexcept { return m_handle != VK_NULL_HANDLE; }
 
     Handle_Type* Get_Ptr() noexcept { return &m_handle; }

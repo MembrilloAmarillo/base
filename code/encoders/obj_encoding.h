@@ -1,16 +1,17 @@
 #ifndef _OBJ_ENCODING_H_
 #define _OBJ_ENCODING_H_
 
-#include "../types.h"
-#include "../vector.h"
+#include "../util/types.h"
+#include "../vector/DynamicVector.h"
+#include "../io/files.h"
 
 typedef struct obj_instance obj_instance;
 struct obj_instance {
   dyn_vector<vec4> Vec4Vertices;      // List of geometric vertices, with (x, y, z, [w]) coordinates, w is optional and defaults to 1.0.
   dyn_vector<vec3> Vec3TexCoords;     // List of texture coordinates, in (u, [v, w]) coordinates, these will vary between 0 and 1. v, w are optional and default to 0.
   dyn_vector<vec3> Vec3VertexNormals; // List of vertex normals in (x,y,z) form; normals might not be unit vectors.
-  vector Vec3SpaceVertices; // Parameter space vertices in (u, [v, w]) form; free form geometry statement
-  vector Vec3PolyFaces;     // Polygonal face element
+  dyn_vector<vec3> Vec3SpaceVertices; // Parameter space vertices in (u, [v, w]) form; free form geometry statement
+  dyn_vector<vec3> Vec3PolyFaces;     // Polygonal face element
 };
 
 /*
@@ -28,6 +29,6 @@ typedef enum {
   OBJ_NO_POLYGONAL_FACES
 }obj_load_flags;
 
-fn_internal obj_instance OBJ_InstanceInit(const char* path, obj_load_flags flags, Arena* Allocator);
+fn_internal obj_instance OBJ_InstanceInit(const char* path, obj_load_flags flags, Allocator* allocator);
 
 #endif //_OBJ_ENCODING_H_

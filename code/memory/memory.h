@@ -267,18 +267,12 @@ ArenaPopTo(Arena *arena, U64 pos)
 fn_internal void
 ArenaPop( Arena* arena, U64 erase  )
 {
-    /*
-    U64 min_pos = sizeof( Arena );
-    U64 to_pop  = Min( erase, arena->pos );
-    U64 new_pos = arena->pos - to_pop;
-    new_pos     = Max( min_pos, erase );
+    U64 min_pos = sizeof(Arena);
+    U64 max_erasable = (arena->pos > min_pos) ? (arena->pos - min_pos) : 0;
+    U64 actual_erase = Min(erase, max_erasable);
+    arena->pos -= actual_erase;
 
-    arena->pos -= new_pos;
-    */
-
-    arena->pos -= erase;
-
-    U64 decommit_file_size = erase;
+    U64 decommit_file_size = actual_erase;
     decommit_file_size += DEFAULT_DECOMMIT;
     decommit_file_size  -= decommit_file_size % DEFAULT_DECOMMIT;
     decommit_file_size  -= DEFAULT_DECOMMIT;
@@ -288,6 +282,9 @@ ArenaPop( Arena* arena, U64 erase  )
     // because if we do it, we will be erasing other data that we still want
     // to use in that page
     //
+    if (decommit_file_size > arena->commit_pos) {
+        decommit_file_size = arena->commit_pos;
+    }
     arena->commit_pos -= decommit_file_size;
     // NOTE: Maybe we want to put a threshold different to 4 Kib when we want
     // to decommit. I have to research.

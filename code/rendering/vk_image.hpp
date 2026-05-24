@@ -1,6 +1,7 @@
 #pragma once
 
-#include <vma/vk_mem_alloc.h>
+#include "../third-party/vk_mem_alloc.h"
+#include "../vector/DynamicVector.h"
 
 #include "vk_device.hpp"
 #include "vk_buffer.h"
@@ -58,6 +59,7 @@ public:
     // Upload functions
     //
     void Upload_Data_To_Image(void* data, size_t width, size_t height, size_t channels);
+    void Upload_Data_To_Image(void* data, VkDeviceSize size, const VkBufferImageCopy* regions, U32 region_count, VkImageLayout final_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
     Buffer& Create_Buffer_From_Image();
     void Copy_From_Image();
@@ -68,6 +70,8 @@ public:
 
     VmaAllocator       Get_Gpu_Allocator()         noexcept { return m_gpu_allocator; }
     VmaAllocation      Get_Gpu_Allocation()        noexcept { return m_gpu_allocation; }
+    VkImage            Get_Handle()          const noexcept { return m_image; }
+    VkImageView        Get_View_Handle()     const noexcept { return m_image_view_handle.Get(); }
     VkImageCreateFlags Get_Flags()           const noexcept { return m_flags; }
     VkFormat           Get_Format()          const noexcept { return m_format; }
     VkExtent3D         Get_Extent()          const noexcept { return m_extent; }

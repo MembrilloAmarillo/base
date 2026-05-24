@@ -1,4 +1,10 @@
 #include "vk_buffer.h"
+#include "vk_device.hpp"
+
+#include <algorithm>
+#include <cstring>
+#include <stdexcept>
+#include <string>
 
 Buffer::Buffer(const Device& device, const Buffer_Create_Info& info)
     : m_size(info.size)
@@ -11,8 +17,6 @@ Buffer::Buffer(const Device& device, const Buffer_Create_Info& info)
     if (info.size == 0) {
         throw std::runtime_error("Buffer size cannot be zero");
     }
-
-    m_permanently_mapped = device.Is_UMA();
 
     // Create the buffer via VMA
     Create_Buffer(info);
@@ -66,8 +70,12 @@ void Buffer::Create_Buffer(const Buffer_Create_Info& info) {
 
     // VMA allocation create info
     VmaAllocationCreateInfo alloc_ci{};
-    alloc_ci.usage = Derive_VMA_Usage(m_usage_category);
-    alloc_ci.flags = Derive_VMA_Flags(m_usage_category, m_permanently_mapped);
+    alloc_ci.usage = (info.vma_usage_override != VMA_MEMORY_USAGE_UNKNOWN)
+        ? info.vma_usage_override
+        : Derive_VMA_Usage(m_usage_category);
+    alloc_ci.flags = info.use_vma_flags_override
+        ? info.vma_flags_override
+        : Derive_VMA_Flags(m_usage_category, m_permanently_mapped);
     alloc_ci.requiredFlags = 0;
     alloc_ci.preferredFlags = 0;
     alloc_ci.memoryTypeBits = 0;  // Let VMA decide
@@ -105,7 +113,12 @@ void Buffer::Create_Buffer(const Buffer_Create_Info& info) {
     }
 }
 
-Buffer& Buffer::operator=(Buffer&& other) {
+Buffer& Buffer::operator=(Buffer&& other) noexcept {
+    if (this == &other) {
+        return *this;
+    }
+
+    m_buffer = std::move(other.m_buffer);
 
     this->m_allocation = other.m_allocation;
     this->m_allocation_info = other.m_allocation_info;
@@ -122,11 +135,13 @@ Buffer& Buffer::operator=(Buffer&& other) {
     other.m_debug_name = nullptr;
     other.m_allocation = VK_NULL_HANDLE;
     other.m_allocation_info = {};
+    other.m_mapped_data = nullptr;
+    other.m_vma_allocator = VK_NULL_HANDLE;
 
     return *this;
 }
 
-Buffer::Buffer(Buffer&& other) :
+Buffer::Buffer(Buffer&& other) noexcept :
     m_allocation(other.m_allocation)
     , m_allocation_info(other.m_allocation_info)
     , m_size(other.m_size)
@@ -143,6 +158,9 @@ Buffer::Buffer(Buffer&& other) :
     other.m_debug_name = nullptr;
     other.m_allocation = VK_NULL_HANDLE;
     other.m_allocation_info = {};
+    other.m_mapped_data = nullptr;
+    other.m_vma_allocator = VK_NULL_HANDLE;
+    other.m_debug_name = nullptr;
 }
 
 // CPU access (if applicable for usage category)
@@ -283,6 +301,10 @@ VkDeviceAddress Buffer::Get_Device_Address() const {
     return vkGetBufferDeviceAddress(m_device->Get_Handle(), &addr_info);
 }
 
+void Buffer::Set_Debug_Name(const char* name) {
+    m_debug_name = name;
+}
+
 VkBufferUsageFlags Buffer::Derive_Vulkan_Usage(Buffer_Usage category) const {
     switch (category) {
         case Buffer_Usage::Vertex:           return VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
@@ -293,6 +315,8 @@ VkBufferUsageFlags Buffer::Derive_Vulkan_Usage(Buffer_Usage category) const {
         case Buffer_Usage::Readback:         return VK_BUFFER_USAGE_TRANSFER_DST_BIT;
         case Buffer_Usage::Dynamic_Vertex:   return VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
         case Buffer_Usage::Dynamic_Index:    return VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
+        case Buffer_Usage::Dynamic_Uniform:  return VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+        case Buffer_Usage::Dynamic_Storage:  return VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
         default:                             return 0;
     }
 }
@@ -313,6 +337,8 @@ VmaMemoryUsage Buffer::Derive_VMA_Usage(Buffer_Usage category) const {
 
         case Buffer_Usage::Dynamic_Vertex:
         case Buffer_Usage::Dynamic_Index:
+        case Buffer_Usage::Dynamic_Uniform:
+        case Buffer_Usage::Dynamic_Storage:
             return VMA_MEMORY_USAGE_CPU_TO_GPU;  // Frequent CPU updates
 
         default:
@@ -337,6 +363,8 @@ VmaAllocationCreateFlags Buffer::Derive_VMA_Flags(Buffer_Usage category, bool ma
             break;
         case Buffer_Usage::Dynamic_Vertex:
         case Buffer_Usage::Dynamic_Index:
+        case Buffer_Usage::Dynamic_Uniform:
+        case Buffer_Usage::Dynamic_Storage:
             flags |= VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
             break;
         default:

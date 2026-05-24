@@ -1,7 +1,9 @@
 #ifndef _SURFACE_WIN32_H_
 #define _SURFACE_WIN32_H_
 
-#define VK_USE_PLATFORM_WAYLAND_KHR
+#include <windows.h>
+
+#define VK_USE_PLATFORM_WIN32_KHR
 #include <vulkan/vulkan.h>
 
 
@@ -33,8 +35,6 @@ fn_internal vec2 SurfaceGetWindowSize(api_window* window);
 #endif
 
 #ifdef SURFACE_IMPL
-
-#include <windows.h>
 #include <stdio.h>
 
 LRESULT CALLBACK WndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {

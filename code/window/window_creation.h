@@ -6,7 +6,11 @@
 
 #ifdef SDL_USAGE
 
-#define VK_USE_PLATFORM_WAYLAND_KHR
+#ifdef _WIN32
+#define VK_USE_PLATFORM_WIN32_KHR
+#elif defined(__linux__)
+#define VK_USE_PLATFORM_XLIB_KHR
+#endif
 #include <vulkan/vulkan.h>
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_vulkan.h>
@@ -24,6 +28,7 @@
 #define Input_CursorHover        ((ui_input)1 << 6)
 #define Input_Backspace          ((ui_input)1 << 7)
 #define Input_Ctrol              ((ui_input)1 << 8)
+#define Input_Ctrl               Input_Ctrol
 #define Input_Shift              ((ui_input)1 << 9)
 #define Input_Alt                ((ui_input)1 << 10)
 #define Input_Return             ((ui_input)1 << 11)
@@ -97,8 +102,7 @@ fn_internal api_window SurfaceCreateWindow(F64 w, F64 h) {
 
 fn_internal vec2 SurfaceGetWindowSize(api_window* Window) {
 	int w, h;
-	SDL_GetWindowSize(Window->Win, &w, &h);
-	//SDL_Vulkan_GetDrawableSize(Window->Win, &w, &h);
+	SDL_GetWindowSizeInPixels(Window->Win, &w, &h);
 	fprintf(stdout, "[INFO] New window size: %d %d\n", w, h);
 	return Vec2New(w, h);
 }
@@ -134,10 +138,17 @@ fn_internal ui_input GetNextEvent(api_window* Window)
 
 				printf("[LOG] Window resize\n");
 
-				if (w != window_width || h != window_height)
+				if (w != window_width || h != window_height) {
+					Window->Width = w;
+					Window->Height = h;
 					Input |= FrameBufferResized;
+				}
 
 				break;
+			}
+			case SDL_EVENT_WINDOW_CLOSE_REQUESTED: {
+				Input = StopUI;
+				return Input;
 			}
 
 			// --------------------------------------------------
@@ -235,19 +246,21 @@ fn_internal ui_input GetNextEvent(api_window* Window)
 				}
 
 				// Ctrl+V → request clipboard
-				if ((ev.key.mod & SDL_KMOD_CTRL) &&
-					(key == SDL_SCANCODE_V))
-				{
-					char *clip = SDL_GetClipboardText();
-					if (clip) {
-						memset(Window->ClipboardContent, 0, 256);
-						memcpy(Window->ClipboardContent,
-							   clip,
-							   CustomStrlen(clip));
-						SDL_free(clip);
+					if ((ev.key.mod & SDL_KMOD_CTRL) &&
+						(key == SDLK_V))
+					{
+						char *clip = SDL_GetClipboardText();
+						if (clip) {
+							memset(Window->ClipboardContent, 0, 256);
+							u64 clip_len = CustomStrlen(clip);
+							if (clip_len > sizeof(Window->ClipboardContent) - 1) {
+								clip_len = sizeof(Window->ClipboardContent) - 1;
+							}
+							memcpy(Window->ClipboardContent, clip, clip_len);
+							SDL_free(clip);
+						}
+						Input |= ClipboardPaste;
 					}
-					Input |= ClipboardPaste;
-				}
 
 				// Ctrl + Backspace → DeleteWord
 				if (key == SDLK_BACKSPACE &&
@@ -305,6 +318,15 @@ fn_internal int
 {
 	return (int)SDL_GetDisplayContentScale(SDL_GetPrimaryDisplay());
 }
+
+fn_internal bool SurfaceCreateVkSurface(api_window* window, VkInstance instance) {
+    return SDL_Vulkan_CreateSurface(window->Win, instance, nullptr, &window->Surface);
+}
+
+fn_internal void SurfaceDestroyVkSurface(api_window* window, VkInstance instance) {
+    SDL_Vulkan_DestroySurface(instance, window->Surface, nullptr);
+    window->Surface = VK_NULL_HANDLE;
+}
 #else
 	#ifdef __linux__
 		#include "os_linux/surface.h"
@@ -313,6 +335,39 @@ fn_internal int
 		#include "os_windows/surface.h"
 		#include "os_windows/events.h"
 	#endif
+
+fn_internal bool SurfaceCreateVkSurface(api_window* window, VkInstance instance) {
+#if defined(VK_USE_PLATFORM_XLIB_KHR)
+    const VkXlibSurfaceCreateInfoKHR ci{
+        .sType = VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR,
+        .pNext = nullptr,
+        .flags = 0,
+        .dpy = window->Dpy,
+        .window = window->Win,
+    };
+    return vkCreateXlibSurfaceKHR(instance, &ci, nullptr, &window->Surface) == VK_SUCCESS;
+#elif defined(VK_USE_PLATFORM_WIN32_KHR)
+    const VkWin32SurfaceCreateInfoKHR ci{
+        .sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR,
+        .pNext = nullptr,
+        .flags = 0,
+        .hinstance = window->Instance,
+        .hwnd = window->Win,
+    };
+    return vkCreateWin32SurfaceKHR(instance, &ci, nullptr, &window->Surface) == VK_SUCCESS;
+#else
+    (void)window;
+    (void)instance;
+    return false;
+#endif
+}
+
+fn_internal void SurfaceDestroyVkSurface(api_window* window, VkInstance instance) {
+    if (window->Surface != VK_NULL_HANDLE) {
+        vkDestroySurfaceKHR(instance, window->Surface, nullptr);
+        window->Surface = VK_NULL_HANDLE;
+    }
+}
 #endif
 
 #endif //_WINDOW_CREATION_H_

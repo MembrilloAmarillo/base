@@ -22,7 +22,7 @@ typedef enum f_flags {
     RDONLY = (1 << 0),
     WRONLY = (1 << 1),
     APPEND = (1 << 2)
-};
+} f_flags;
 
 typedef struct f_file f_file;
 struct f_file {
@@ -184,13 +184,12 @@ F_FileRead(f_file* f) {
 
 #ifdef _WIN32
     DWORD bytesRead = 0;
-    OVERLAPPED overlapped = {0};
     BOOL result = ReadFile(
         f->Fd,
         (u8*)f->Data,
         (DWORD)file_length,
         &bytesRead,
-        &overlapped
+        NULL
     );
 
     if (!result) {

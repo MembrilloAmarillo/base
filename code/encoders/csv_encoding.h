@@ -1,7 +1,9 @@
 #ifndef _CSV_ENCODING_H_
 #define _CSV_ENCODING_H_
 
-#include "../types.h"
+#include "../util/types.h"
+#include "../io/files.h"
+#include "../util/strings.h"
 //#include "../memory.h"
 
 //#include "../strings.h"
@@ -15,7 +17,7 @@ struct csv_encoder {
   // File handler
   //
   f_file  File;
-  Arena*  Arena;
+  Arena*  BackingArena;
   void*   BackBuffer;
 
   // CSV handler
@@ -33,6 +35,7 @@ struct csv_encoder {
 fn_internal csv_encoder CSV_Init(const char* FilePath, u64 N_Columns, Arena* Arena);
 
 fn_internal void CSV_SetTitleNames(csv_encoder* Csv, const char* names[]);
+fn_internal void CSV_SetDelimiter(csv_encoder* Csv, char Delimiter);
 
 fn_internal void CSV_BeginRow(csv_encoder* Csv);
 

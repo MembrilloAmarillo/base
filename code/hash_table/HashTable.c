@@ -1,4 +1,5 @@
 #include "HashTable.h"
+#include <string.h>
 // --------------------------------------------------------------- //
 
 static U64 UCF_Strlen( const char* str ) {
@@ -77,6 +78,9 @@ static U64 JenkinsHashFunction( const U8* key, U64 length, U64 seed ) {
 void HashTableInit( hash_table *Table, Allocator* Alloc, u64 Size, U64 (*HashFunction)(const U8* key, U64 length, U64 seed) ) {
     memset( Table, 0, sizeof(hash_table) );
     Table->Alloc = Alloc;
+    if (Size == 0) {
+        Size = 1;
+    }
     Table->Entries = Mem_Allocator::Make<entry>(Alloc, Size);
     Table->Allocated = Size;
     if( HashFunction == NULL ) {
@@ -85,7 +89,10 @@ void HashTableInit( hash_table *Table, Allocator* Alloc, u64 Size, U64 (*HashFun
         Table->HashFunction = HashFunction;
     }
 
-    memset( Table->Entries, 0, Table->Allocated );
+    memset( Table->Entries, 0, Table->Allocated * sizeof(entry) );
+    for (u64 i = 0; i < Table->Allocated; ++i) {
+        DLIST_INIT(&Table->Entries[i]);
+    }
 }
 
 // --------------------------------------------------------------- //
@@ -95,20 +102,14 @@ entry* HashTableAdd( hash_table *Table, const char* Id, void* Value, U64 parent 
 
     U64 EntryIdx = HashId % Table->Allocated;
 
-    entry* Entry = Mem_Allocator::Make<entry>(Alloc, 1);
+    entry* Entry = Mem_Allocator::Make<entry>(Table->Alloc, 1);
     *Entry = {};
     Entry->HashId = HashId;
     Entry->Id     = Id;
     Entry->Value  = Value;
-    DLIST_INIT(Entry);
-
-    if( Table->Entries[EntryIdx].HashId == 0 ) {
-        DLIST_INIT(&Table->Entries[EntryIdx]);
-        Table->Entries[EntryIdx].HashId = HashId;
-        Table->Entries[EntryIdx].Id     = Id;
-    }
 
     DLIST_INSERT_AS_LAST(&Table->Entries[EntryIdx], Entry);
+    Table->Count += 1;
 
     return Entry;
 }
@@ -119,22 +120,16 @@ void* HashTableSet( hash_table *Table, const char* Id, void* Value, U64 parent )
     U64 HashId = Table->HashFunction( (const U8*)Id, UCF_Strlen( Id ), parent );
 
     U64 EntryIdx = HashId % Table->Allocated;
-
-    void* value = Table->Entries[EntryIdx].Value;
-
-    if( Table->Entries[EntryIdx].HashId == 0 ) {
-        return NULL;
-    } else {
-        entry* it = Table->Entries[EntryIdx].Next;
-        for( ; it != NULL; it = it->Next ) {
-            if( it->Next == &Table->Entries[EntryIdx] ) {
-                entry* Entry = HashTableAdd(Table, Id, Value, parent);
-                value = Entry->Value;
-            }
+    entry* head = &Table->Entries[EntryIdx];
+    for (entry* it = head->Next; it != head; it = it->Next) {
+        if (it->HashId == HashId && UCF_Streq(it->Id, Id)) {
+            void* old_value = it->Value;
+            it->Value = Value;
+            return old_value;
         }
     }
-
-    return value;
+    HashTableAdd(Table, Id, Value, parent);
+    return NULL;
 }
 
 // --------------------------------------------------------------- //
@@ -143,18 +138,12 @@ bool HashTableContains( hash_table *Table, const char* Id, U64 parent ) {
     U64 HashId = Table->HashFunction( (const U8*)Id, UCF_Strlen( Id ), parent );
 
     U64 EntryIdx = HashId % Table->Allocated;
-
-    if( Table->Entries[EntryIdx].HashId == 0 ) {
-        return false;
-    } else {
-        entry* it = Table->Entries[EntryIdx].Next;
-        for( ; it != &Table->Entries[EntryIdx]; it = it->Next ) {
-            if( it->HashId == HashId ) {
-                return true;
-            }
+    entry* head = &Table->Entries[EntryIdx];
+    for( entry* it = head->Next; it != head; it = it->Next ) {
+        if( it->HashId == HashId && UCF_Streq(it->Id, Id) ) {
+            return true;
         }
     }
-
     return false;
 }
 
@@ -164,34 +153,25 @@ entry* HashTableFindPointer( hash_table *Table, const char* Id, U64 parent ) {
     U64 HashId = Table->HashFunction( (const U8*)Id, UCF_Strlen( Id ), parent );
 
     U64 EntryIdx = HashId % Table->Allocated;
-
-	if( Table->Entries[EntryIdx].HashId == 0 ) {
-        return NULL;
-    } else {
-        entry* it = Table->Entries[EntryIdx].Next;
-        for( ; it != &Table->Entries[EntryIdx]; it = it->Next ) {
-            if( it->HashId == HashId ) {
-                return it;
-            }
+    entry* head = &Table->Entries[EntryIdx];
+    for( entry* it = head->Next; it != head; it = it->Next ) {
+        if( it->HashId == HashId && UCF_Streq(it->Id, Id) ) {
+            return it;
         }
-		return NULL;
     }
+    return NULL;
 }
 
 // --------------------------------------------------------------- //
 
 void* HashTableGet( hash_table *Table, u64 Id, U64 parent ) {
+    (void)parent;
     U64 EntryIdx = Id % Table->Allocated;
-
-    if( Table->Entries[EntryIdx].HashId == 0 ) {
-        return NULL;
-    } else {
-        entry* it = Table->Entries[EntryIdx].Next;
-        for( ; it != &Table->Entries[EntryIdx]; it = it->Next ) {
-            if( it->HashId == Id ) {
-                return it->Value;
-            }
+    entry* head = &Table->Entries[EntryIdx];
+    for( entry* it = head->Next; it != head; it = it->Next ) {
+        if( it->HashId == Id ) {
+            return it->Value;
         }
-		return NULL;
     }
+    return NULL;
 }

@@ -2,6 +2,7 @@
 #define _QUEUE_H_
 
 #include "types.h"
+#include <string.h>
 
 typedef struct queue queue;
 struct queue {
@@ -120,6 +121,7 @@ QueuePopRaw(queue* q) {
 
     if( q->idx_front == 0 ) {
         q->idx_front = q->capacity - 1;
+        q->len -= 1;
 
         return q->data;
     }

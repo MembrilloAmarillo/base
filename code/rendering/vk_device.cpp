@@ -1,4 +1,8 @@
 #include "vk_device.hpp"
+#include "vk_instance.hpp"
+
+#include <cstdio>
+#include <stdexcept>
 
 Device::Device(const Instance& instance, const Device_Create_Info& info) {
     m_instance = &instance;
@@ -14,7 +18,8 @@ Device::Device(const Instance& instance, const Device_Create_Info& info) {
 }
 
 Device::Device(Device&& other) noexcept
-    : m_device(other.m_device)
+    : m_mem_allocator(other.m_mem_allocator)
+    , m_device(other.m_device)
     , m_physical_device(other.m_physical_device)
     , m_graphics_queue(other.m_graphics_queue)
     , m_present_queue(other.m_present_queue)
@@ -26,8 +31,7 @@ Device::Device(Device&& other) noexcept
     , m_transfer_queue_family(other.m_transfer_queue_family)
     , m_graphics_command_pool(other.m_graphics_command_pool)
     , m_vma_allocator(other.m_vma_allocator)
-    , m_instance(other.m_instance)
-    , m_mem_allocator(other.m_mem_allocator) {
+    , m_instance(other.m_instance) {
 
     other.m_device = VK_NULL_HANDLE;
     other.m_physical_device = VK_NULL_HANDLE;
@@ -105,12 +109,14 @@ void Device::Create_Logical_Device(const Device_Create_Info& info) {
 	//
 	U32 device_count{ 0 };
 	Check(vkEnumeratePhysicalDevices(m_instance->Get_Handle(), &device_count, nullptr));
-	dyn_vector<VkPhysicalDevice> devices = dyn_vector<VkPhysicalDevice>::Init(m_mem_allocator, device_count);
-	// devices.Destroy();
-	Check(vkEnumeratePhysicalDevices(m_instance->Get_Handle(), &device_count, devices.Memory()));
+    if (device_count == 0) {
+        throw std::runtime_error("No Vulkan physical devices found");
+    }
+	std::vector<VkPhysicalDevice> devices(device_count);
+	Check(vkEnumeratePhysicalDevices(m_instance->Get_Handle(), &device_count, devices.data()));
 	U32 device_index{ 0 };
 	int max_score = 0;
-	for( U32 i = 0 ; i < devices.Capacity(); i++ ) {
+	for( U32 i = 0 ; i < device_count; i++ ) {
 	   int score = Score_Physical_Device(devices[i], info.surface, info.device_extensions);
 	   if( max_score < score ) {
             max_score = score;
@@ -123,7 +129,7 @@ void Device::Create_Logical_Device(const Device_Create_Info& info) {
     Queue_Family_Indices indices = Find_Queue_Families(m_physical_device, info.surface);
 
     if (!indices.Is_Complete()) {
-        std::runtime_error("Selected physical device does not support required graphics queue families");
+        throw std::runtime_error("Selected physical device does not support required graphics queue families");
     }
 
     // Store indices for later
@@ -226,12 +232,6 @@ void Device::Create_Logical_Device(const Device_Create_Info& info) {
     for (uint32_t i = 0; i < mem_props.memoryTypeCount; i++) {
         VkMemoryPropertyFlags flags = mem_props.memoryTypes[i].propertyFlags;
 
-        if (mem_props.memoryHeapCount == 1) {
-            if ((mem_props.memoryHeaps[i].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT) != 0) {
-                is_uma = true;
-            }
-        }
-
         bool device_local = (flags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) != 0;
         bool host_visible = (flags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) != 0;
 
@@ -244,6 +244,9 @@ void Device::Create_Logical_Device(const Device_Create_Info& info) {
 
     // True UMA: device-local memory is also host-visible (no separate VRAM)
     // Or: no device-local-only memory types exist
+    if (mem_props.memoryHeapCount == 1) {
+        is_uma = (mem_props.memoryHeaps[0].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT) != 0;
+    }
     is_uma = is_uma | (device_local_only_count == 0) && (device_local_host_visible_count > 0);
 }
 
@@ -343,6 +346,7 @@ void Device::Submit_Immediate_Commands(std::function<void(VkCommandBuffer)>&& re
 
 void Device::Initialize_Vma(const Instance& instance) {
     VmaAllocatorCreateInfo allocator_info{};
+    allocator_info.flags = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT;
     allocator_info.physicalDevice = m_physical_device;
     allocator_info.device = m_device;
     allocator_info.instance = instance.Get_Handle();

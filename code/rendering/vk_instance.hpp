@@ -1,11 +1,21 @@
 #ifndef INSTANCE_H
 #define INSTANCE_H
 
+#ifdef _WIN32
+#define VK_USE_PLATFORM_WIN32_KHR
+#elif defined(__linux__)
+#define VK_USE_PLATFORM_XLIB_KHR
+#endif
+
 #include <vulkan/vulkan.h>
 #include <vector>
 #include <string>
 #include <stdexcept>
 #include <source_location>
+#include <cstdio>
+#include <cstdlib>
+
+struct Allocator;
 
 
 static inline void Check(bool result, const std::source_location& loc = std::source_location::current()) {

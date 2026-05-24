@@ -2,11 +2,14 @@
 #define _VULKAN_BUFFER_HPP_
 
 #include <vulkan/vulkan.h>
-#include <vma/vk_mem_alloc.h>  // VMA integration
+#include "../third-party/vk_mem_alloc.h"  // VMA integration
 #include <cstdint>
 #include <span>
+#include "../util/types.h"
 
 #include "vk_handle.hpp"
+
+class Device;
 
 // Custom RAII handle for VMA-allocated buffers
 class Vma_Allocated_Buffer {
@@ -33,10 +36,6 @@ private:
     VmaAllocation m_allocation = VK_NULL_HANDLE;
 };
 
-// Forward declarations
-// class Device;
-// struct VK_Render;
-
 // Buffer usage categories for API-agnostic interface
 enum class Buffer_Usage {
     Vertex,           // GPU-only, vertex data
@@ -47,6 +46,8 @@ enum class Buffer_Usage {
     Readback,         // GPU write, CPU read (transfer destination)
     Dynamic_Vertex,   // CPU write, GPU read (every frame)
     Dynamic_Index,    // CPU write, GPU read (every frame)
+    Dynamic_Uniform,  // CPU write, GPU read (every frame)
+    Dynamic_Storage,  // CPU write, GPU read (every frame)
     Count
 };
 
@@ -57,6 +58,9 @@ struct Buffer_Create_Info {
     VkBufferUsageFlags additional_vulkan_usage = 0;  // For specialized cases
     bool mapped_permanently = false;  // Keep CPU pointer valid
     const void* initial_data = nullptr;  // Optional immediate upload
+    VmaMemoryUsage vma_usage_override = VMA_MEMORY_USAGE_UNKNOWN;  // Optional override
+    VmaAllocationCreateFlags vma_flags_override = 0;               // Optional override
+    bool use_vma_flags_override = false;                           // Apply vma_flags_override when true
 };
 
 class Buffer {

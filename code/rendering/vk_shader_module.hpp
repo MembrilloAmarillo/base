@@ -1,14 +1,33 @@
 #pragma once
 
 #include <vulkan/vulkan.h>
-#include <SPIRV-Reflect/spirv_reflect.h>  // SPIRV-Reflect header
 #include <span>
 #include <vector>
 #include <string>
+#include <cstdint>
 
+#if defined(__has_include)
+#  if __has_include(<SPIRV-Reflect/spirv_reflect.h>)
+#    include <SPIRV-Reflect/spirv_reflect.h>
+#    define HAS_SPIRV_REFLECT 1
+#  else
+#    define HAS_SPIRV_REFLECT 0
+#  endif
+#else
+#  define HAS_SPIRV_REFLECT 0
+#endif
 
-#include <slang/slang.h>
-#include <slang/slang-com-ptr.h>
+#if defined(__has_include)
+#  if __has_include(<slang/slang.h>) && __has_include(<slang/slang-com-ptr.h>)
+#    include <slang/slang.h>
+#    include <slang/slang-com-ptr.h>
+#    define HAS_SLANG 1
+#  else
+#    define HAS_SLANG 0
+#  endif
+#else
+#  define HAS_SLANG 0
+#endif
 
 #include "vk_handle.hpp"
 
@@ -22,6 +41,7 @@ public:
     struct Reflection_Info {
         VkShaderStageFlagBits stage = VK_SHADER_STAGE_VERTEX_BIT;
 
+#if HAS_SPIRV_REFLECT
         // Descriptor sets and bindings
         std::vector<SpvReflectDescriptorBinding*> descriptor_bindings;
         std::vector<SpvReflectDescriptorSet*> descriptor_sets;
@@ -32,6 +52,7 @@ public:
         // Input/output variables (for vertex attributes and fragment outputs)
         std::vector<SpvReflectInterfaceVariable*> input_variables;
         std::vector<SpvReflectInterfaceVariable*> output_variables;
+#endif
 
         // Entry point
         std::string entry_point_name;
@@ -70,17 +91,20 @@ public:
 
     uint32_t Get_Format_Size(VkFormat format) const;
 private:
-
+#if HAS_SLANG
     Slang::ComPtr<slang::IGlobalSession> slang_global_session;
     Slang::ComPtr<slang::ISession> slang_session;
     Slang::ComPtr<slang::IModule> slang_module;
     Slang::ComPtr<ISlangBlob> spirv;
+#endif
 
     Shader_Module_Handle m_module;
     Reflection_Info m_reflection;
 
     // SPIRV-Reflect module (must be destroyed with spvReflectDestroyShaderModule)
+#if HAS_SPIRV_REFLECT
     SpvReflectShaderModule m_reflect_module = {};
+#endif
 
     const Device* m_device = nullptr;
 

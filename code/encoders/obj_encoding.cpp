@@ -1,3 +1,5 @@
+#include "obj_encoding.h"
+
 fn_internal i64 OBJ_SeekLineEnd(const char* buffer, i64 idx) {
   i64 NewIdx = idx;
 
@@ -65,7 +67,8 @@ fn_internal f32 OBJ_ParseFloat(const char* buffer, i64* idx) {
   return res * sign;
 }
 
-fn_internal obj_instance OBJ_InstanceInit(const char* path, obj_load_flags flags, Arena* arena) {
+fn_internal obj_instance OBJ_InstanceInit(const char* path, obj_load_flags flags, Allocator* allocator) {
+  (void)flags;
   obj_instance Instance = {};
   f_file ObjFile = F_OpenFile(path, RDONLY);
 
@@ -73,11 +76,11 @@ fn_internal obj_instance OBJ_InstanceInit(const char* path, obj_load_flags flags
 
   i32 LineIt = 0;
 
-  dyn_vector<vec4> ObjVector = dyn_vector<vec4>::Init(arena, mebibyte(25));
-  dyn_vector<vec3> ObjNormal = dyn_vector<vec3>::Init(arena, mebibyte(25));
-  dyn_vector<vec3> ObjText   = dyn_vector<vec3>::Init(arena, mebibyte(25));
+  dyn_vector<vec4> ObjVector = dyn_vector<vec4>::Init(allocator, mebibyte(25));
+  dyn_vector<vec3> ObjNormal = dyn_vector<vec3>::Init(allocator, mebibyte(25));
+  dyn_vector<vec3> ObjText   = dyn_vector<vec3>::Init(allocator, mebibyte(25));
 
-  u8* data = PushArray(arena, u8, FileLength);
+  u8* data = PushArray(allocator->arena, u8, FileLength);
   F_SetFileData(&ObjFile, data);
   F_FileRead(&ObjFile);
 
@@ -133,7 +136,7 @@ fn_internal obj_instance OBJ_InstanceInit(const char* path, obj_load_flags flags
 
         // Output or Store (Assuming you have a struct with color support)
         //fprintf(stdout, "[OBJ] V: %.3f %.3f %.3f | W: %.2f | C: %.2f %.2f %.2f\n", x, y, z, w, r, g, b);
-        ObjVector.Append(Vec4New(x, y, z, w));
+        ObjVector.AppendByCopy(Vec4New(x, y, z, w));
       } else if (OBJ_Peek((const char*)data, it) == 't') {
         it += 2; // Skip "t "
 
@@ -141,7 +144,7 @@ fn_internal obj_instance OBJ_InstanceInit(const char* path, obj_load_flags flags
         f32 x = OBJ_ParseFloat((const char*)data, &it);
         f32 y = OBJ_ParseFloat((const char*)data, &it);
 
-        ObjText.Append( { x, y, 0 });
+        ObjText.AppendByCopy({ x, y, 0 });
 
       } else if (OBJ_Peek((const char*)data, it) == 'n') {
         it += 2; // Skip "n "
@@ -151,7 +154,7 @@ fn_internal obj_instance OBJ_InstanceInit(const char* path, obj_load_flags flags
         f32 y = OBJ_ParseFloat((const char*)data, &it);
         f32 z = OBJ_ParseFloat((const char*)data, &it);
 
-        ObjNormal.Append({x, y, z});
+        ObjNormal.AppendByCopy({x, y, z});
 
       } else if (OBJ_Peek((const char*)data, it) == 'p') {
       }

@@ -39,6 +39,10 @@ void dyn_vector<T>::AppendByCopy(T value) {
 
 template<typename T>
 void dyn_vector<T>::PushFirst(T & value) {
+  if (Len >= Size) {
+    u64 new_resize = (Size == 0) ? 1 : 2 * Size;
+    Resize(new_resize);
+  }
   /* shift existing elements one slot to the right */
   if (Len > 0) {
     memmove(
@@ -54,12 +58,20 @@ void dyn_vector<T>::PushFirst(T & value) {
 
 template<typename T>
 void dyn_vector<T>::Pop() {
+  assert(Len > 0 && "[dyn_vector] Pop Error, vector is empty");
+  if (Len == 0) {
+    return;
+  }
   Offset -= sizeof(T);
   Len -= 1;
 }
 
 template<typename T>
 void dyn_vector<T>::Delete(u64 idx) {
+  assert(idx < Len && "[dyn_vector] Delete Error, index out of bounds");
+  if (idx >= Len) {
+    return;
+  }
   u64 IdxOffset = idx * sizeof(T);
 
   memmove(
