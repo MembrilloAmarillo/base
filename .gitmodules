@@ -9,6 +9,12 @@
 [submodule "code/third-party/SDL"]
     path = code/third-party/SDL
     url = https://github.com/libsdl-org/SDL.git
+[submodule "code/third-party/cgltf"]
+    path = code/third-party/cgltf
+    url = https://github.com/jkuhlmann/cgltf.git
 [submodule "code/third-party/imgui"]
 	path = code/third-party/imgui
 	url = https://github.com/ocornut/imgui.git
+[submodule "code/third-party/NoGraphicsAPI"]
+	path = code/third-party/NoGraphicsAPI
+	url = git@github.com:sebbbi/NoGraphicsAPI.git

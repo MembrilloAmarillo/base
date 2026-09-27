@@ -78,6 +78,9 @@ if(USE_FREETYPE)
   add_compile_definitions(USE_FREETYPE)
 endif()
 
+# NoGraphicsAPI library
+add_subdirectory(code/third-party/NoGraphicsAPI EXCLUDE_FROM_ALL)
+
 # KTX: build all C sources under code/third-party/ktx/lib as a static lib
 file(GLOB KTX_C_SOURCES RELATIVE ${CMAKE_SOURCE_DIR} "code/third-party/ktx/lib/*.c")
 if(KTX_C_SOURCES)
