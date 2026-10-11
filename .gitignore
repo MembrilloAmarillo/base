@@ -4,6 +4,8 @@
 .pdb
 .o
 .obj
+.ilk
+.spv
 
 # build dir
 build/

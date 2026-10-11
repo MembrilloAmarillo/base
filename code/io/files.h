@@ -83,7 +83,7 @@ F_OpenFile(const char* c, f_flags o_flags) {
     if (o_flags & WRONLY) {
         dwDesiredAccess |= GENERIC_WRITE;
     }
-    // Si quieres leer después de abrir en escritura, asegúrate de pedir lectura también:
+    // Si quieres leer despues de abrir en escritura, asegurate de pedir lectura tambien:
     if ((o_flags & WRONLY) && !(o_flags & RDONLY)) {
         // si solo WRONLY, pero vas a leer, añade lectura
         dwDesiredAccess |= GENERIC_READ;

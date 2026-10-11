@@ -4,7 +4,7 @@
 :: call "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvarsall.bat" x64
 :: === VARIABLES DE USUARIO ===
 :: Set these paths according to your system
-set "GLSLC_PATH=C:\VulkanSDK\1.4.321.1\Bin\glslc.exe"
+set "GLSLC_PATH=C:\VulkanSDK\1.4.363.0\Bin\glslc.exe"
 set SDL_PATH=".\code\third-party\SDL\VisualC\x64\Debug\"
 :: Compiler
 set CC=cl
@@ -13,14 +13,14 @@ set CXX=cl
 :: Debug flags
 set CFLAGS_DEBUG=/nologo /std:c++17 /FC /Z7 /DDEBUG /W3 /wd4996 /wd4576 /Od /Ob1 /EHsc
 set CXXFLAGS_DEBUG=/nologo /std:c++17 /FC /Z7 /W3 /wd4996 /wd4576 /Od /Ob1 /EHsc
-set INC=/Icode /I"C:\VulkanSDK\1.4.321.1\Include" /I".\code\third-party\SDL\include"
+set INC=/Icode /I"C:\VulkanSDK\1.4.363.0\Include" /I".\code\third-party\SDL\include"
 
 :: Release flags
 set CFLAGS_RELEASE=/O2 /W3 /wd4996 /std:c++17
-set CXXFLAGS_RELEASE=/O2 /std:c++17 /W3 
+set CXXFLAGS_RELEASE=/O2 /std:c++17 /W3
 
 :: Libraries (Windows .lib files)
-set LIBS=kernel32.lib ntdll.lib user32.lib gdi32.lib /LIBPATH:%SDL_PATH% SDL3.lib /LIBPATH:"C:\VulkanSDK\1.4.321.1\Lib" vulkan-1.lib ws2_32.lib
+set LIBS=kernel32.lib ntdll.lib user32.lib gdi32.lib /LIBPATH:%SDL_PATH% SDL3.lib /LIBPATH:"C:\VulkanSDK\1.4.363.0\Lib" vulkan-1.lib ws2_32.lib
 
 :: Source files
 set XXHASH=code\third-party\xxhash.c
@@ -47,9 +47,11 @@ if /i "%1"=="DrawSample"    goto draw_sample
 if /i "%1"=="todolist"      goto todolist
 if /i "%1"=="csv_test"      goto csv_test
 if /i "%1"=="obj_test"      goto obj_test
+if /i "%1"=="vulkan_cube_test" goto vulkan_cube_test
+if /i "%1"=="graphics_api_test" goto graphics_api_test
 if /i "%2"=="SDL_USAGE"     set SDL_USAGE=/D SDL_USAGE
 
-echo Usage: %0 [all^|debug^|release^|shaders^|clean]
+echo Usage: %0 [all^|debug^|release^|shaders^|clean^|RenderLibrary^|DrawSample^|todolist^|csv_test^|obj_test^|vulkan_cube_test^|graphics_api_test]
 exit /b 1
 
 :all
@@ -135,6 +137,43 @@ if errorlevel 1 exit /b 1
 echo ObjLoad build completed.
 exit /b
 
+:vulkan_cube_test
+echo Compiling Vulkan cube test...
+call :graphics_test_backend
+if errorlevel 1 exit /b 1
+%CXX% /nologo /std:c++20 /FC /Z7 /W3 /Od /EHsc /D_CRT_SECURE_NO_WARNINGS %INC% code\test\vulkan_cube_test.cpp /link graphics_cube.obj %LIBS% /OUT:vulkan_cube_test.exe
+if errorlevel 1 exit /b 1
+echo Vulkan cube test build completed. Run vulkan_cube_test.exe --frames 120 or --interactive.
+exit /b 0
+
+:graphics_api_test
+echo Compiling graphics API tests...
+call :graphics_test_backend
+if errorlevel 1 exit /b 1
+%CC% /nologo /TC /std:clatest /FC /Z7 /W3 /Od /D_CRT_SECURE_NO_WARNINGS /Icode code\test\graphics_api_test.c /link graphics_cube.obj %LIBS% /OUT:graphics_api_test.exe
+if errorlevel 1 exit /b 1
+echo Graphics API tests built. Run graphics_api_test.exe from the repository root.
+exit /b 0
+
+:: Shared setup: clients need no Vulkan headers; only the backend needs %INC%.
+:graphics_test_backend
+if not exist "%GLSLC_PATH%" (
+    echo Error: glslc not found at %GLSLC_PATH%.
+    exit /b 1
+)
+for %%S in (cube.vert cube.frag cube_ui.vert cube_ui.frag) do (
+    "%GLSLC_PATH%" --target-env=vulkan1.2 "code\test\shaders\%%S" -o "code\test\shaders\%%S.spv"
+    if errorlevel 1 exit /b 1
+)
+:: Compile the C API separately; the test no longer depends on VMA or Slang.
+%CC% /nologo /TC /std:clatest /FC /Z7 /W3 /Od %INC% /c code\rendering\graphics.c /Fo:graphics_cube.obj
+if errorlevel 1 exit /b 1
+if not exist SDL3.dll (
+    copy /y %SDL_PATH%SDL3.dll .\SDL3.dll >nul
+    if errorlevel 1 exit /b 1
+)
+exit /b 0
+
 :release
 echo Compiling %RELEASE_EXE% (Release)...
 del /q vk_mem_alloc_release.obj 2>nul
@@ -175,5 +214,6 @@ exit /b
 echo Cleaning build artifacts...
 del /q *.exe *.pdb *.obj *.ilk 2>nul
 del /q .\data\*.spv 2>nul
+del /q .\code\test\shaders\*.spv 2>nul
 echo Clean completed.
 exit /b
