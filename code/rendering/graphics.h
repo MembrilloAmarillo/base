@@ -339,11 +339,14 @@ Graphics_Result graphics_create_pso(
 	Gpu_PSO_Desc_t *desc
 );
 
-Graphics_Result graphics_draw();
+Graphics_Result graphics_draw(VkCommandBuffer cmd, uint32_t n_vertices, uint32_t n_instances);
 Graphics_Result graphics_bind_pso(Graphics_Device_t *device, VkPipeline pipeline);
 Graphics_Result graphics_bind_pso_layout(Graphics_Device_t *device, VkPipeline pipeline, VkPipelineLayout layout);
 Graphics_Result graphics_bind_compute();
+
 Graphics_Result graphics_alloc(Graphics_Device_t *device, Gpu_Buffer_t *buffer, VkDeviceSize size, Gpu_Alloc_Type_t alloc_type);
+Graphics_Result graphics_memcpy(Graphics_Device_t *device, Gpu_Buffer_t *buffer_dst, void *data, Gpu_Range_t range);
+Graphics_Result graphics_copy(Graphics_Device_t *device, Gpu_Buffer_t *buffer_dst, Gpu_Buffer_t *buffer_src, Gpu_Range_t range, VkCommandBuffer cmd);
 Graphics_Result graphics_push_constant(Graphics_Device_t *device, const void *data, size_t size);
 Graphics_Result graphics_push_uniform_buffer();
 

@@ -69,7 +69,8 @@ F_OpenFile(const char* c, f_flags o_flags) {
 
     f.Fd = open(c, flags, 0644);
     if (f.Fd == -1) {
-        // Optionally set an error flag in f_file
+      // Optionally set an error flag in f_file
+        printf("[ERROR] Could not open file %s\n", c);
     }
 
 #elif _WIN32

@@ -46,7 +46,7 @@ Graphics_Result graphics_get_win_size(Graphics_Device_t *device, int *w_out,
 
 Color_Target_Desc_t graphics_color_target_desc_default() {
   Color_Target_Desc_t color_target = {
-    .format = FORMAT_UNDEFINED,
+    .format = FORMAT_RGBA8_SRGB,
 
     .blend = {
       .enabled = false,
@@ -360,7 +360,7 @@ Graphics_Result graphics_init(Graphics_Device_t *tDevice) {
     }
   }
 
-  VkFormat image_format = VK_FORMAT_B8G8R8A8_SRGB;
+  VkFormat image_format = VK_FORMAT_R8G8B8A8_SRGB;
   VkSwapchainCreateInfoKHR swapchain_ci = {
       .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
       .surface = surface,
@@ -764,6 +764,10 @@ Graphics_Result graphics_create_pso(
   return Graphics_NONE;
 }
 
+Graphics_Result graphics_draw(VkCommandBuffer cmd, uint32_t n_vertices, uint32_t n_instances) {
+    vkCmdDraw(cmd, n_vertices, n_instances, 0, 0);
+}
+
 Graphics_Result graphics_bind_pso(Graphics_Device_t *device, VkPipeline pipeline) {
   return graphics_bind_pso_layout(device, pipeline, VK_NULL_HANDLE);
 }
@@ -1049,7 +1053,7 @@ Gpu_Texture_t graphics_create_texture(
     int height
     ) {
     VkImageCreateInfo img_info = graphics_img_create_info(
-        VK_FORMAT_R8G8B8A8_UINT , (VkExtent3D){width, height, 1},
+        VK_FORMAT_R8G8B8A8_SRGB , (VkExtent3D){width, height, 1},
         VK_SAMPLE_COUNT_1_BIT, VK_IMAGE_TILING_OPTIMAL,
         VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT);
     VkImage image = VK_NULL_HANDLE;
@@ -1058,7 +1062,7 @@ Gpu_Texture_t graphics_create_texture(
 
     VkDeviceMemory img_memory = graphics_img_alloc(device, image);
     VkImageView img_view = graphics_img_view_create(device->device, image,
-                                                    VK_FORMAT_R8G8B8A8_UINT ,
+                                                    VK_FORMAT_R8G8B8A8_SRGB ,
                                                     VK_IMAGE_ASPECT_COLOR_BIT);
     assert(img_view != VK_NULL_HANDLE);
 
@@ -1066,7 +1070,7 @@ Gpu_Texture_t graphics_create_texture(
         .image = image,
         .view = img_view,
         .memory = img_memory,
-        .format = VK_FORMAT_R8G8B8A8_UINT ,
+        .format = VK_FORMAT_R8G8B8A8_SRGB,
         .array_layers = 1,
         .mip_levels   = 1,
         .barrier_aspects = VK_IMAGE_ASPECT_COLOR_BIT,
@@ -1092,7 +1096,7 @@ Graphics_Result graphics_texture_data(
   if (tTexture == NULL || data == NULL ||
       tDevice->command_pool == VK_NULL_HANDLE ||
       tTexture->image == VK_NULL_HANDLE ||
-      tTexture->format != VK_FORMAT_R8G8B8A8_UINT ||
+      tTexture->format != VK_FORMAT_R8G8B8A8_SRGB ||
       tTexture->extent.width == 0 || tTexture->extent.height == 0 ||
       tTexture->extent.depth != 1 || tTexture->mip_levels != 1 ||
       tTexture->array_layers != 1 ||
@@ -1996,7 +2000,7 @@ Graphics_Result graphics_update_swapchain(Graphics_Device_t *device) {
 
       .minImageCount = surface_cap.minImageCount,
 
-      .imageFormat = VK_FORMAT_B8G8R8A8_SRGB,
+      .imageFormat = VK_FORMAT_R8G8B8A8_SRGB,
       .imageColorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR,
 
       .imageExtent =
@@ -2051,7 +2055,7 @@ Graphics_Result graphics_update_swapchain(Graphics_Device_t *device) {
   for (uint32_t i = 0; i < device->swapchain_image_count; ++i) {
 
     device->swapchain_img_views[i] = graphics_img_view_create(
-        device->device, device->swapchain_images[i], VK_FORMAT_B8G8R8A8_SRGB,
+        device->device, device->swapchain_images[i], VK_FORMAT_R8G8B8A8_SRGB,
         VK_IMAGE_ASPECT_COLOR_BIT);
   }
 
