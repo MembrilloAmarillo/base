@@ -170,7 +170,7 @@ set(TEST_COMPILE_OPTIONS
 function(base_add_test target_name source_file)
   set(options NO_CTEST)
   set(oneValueArgs)
-  set(multiValueArgs LINK_LIBS LABELS COMPILE_DEFINITIONS)
+  set(multiValueArgs LINK_LIBS LABELS COMPILE_DEFINITIONS ARGS)
   cmake_parse_arguments(BASE_TEST "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
   add_executable(${target_name} ${source_file})
@@ -180,7 +180,7 @@ function(base_add_test target_name source_file)
   target_link_libraries(${target_name} PRIVATE ${COMMON_LIBS} ${BASE_TEST_LINK_LIBS})
 
   if(NOT BASE_TEST_NO_CTEST)
-    add_test(NAME ${target_name} COMMAND ${target_name})
+    add_test(NAME ${target_name} COMMAND ${target_name} ${BASE_TEST_ARGS})
     if(BASE_TEST_LABELS)
       set_tests_properties(${target_name} PROPERTIES LABELS "${BASE_TEST_LABELS}")
     endif()
@@ -214,6 +214,7 @@ if(BASE_ENABLE_TESTS)
       base_add_test(test_vulkan_cube code/test/vulkan_cube_test.cpp
         LABELS integration graphics
         LINK_LIBS ${GRAPHICS_TEST_LINK_LIBS}
+        ARGS --frames 120
       )
     else()
       base_add_test(test_vulkan_cube code/test/vulkan_cube_test.cpp
@@ -221,6 +222,35 @@ if(BASE_ENABLE_TESTS)
         LABELS integration graphics
         LINK_LIBS ${GRAPHICS_TEST_LINK_LIBS}
       )
+    endif()
+    set(GRAPHICS_BACKEND_SOURCES code/rendering/graphics.c code/rendering/graphics_memory.c
+      code/rendering/graphics_upload.c code/rendering/graphics_lifetime.c)
+    target_sources(test_vulkan_cube PRIVATE ${GRAPHICS_BACKEND_SOURCES})
+    base_add_test(graphics_resource_test code/test/graphics_resource_test.c
+      NO_CTEST LABELS integration graphics LINK_LIBS ${GRAPHICS_TEST_LINK_LIBS})
+    target_sources(graphics_resource_test PRIVATE ${GRAPHICS_BACKEND_SOURCES})
+    if(REGISTER_GRAPHICS_TESTS)
+      add_test(NAME graphics_resource_test COMMAND graphics_resource_test)
+      set_tests_properties(graphics_resource_test PROPERTIES TIMEOUT 60 LABELS "integration;graphics")
+    endif()
+    find_program(BASE_GLSLC NAMES glslc HINTS "${VULKAN_SDK}/bin" "$ENV{VULKAN_SDK}/Bin" REQUIRED)
+    set(SAMPLE_SHADER_OUTPUTS)
+    foreach(SAMPLE_SHADER Sample.vert Sample.frag)
+      set(SAMPLE_SHADER_SOURCE "${CMAKE_SOURCE_DIR}/data/${SAMPLE_SHADER}")
+      add_custom_command(
+        OUTPUT "${SAMPLE_SHADER_SOURCE}.spv"
+        COMMAND "${BASE_GLSLC}" --target-env=vulkan1.2 "${SAMPLE_SHADER_SOURCE}" -o "${SAMPLE_SHADER_SOURCE}.spv"
+        DEPENDS "${SAMPLE_SHADER_SOURCE}"
+        VERBATIM
+      )
+      list(APPEND SAMPLE_SHADER_OUTPUTS "${SAMPLE_SHADER_SOURCE}.spv")
+    endforeach()
+    add_custom_target(sample_text_shaders DEPENDS ${SAMPLE_SHADER_OUTPUTS})
+    add_dependencies(test_vulkan_cube sample_text_shaders)
+    if(REGISTER_GRAPHICS_TESTS)
+      set_tests_properties(test_vulkan_cube PROPERTIES
+        WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+      set_property(TEST test_vulkan_cube PROPERTY TIMEOUT 60)
     endif()
   endif()
 

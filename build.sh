@@ -18,9 +18,10 @@ includes=(-Icode)
 pkg_cflags=()
 pkg_libs=()
 libs=(-lm -pthread -ldl)
+graphics_objects=(graphics_cube.o graphics_memory.o graphics_upload.o graphics_lifetime.o)
 
 usage() {
-    printf 'Usage: %s [all|debug|release|shaders|clean|RenderLibrary|DrawSample|todolist|csv_test|obj_test|vulkan_cube_test|graphics_api_test] [SDL_USAGE]\n' "$0" >&2
+    printf 'Usage: %s [all|debug|release|shaders|clean|RenderLibrary|DrawSample|todolist|csv_test|obj_test|vulkan_cube_test|graphics_api_test|graphics_resource_test] [SDL_USAGE]\n' "$0" >&2
 }
 
 require_sources() {
@@ -162,26 +163,39 @@ graphics_test_backend() {
         fi
     done
     "$CC" "${c_debug[@]}" "${includes[@]}" "${pkg_cflags[@]}" -c code/rendering/graphics.c -o graphics_cube.o
+    for source in graphics_memory graphics_upload graphics_lifetime; do
+        "$CC" "${c_debug[@]}" "${includes[@]}" "${pkg_cflags[@]}" -c "code/rendering/$source.c" -o "$source.o"
+    done
 }
 
 vulkan_cube_test() {
     setup_compiler
     graphics_test_backend
-    "$CXX" -std=c++20 -g -ggdb -O0 -Wall "${includes[@]}" "${pkg_cflags[@]}" code/test/vulkan_cube_test.cpp graphics_cube.o "${pkg_libs[@]}" "${libs[@]}" -o vulkan_cube_test
+    local source
+    for source in data/Sample.vert data/Sample.frag; do
+        "$GLSLC_PATH" --target-env=vulkan1.2 "$source" -o "$source.spv"
+    done
+    "$CXX" -std=c++20 -g -ggdb -O0 -Wall "${includes[@]}" "${pkg_cflags[@]}" code/test/vulkan_cube_test.cpp "${graphics_objects[@]}" "${pkg_libs[@]}" "${libs[@]}" -o vulkan_cube_test
     printf 'Vulkan cube test built. Run ./vulkan_cube_test --frames 120 or --interactive.\n'
 }
 
 graphics_api_test() {
     setup_compiler
     graphics_test_backend
-    "$CC" "${c_debug[@]}" "${includes[@]}" "${pkg_cflags[@]}" code/test/graphics_api_test.c graphics_cube.o "${pkg_libs[@]}" "${libs[@]}" -o graphics_api_test
+    "$CC" "${c_debug[@]}" "${includes[@]}" "${pkg_cflags[@]}" code/test/graphics_api_test.c "${graphics_objects[@]}" "${pkg_libs[@]}" "${libs[@]}" -o graphics_api_test
     printf 'Graphics API tests built. Run ./graphics_api_test from the repository root.\n'
+}
+
+graphics_resource_test() {
+    setup_compiler
+    graphics_test_backend
+    "$CC" "${c_debug[@]}" "${includes[@]}" "${pkg_cflags[@]}" code/test/graphics_resource_test.c "${graphics_objects[@]}" "${pkg_libs[@]}" "${libs[@]}" -o graphics_resource_test
 }
 
 clean() {
     rm -f -- ./*.o ./*.obj ./*.exe ./*.pdb ./*.ilk \
         ./UI_Sample ./UI_Sample_Release ./RenderLibrary ./DrawSample \
-        ./todolist ./csv_test ./ObjLoad ./vulkan_cube_test ./graphics_api_test \
+        ./todolist ./csv_test ./ObjLoad ./vulkan_cube_test ./graphics_api_test ./graphics_resource_test \
         ./data/*.spv ./code/Samples/shaders/*.spv
     local artifact
     for artifact in ./code/test/shaders/*.spv; do
@@ -223,5 +237,6 @@ case "$target" in
     obj_test) cpp_sample code/Samples/ObjLoad.cpp ObjLoad ;;
     vulkan_cube_test) vulkan_cube_test ;;
     graphics_api_test) graphics_api_test ;;
+    graphics_resource_test) graphics_resource_test ;;
     *) usage; exit 1 ;;
 esac

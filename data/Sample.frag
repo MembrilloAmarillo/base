@@ -1,9 +1,14 @@
 #version 450
 
 layout( location = 0 ) in vec4 in_color;
+layout( location = 1 ) in vec2 in_uv;
 layout( location = 0 ) out vec4 out_color;
+
+layout(set = 0, binding = 0) uniform sampler2D font_atlas;
 
 void main()
 {
-	out_color = in_color;
+    // The single-channel R8_UNORM atlas stores linear glyph coverage.
+    float coverage = texture(font_atlas, in_uv).r;
+    out_color = vec4(in_color.rgb, in_color.a * coverage);
 }

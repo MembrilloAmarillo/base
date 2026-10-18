@@ -27,6 +27,7 @@ set XXHASH=code\third-party\xxhash.c
 set SRC_C=code\Samples\UI_Sample.c
 set SampleRender_SRC=code\Samples\RenderLibrary.c
 set VMA=code\third-party\vk_mem_alloc.c
+set GRAPHICS_OBJECTS=graphics_cube.obj graphics_memory.obj graphics_upload.obj graphics_lifetime.obj
 
 :: Output files
 set RenderLibraryExe=RenderLibrary.exe
@@ -49,9 +50,10 @@ if /i "%1"=="csv_test"      goto csv_test
 if /i "%1"=="obj_test"      goto obj_test
 if /i "%1"=="vulkan_cube_test" goto vulkan_cube_test
 if /i "%1"=="graphics_api_test" goto graphics_api_test
+if /i "%1"=="graphics_resource_test" goto graphics_resource_test
 if /i "%2"=="SDL_USAGE"     set SDL_USAGE=/D SDL_USAGE
 
-echo Usage: %0 [all^|debug^|release^|shaders^|clean^|RenderLibrary^|DrawSample^|todolist^|csv_test^|obj_test^|vulkan_cube_test^|graphics_api_test]
+echo Usage: %0 [all^|debug^|release^|shaders^|clean^|RenderLibrary^|DrawSample^|todolist^|csv_test^|obj_test^|vulkan_cube_test^|graphics_api_test^|graphics_resource_test]
 exit /b 1
 
 :all
@@ -141,7 +143,11 @@ exit /b
 echo Compiling Vulkan cube test...
 call :graphics_test_backend
 if errorlevel 1 exit /b 1
-%CXX% /nologo /std:c++20 /FC /Z7 /W3 /Od /EHsc /D_CRT_SECURE_NO_WARNINGS %INC% code\test\vulkan_cube_test.cpp /link graphics_cube.obj %LIBS% /OUT:vulkan_cube_test.exe
+for %%S in (Sample.vert Sample.frag) do (
+    "%GLSLC_PATH%" --target-env=vulkan1.2 "data\%%S" -o "data\%%S.spv"
+    if errorlevel 1 exit /b 1
+)
+%CXX% /nologo /std:c++20 /FC /Z7 /W3 /Od /EHsc /D_CRT_SECURE_NO_WARNINGS %INC% code\test\vulkan_cube_test.cpp /link %GRAPHICS_OBJECTS% %LIBS% /OUT:vulkan_cube_test.exe
 if errorlevel 1 exit /b 1
 echo Vulkan cube test build completed. Run vulkan_cube_test.exe --frames 120 or --interactive.
 exit /b 0
@@ -150,12 +156,18 @@ exit /b 0
 echo Compiling graphics API tests...
 call :graphics_test_backend
 if errorlevel 1 exit /b 1
-%CC% /nologo /TC /std:clatest /FC /Z7 /W3 /Od /D_CRT_SECURE_NO_WARNINGS /Icode code\test\graphics_api_test.c /link graphics_cube.obj %LIBS% /OUT:graphics_api_test.exe
+%CC% /nologo /TC /std:clatest /FC /Z7 /W3 /Od /D_CRT_SECURE_NO_WARNINGS %INC% code\test\graphics_api_test.c /link %GRAPHICS_OBJECTS% %LIBS% /OUT:graphics_api_test.exe
 if errorlevel 1 exit /b 1
 echo Graphics API tests built. Run graphics_api_test.exe from the repository root.
 exit /b 0
 
-:: Shared setup: clients need no Vulkan headers; only the backend needs %INC%.
+:graphics_resource_test
+call :graphics_test_backend
+if errorlevel 1 exit /b 1
+%CC% /nologo /TC /std:clatest /FC /Z7 /W3 /Od %INC% code\test\graphics_resource_test.c /link %GRAPHICS_OBJECTS% %LIBS% /OUT:graphics_resource_test.exe
+exit /b %errorlevel%
+
+:: Shared graphics backend and shaders.
 :graphics_test_backend
 if not exist "%GLSLC_PATH%" (
     echo Error: glslc not found at %GLSLC_PATH%.
@@ -168,6 +180,10 @@ for %%S in (cube.vert cube.frag cube_ui.vert cube_ui.frag) do (
 :: Compile the C API separately; the test no longer depends on VMA or Slang.
 %CC% /nologo /TC /std:clatest /FC /Z7 /W3 /Od %INC% /c code\rendering\graphics.c /Fo:graphics_cube.obj
 if errorlevel 1 exit /b 1
+for %%S in (graphics_memory graphics_upload graphics_lifetime) do (
+    %CC% /nologo /TC /std:clatest /FC /Z7 /W3 /Od %INC% /c code\rendering\%%S.c /Fo:%%S.obj
+    if errorlevel 1 exit /b 1
+)
 if not exist SDL3.dll (
     copy /y %SDL_PATH%SDL3.dll .\SDL3.dll >nul
     if errorlevel 1 exit /b 1
@@ -204,8 +220,6 @@ if not exist "%GLSLC_PATH%" (
 "%GLSLC_PATH%" ./data/Sample.frag -o ./data/Sample.frag.spv
 "%GLSLC_PATH%" ./data/line.vert -o ./data/line.vert.spv
 "%GLSLC_PATH%" ./data/line.frag -o ./data/line.frag.spv
-"%GLSLC_PATH%" ./code/Samples/shaders/obj_showcase.vert -o ./code/Samples/shaders/obj_showcase.vert.spv
-"%GLSLC_PATH%" ./code/Samples/shaders/obj_showcase.frag -o ./code/Samples/shaders/obj_showcase.frag.spv
 
 echo Shader compilation completed.
 exit /b

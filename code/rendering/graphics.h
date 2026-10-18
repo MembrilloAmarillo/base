@@ -29,16 +29,26 @@ static inline Small_Vector_t _small_vector_alloc(uint8_t *data, size_t capacity)
 	return vector;
 }
 
-static inline void _small_vector_push(Small_Vector_t *vector, uint8_t* data, size_t size) {
-	if(vector->len >= vector->capacity) {
-		assert(false && "Vector already full");
-	}
-	memcpy(vector->data + vector->len, data, size);
-	vector->len += 1;
+static inline Small_Vector_t _small_vector_alloc_elements(uint8_t *data, size_t count, size_t stride) {
+    size_t capacity = (stride != 0U && count <= SIZE_MAX / stride) ? count * stride : 0U;
+    return _small_vector_alloc(data, capacity);
+}
+
+/* len and capacity are both byte counts. Failed pushes leave the vector intact. */
+static inline bool _small_vector_push(Small_Vector_t *vector, const void *data, size_t size) {
+    bool fits = vector != NULL && data != NULL && vector->data != NULL;
+    if (fits) {
+        fits = vector->len <= vector->capacity && size <= vector->capacity - vector->len;
+    }
+    if (fits) {
+        (void)memcpy(vector->data + vector->len, data, size);
+        vector->len += size;
+    }
+    return fits;
 }
 
 #define small_vector_push(vec, data, type) _small_vector_push(vec, data, sizeof(type))
-#define small_vector_alloc(data, cap, type) _small_vector_alloc(data, cap * sizeof(type))
+#define small_vector_alloc(data, cap, type) _small_vector_alloc_elements((data), (cap), sizeof(type))
 
 typedef enum {
   Graphics_NONE,
@@ -72,6 +82,12 @@ typedef enum {
 
 #define MAX_FRAMES_IN_FLIGHT 2
 #define MAX_COLOR_ATTACHMENTS 8
+#define MAX_RESOURCE_BINDINGS 64U
+#define GRAPHICS_MAX_MEMORY_BLOCKS 32U
+#define GRAPHICS_MAX_ALLOCATIONS 512U
+#define GRAPHICS_MEMORY_BLOCK_SIZE (16U * 1024U * 1024U)
+#define GRAPHICS_MAX_DESCRIPTOR_POOLS 16U
+#define GRAPHICS_MAX_UPLOAD_TEXTURES 64U
 #define SWAPCHAIN_FORMAT VK_FORMAT_B8G8R8A8_SRGB
 #define DEPTH_FORMAT     VK_FORMAT_D32_SFLOAT_S8_UINT
 
@@ -205,6 +221,46 @@ typedef struct {
 
 Rasterization_State_t graphics_rasterization_state_default();
 
+/* Internal, bounded allocator bookkeeping. Buffers and optimal images use
+ * separate blocks to satisfy bufferImageGranularity without extra padding. */
+typedef struct {
+    VkDeviceMemory memory;
+    VkDeviceSize size;
+    void *mapped;
+    uint32_t memory_type;
+    uint32_t live_allocations;
+    bool image;
+    bool dedicated;
+} Graphics_Memory_Block_t;
+
+typedef struct {
+    VkDeviceSize offset;
+    VkDeviceSize size;
+    uint32_t block; /* block index + 1, zero means unused */
+} Graphics_Allocation_t;
+
+typedef struct {
+    VkDescriptorPool pool;
+    uint32_t live_sets;
+    uint32_t available[6];
+} Graphics_Descriptor_Pool_t;
+
+typedef struct {
+    bool valid;
+    bool depth_enabled;
+    bool stencil_enabled;
+    VkPipeline pipeline;
+} Graphics_Command_State_t;
+
+typedef struct {
+    uint64_t memory_allocations;
+    uint64_t descriptor_pool_creations;
+    uint64_t upload_submissions;
+    uint64_t uploaded_bytes;
+    uint64_t pipeline_binds;
+    uint64_t dynamic_state_commands;
+} Graphics_Stats_t;
+
 typedef struct {
 	VkDevice device;
 	VkPhysicalDevice physical_device;
@@ -244,6 +300,12 @@ typedef struct {
 	PFN_vkCmdPushDataEXT vkCmdPushDataEXT_fn;
 	// Optional conventional layout for devices without descriptor heaps.
 	VkPipelineLayout pipeline_layout;
+    VkPipelineCache pipeline_cache;
+    Graphics_Memory_Block_t memory_blocks[GRAPHICS_MAX_MEMORY_BLOCKS];
+    Graphics_Allocation_t allocations[GRAPHICS_MAX_ALLOCATIONS];
+    Graphics_Descriptor_Pool_t descriptor_pools[GRAPHICS_MAX_DESCRIPTOR_POOLS];
+    Graphics_Command_State_t command_state[MAX_FRAMES_IN_FLIGHT];
+    Graphics_Stats_t stats;
 } Graphics_Device_t;
 
 typedef struct {
@@ -254,12 +316,18 @@ typedef struct {
 	VkDeviceMemory memory;
     void* mapped;
     VkDeviceAddress address;
+    VkDevice owner;
+    VkDeviceSize memory_offset;
+    uint32_t allocation; /* allocator slot + 1; do not free memory directly */
 } Gpu_Buffer_t;
 
 typedef struct {
 	VkDescriptorPool pool;
 	VkDescriptorSetLayout layout;
 	VkDescriptorSet set;
+    VkDevice owner;
+    uint32_t binding_count;
+    VkDescriptorSetLayoutBinding bindings[MAX_RESOURCE_BINDINGS];
 } Gpu_Resource_t;
 
 typedef struct {
@@ -272,7 +340,13 @@ typedef struct {
     VkImageAspectFlags barrier_aspects;
     uint32_t mip_levels;
     uint32_t array_layers;
+
+    VkSampler sampler; /* borrowed: destroy separately, may be shared */
     VkImageLayout layout;
+    VkImageUsageFlags usage;
+    VkDevice owner;
+    VkDeviceSize memory_offset;
+    uint32_t allocation;
 } Gpu_Texture_t;
 
 typedef struct {
@@ -284,6 +358,7 @@ typedef struct {
 	VkPipeline       pipeline;
 	VkPipelineLayout layout;
 	Gpu_Resource_t  *resource;
+    VkDevice owner;
 } Gpu_Pipeline_t;
 
 typedef enum {
@@ -291,6 +366,37 @@ typedef enum {
 	GPU_ONLY,
 	CACHED, // For VK_MEMORY_PROPERTY_HOST_CACHED_BIT
 } Gpu_Alloc_Type_t;
+
+typedef struct {
+    VkDeviceSize size;
+    VkBufferUsageFlags usage;
+    Gpu_Alloc_Type_t memory;
+} Gpu_Buffer_Desc_t;
+
+/* Tightly packed, single-mip 2D color textures. Supported upload formats:
+ * R8_UNORM, RG8_UNORM, RGBA8/BGRA8_UNORM and RGBA8/BGRA8_SRGB. */
+typedef struct {
+    uint32_t width;
+    uint32_t height;
+    Format_t format;
+    VkImageUsageFlags usage;
+} Gpu_Texture_Desc_t;
+
+/* A reusable upload batch owns a mapped staging buffer, command pool and fence.
+ * All APIs run on the graphics thread. Do not copy owning structs. Record and
+ * submit one batch before recording another that touches the same resources. */
+typedef struct {
+    VkDevice owner;
+    Gpu_Buffer_t staging;
+    VkCommandPool pool;
+    VkCommandBuffer command;
+    VkFence fence;
+    VkDeviceSize used;
+    uint32_t texture_count;
+    Gpu_Texture_t *textures[GRAPHICS_MAX_UPLOAD_TEXTURES];
+    bool recording;
+    bool pending;
+} Gpu_Upload_Batch_t;
 
 typedef struct {
 	// SPIR-V sizes are counts of uint32_t words, not bytes.
@@ -314,6 +420,49 @@ typedef struct {
 	size_t                       n_ranges;
 } Gpu_PSO_Desc_t;
 
+typedef enum {
+  SAMPLER         =  VK_DESCRIPTOR_TYPE_SAMPLER,
+  IMAGE_SAMPLER   =  VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+  SAMPLED_IMAGE   =  VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+  STORAGE_IMAGE   =  VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+  UNIFORM_BUFFER  =  VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+  STORAGE_BUFFER  =  VK_DESCRIPTOR_TYPE_STORAGE_BUFFER
+} Gpu_Resource_Type_t;
+
+typedef enum {
+  VERTEX        =  VK_SHADER_STAGE_VERTEX_BIT,
+  GEOMETRY      =  VK_SHADER_STAGE_GEOMETRY_BIT,
+  FRAGMENT      =  VK_SHADER_STAGE_FRAGMENT_BIT,
+  COMPUTE       =  VK_SHADER_STAGE_COMPUTE_BIT,
+  ALL_GRAPHICS  =  VK_SHADER_STAGE_ALL_GRAPHICS,
+  ALL           =  VK_SHADER_STAGE_ALL
+} Gpu_Shader_Stage_t;
+
+/**< The binding is automatically calculated per order of declaration in the
+ * array of resources
+ */
+typedef struct Gpu_Resource_Create_Info {
+    uint32_t binding_count;
+    const struct Gpu_Binding_Desc *bindings;
+} Gpu_Resource_Create_Info_t;
+
+typedef struct Gpu_Binding_Desc {
+    Gpu_Resource_Type_t type;
+    VkShaderStageFlags stages;
+    uint32_t count;
+} Gpu_Binding_Desc_t;
+
+typedef struct Gpu_Resource_Desc {
+    Gpu_Resource_t *resource;
+    uint32_t dst_binding; /**< descriptor binding within the set*/
+    uint32_t dst_array_elem; /**< is the starting element in that array. If the descriptor binding identified by dstSet and dstBinding has a descriptor type of VK_DESCRIPTOR_TYPE_INLINE_UNIFORM_BLOCK then dstArrayElement specifies the starting byte offset within the binding.*/
+    uint32_t descriptor_count; /**< number of descriptors to update */
+    VkDescriptorType descriptor_type;
+    /**< The array has to be of size descriptor_count **/
+    Gpu_Texture_t *textures; /**< Needed if there are textures to be passed as resource */
+    Gpu_Buffer_t *buffers;   /**< Needed if there are buffers to be passed as resource*/
+} Gpu_Resource_Desc_t;
+
 extern Color_Target_Desc_t g_default_color_target[1];
 
 extern Rasterization_State_t g_default_rasterization_state;
@@ -332,6 +481,15 @@ Graphics_Result graphics_get_win_size(Graphics_Device_t *device, int *w_out, int
 
 Graphics_Result graphics_load_functions();
 Graphics_Result graphics_init(Graphics_Device_t *tDevice);
+/* Initialize all output objects to zero. Creation rejects live output objects.
+ * Destroy user resources after their last GPU use, then shutdown. Shutdown
+ * waits for the device and releases shared allocator/pool storage. */
+Graphics_Result graphics_shutdown(Graphics_Device_t *device);
+Graphics_Result graphics_destroy_buffer(Graphics_Device_t *device, Gpu_Buffer_t *buffer);
+Graphics_Result graphics_destroy_texture(Graphics_Device_t *device, Gpu_Texture_t *texture);
+Graphics_Result graphics_destroy_resources(Graphics_Device_t *device, Gpu_Resource_t *resource);
+Graphics_Result graphics_destroy_pipeline(Graphics_Device_t *device, Gpu_Pipeline_t *pipeline);
+Graphics_Result graphics_destroy_sampler(Graphics_Device_t *device, VkSampler *sampler);
 
 Graphics_Result graphics_create_pso(
 	Graphics_Device_t *device,
@@ -340,30 +498,52 @@ Graphics_Result graphics_create_pso(
 );
 
 Graphics_Result graphics_draw(VkCommandBuffer cmd, uint32_t n_vertices, uint32_t n_instances);
-Graphics_Result graphics_bind_pso(Graphics_Device_t *device, VkPipeline pipeline);
-Graphics_Result graphics_bind_pso_layout(Graphics_Device_t *device, VkPipeline pipeline, VkPipelineLayout layout);
+Graphics_Result graphics_bind_pso(Graphics_Device_t *device, Gpu_Pipeline_t pipeline);
+/* Bind while recording. The first bind after invalidation initializes
+ * depth writes to true, depth compare to LESS, and stencil to ALWAYS/KEEP with
+ * full masks and reference zero. Subsequent binds preserve dynamic state.
+ * Enabling requires matching pipeline formats and render attachments. These
+ * setters only change the test enable; configure other dynamic state separately. */
+Graphics_Result graphics_set_depth_test_enabled(Graphics_Device_t *device, bool enabled);
+Graphics_Result graphics_set_stencil_test_enabled(Graphics_Device_t *device, bool enabled);
+/* Required after raw Vulkan commands change pipelines/depth/stencil state or
+ * reset the current command buffer. graphics_start_frame does this automatically. */
+void graphics_invalidate_state(Graphics_Device_t *device);
 Graphics_Result graphics_bind_compute();
 
 Graphics_Result graphics_alloc(Graphics_Device_t *device, Gpu_Buffer_t *buffer, VkDeviceSize size, Gpu_Alloc_Type_t alloc_type);
-Graphics_Result graphics_memcpy(Graphics_Device_t *device, Gpu_Buffer_t *buffer_dst, void *data, Gpu_Range_t range);
+Graphics_Result graphics_create_buffer(Graphics_Device_t *device, const Gpu_Buffer_Desc_t *desc, Gpu_Buffer_t *buffer_out);
+Graphics_Result graphics_memcpy(Graphics_Device_t *device, Gpu_Buffer_t *buffer_dst, const void *data, Gpu_Range_t range);
 Graphics_Result graphics_copy(Graphics_Device_t *device, Gpu_Buffer_t *buffer_dst, Gpu_Buffer_t *buffer_src, Gpu_Range_t range, VkCommandBuffer cmd);
+/* copy uses the same offset in both buffers. With a non-null recording command
+ * buffer it only records; with VK_NULL_HANDLE it submits and waits on a fence.
+ * The caller must wait for GPU use before modifying persistently mapped data. */
 Graphics_Result graphics_push_constant(Graphics_Device_t *device, const void *data, size_t size);
 Graphics_Result graphics_push_uniform_buffer();
 
 Graphics_Result graphics_create_sampler(Graphics_Device_t *device, VkSampler *sampler_out);
-Graphics_Result graphics_create_resources(Graphics_Device_t *device, uint32_t n_descriptors, Gpu_Resource_t *resource_out);
-Graphics_Result graphics_update_resources(Graphics_Device_t *device, VkWriteDescriptorSet descriptor_set);
+Graphics_Result graphics_create_resources(Graphics_Device_t *device, const Gpu_Resource_Create_Info_t *desc, Gpu_Resource_t *resource_out);
+Graphics_Result graphics_update_resources(Graphics_Device_t *device, Gpu_Resource_Desc_t resource_desc);
+Graphics_Result graphics_update_resources_raw(Graphics_Device_t *device, VkWriteDescriptorSet descriptor_set);
 
-Gpu_Texture_t graphics_create_texture(Graphics_Device_t *device, int width, int height);
-/* Upload a complete RGBA8_UINT texture created by graphics_create_texture().
- * data_size must be width * height * 4 bytes, with tightly packed rows.
- * Call outside frame recording, on the graphics thread. Waits for completion
- * and leaves the texture in VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL.
- * Do not change the texture's layout externally between uploads. */
+Graphics_Result graphics_create_texture(Graphics_Device_t *device, const Gpu_Texture_Desc_t *desc, Gpu_Texture_t *texture_out);
+/* Blocking convenience upload. For repeated uploads use a reusable batch.
+ * data_size must exactly match width * height * bytes_per_pixel. */
 Graphics_Result graphics_texture_data(Graphics_Device_t *device, Gpu_Texture_t *texture, const void *data, size_t data_size);
+Graphics_Result graphics_create_upload_batch(Graphics_Device_t *device, VkDeviceSize capacity, Gpu_Upload_Batch_t *batch);
+Graphics_Result graphics_begin_uploads(Graphics_Device_t *device, Gpu_Upload_Batch_t *batch);
+Graphics_Result graphics_upload_texture(Graphics_Device_t *device, Gpu_Upload_Batch_t *batch, Gpu_Texture_t *texture, const void *data, size_t size);
+Graphics_Result graphics_upload_buffer(Graphics_Device_t *device, Gpu_Upload_Batch_t *batch, Gpu_Buffer_t *buffer, const void *data, Gpu_Range_t range);
+/* Submit is asynchronous on the graphics queue; later submissions on that queue
+ * see the data. Texture pointers must stay valid through submit. Wait before
+ * reusing staging storage or destroying any uploaded resource. */
+Graphics_Result graphics_submit_uploads(Graphics_Device_t *device, Gpu_Upload_Batch_t *batch);
+Graphics_Result graphics_wait_uploads(Graphics_Device_t *device, Gpu_Upload_Batch_t *batch);
+Graphics_Result graphics_cancel_uploads(Graphics_Device_t *device, Gpu_Upload_Batch_t *batch);
+Graphics_Result graphics_destroy_upload_batch(Graphics_Device_t *device, Gpu_Upload_Batch_t *batch);
 VkImageCreateInfo graphics_img_create_info(VkFormat format, VkExtent3D extent, VkSampleCountFlags sample_count, VkImageTiling tiling, VkImageUsageFlags usage);
-VkDeviceMemory graphics_img_alloc(Graphics_Device_t *tDevice, VkImage image);
-VkImageView graphics_img_view_create(VkDevice device, VkImage image, VkFormat format, VkImageAspectFlags aspect);
+Graphics_Result graphics_img_alloc(Graphics_Device_t *device, VkImage image, VkDeviceMemory *memory_out);
+Graphics_Result graphics_img_view_create(VkDevice device, VkImage image, VkFormat format, VkImageAspectFlags aspect, VkImageView *view_out);
 
 /*< Command buffers */
 Graphics_Result graphics_create_commands(Graphics_Device_t *device, uint32_t queue_family, VkCommandPool *command_pool_out, VkCommandBuffer command_buffers_out[MAX_FRAMES_IN_FLIGHT]);
@@ -379,7 +559,8 @@ Graphics_Result graphics_new_semaphore(Graphics_Device_t *device, VkSemaphore *s
 Graphics_Result graphics_new_fence(Graphics_Device_t *device, VkFence *fence_out);
 void graphics_issue_image_barrier(
 	VkCommandBuffer command_buffer,
-	VkImage image,
+    VkImage image,
+    VkImageAspectFlags aspects,
 	VkPipelineStageFlags2 src_stage,
 	VkAccessFlags2 src_access,
 	VkPipelineStageFlags2 dst_stage,

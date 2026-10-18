@@ -9,7 +9,7 @@
 #include <vulkan/vk_platform.h>
 #include <vulkan/vulkan_core.h>
 
-#include "graphics.h"
+#include "graphics_internal.h"
 
 Color_Target_Desc_t g_default_color_target[1] = {0};
 Rasterization_State_t g_default_rasterization_state = {0};
@@ -109,7 +109,9 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL graphics_debug_callback(
 }
 
 Graphics_Result graphics_init(Graphics_Device_t *tDevice) {
-
+  if (tDevice == NULL || tDevice->device != VK_NULL_HANDLE) {
+    return Graphics_ERROR_INVALID_ARGUMENT;
+  }
   *tDevice = (Graphics_Device_t){0};
 
   g_default_color_target[0] = graphics_color_target_desc_default();
@@ -245,6 +247,10 @@ Graphics_Result graphics_init(Graphics_Device_t *tDevice) {
     if (vkEnumeratePhysicalDevices(instance, &device_count, NULL) !=
         VK_SUCCESS) {
       tResult = Graphics_NO_DEVICE;
+    } else if (device_count == 0U) {
+      tResult = Graphics_NO_DEVICE;
+    } else if (device_count > SMALL_VECTOR_CAPACITY) {
+      tResult = Graphics_OUT_OF_RANGE;
     }
   }
 
@@ -270,6 +276,11 @@ Graphics_Result graphics_init(Graphics_Device_t *tDevice) {
   if (tResult == Graphics_NONE) {
     vkGetPhysicalDeviceQueueFamilyProperties(devices_buffer[selected_device],
                                              &queue_family_count, NULL);
+    if (queue_family_count == 0U || queue_family_count > SMALL_VECTOR_CAPACITY) {
+      tResult = Graphics_OUT_OF_RANGE;
+    }
+  }
+  if (tResult == Graphics_NONE) {
     vkGetPhysicalDeviceQueueFamilyProperties(devices_buffer[selected_device],
                                              &queue_family_count,
                                              queue_family_buffer);
@@ -383,6 +394,8 @@ Graphics_Result graphics_init(Graphics_Device_t *tDevice) {
     if (vkGetSwapchainImagesKHR(tDevice->device, swapchain,
                                 &swapchain_image_count, NULL) != VK_SUCCESS) {
       tResult = Graphics_NO_SWAPCHAIN;
+    } else if (swapchain_image_count > SMALL_VECTOR_CAPACITY) {
+      tResult = Graphics_OUT_OF_RANGE;
     }
   }
 
@@ -403,6 +416,7 @@ Graphics_Result graphics_init(Graphics_Device_t *tDevice) {
                                  .layerCount = 1}};
         if (vkCreateImageView(tDevice->device, &viewCI, NULL,
                               &swapchain_img_views[i]) != VK_SUCCESS) {
+          swapchain_img_views[i] = VK_NULL_HANDLE;
           tResult = Graphics_NO_SWAPCHAIN;
         }
       }
@@ -445,25 +459,25 @@ Graphics_Result graphics_init(Graphics_Device_t *tDevice) {
         vkCreateImage(tDevice->device, &depth_ci, NULL, &depth_image);
 
     if (result != VK_SUCCESS) {
+      depth_image = VK_NULL_HANDLE;
       tResult = Graphics_NO_DEPTH_FORMAT;
     }
 
-    depth_img_mem = graphics_img_alloc(tDevice, depth_image);
-    depth_img_view = graphics_img_view_create(
-        tDevice->device, depth_image, depth_format, VK_IMAGE_ASPECT_DEPTH_BIT);
-
-    if (depth_img_mem == VK_NULL_HANDLE) {
-      tResult = Graphics_NO_DEVICE_MEM;
+    if (tResult == Graphics_NONE) {
+      tResult = graphics_img_alloc(tDevice, depth_image, &depth_img_mem);
     }
-    if (depth_img_view == VK_NULL_HANDLE) {
-      tResult = Graphics_NO_IMAGE_VIEW;
+    if (tResult == Graphics_NONE) {
+      tResult = graphics_img_view_create(
+          tDevice->device, depth_image, depth_format, VK_IMAGE_ASPECT_DEPTH_BIT, &depth_img_view);
     }
   }
 
   if (tResult == Graphics_NONE) {
     for (int i = 0; i < MAX_FRAMES_IN_FLIGHT && tResult == Graphics_NONE; i++) {
       tResult = graphics_new_semaphore(tDevice, &image_semaphores[i]);
-      tResult = graphics_new_fence(tDevice, &fences[i]);
+      if (tResult == Graphics_NONE) {
+        tResult = graphics_new_fence(tDevice, &fences[i]);
+      }
     }
     for (uint32_t i = 0; i < swapchain_image_count && tResult == Graphics_NONE;
          i++) {
@@ -539,7 +553,12 @@ Graphics_Result graphics_create_pso(
     return Graphics_NO_DEVICE;
   }
 
-  if (desc == NULL || desc->first_stage_spirv == NULL || desc->first_stage_spirv_size == 0) {
+  if (desc == NULL || desc->first_stage_spirv == NULL || desc->first_stage_spirv_size == 0 ||
+      pso_out->pipeline != VK_NULL_HANDLE || pso_out->layout != VK_NULL_HANDLE ||
+      desc->n_resources > SMALL_VECTOR_CAPACITY || desc->n_ranges > SMALL_VECTOR_CAPACITY ||
+      (desc->n_resources != 0U && desc->resources == NULL) ||
+      (desc->n_ranges != 0U && desc->ranges == NULL) ||
+      (desc->fragment_spirv_size != 0U && desc->fragment_spirv == NULL)) {
     return Graphics_NO_MEMORY;
   }
 
@@ -549,8 +568,6 @@ Graphics_Result graphics_create_pso(
 
   // pso layout
   if(desc->set_layout) {
-    assert(desc->n_ranges < SMALL_VECTOR_CAPACITY);
-    assert(desc->n_resources < SMALL_VECTOR_CAPACITY);
 
     VkPushConstantRange ranges[SMALL_VECTOR_CAPACITY] = {0};
     VkDescriptorSetLayout layouts[SMALL_VECTOR_CAPACITY] = {0};
@@ -574,6 +591,7 @@ Graphics_Result graphics_create_pso(
     layout.pSetLayouts = layouts;
 
     if(vkCreatePipelineLayout(device->device, &layout, NULL, &pso_out->layout) != VK_SUCCESS) {
+      pso_out->layout = VK_NULL_HANDLE;
       return Graphics_ERROR_RESOURCE;
     }
   }
@@ -594,12 +612,16 @@ Graphics_Result graphics_create_pso(
   VkShaderModule fragment_module = VK_NULL_HANDLE;
   if (vkCreateShaderModule(device->device, &first_stage_module_info, NULL,
                            &first_module) != VK_SUCCESS) {
+    vkDestroyPipelineLayout(device->device, pso_out->layout, NULL);
+    *pso_out = (Gpu_Pipeline_t){0};
     return Graphics_ERROR_RESOURCE;
   }
   if (desc->fragment_spirv_size > 0 &&
       vkCreateShaderModule(device->device, &fragment_module_info, NULL,
                            &fragment_module) != VK_SUCCESS) {
     vkDestroyShaderModule(device->device, first_module, NULL);
+    vkDestroyPipelineLayout(device->device, pso_out->layout, NULL);
+    *pso_out = (Gpu_Pipeline_t){0};
     return Graphics_ERROR_RESOURCE;
   }
 
@@ -744,9 +766,15 @@ Graphics_Result graphics_create_pso(
       .basePipelineIndex = -1,
   };
 
+  if (device->pipeline_cache == VK_NULL_HANDLE) {
+    VkPipelineCacheCreateInfo cache_info = {.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO};
+    if (vkCreatePipelineCache(device->device, &cache_info, NULL, &device->pipeline_cache) != VK_SUCCESS) {
+      device->pipeline_cache = VK_NULL_HANDLE;
+    }
+  }
   VkResult vk_result = vkCreateGraphicsPipelines(
     device->device,
-    VK_NULL_HANDLE,
+    device->pipeline_cache,
     1,
     &pso_info,
     NULL,
@@ -757,33 +785,111 @@ Graphics_Result graphics_create_pso(
   vkDestroyShaderModule(device->device, first_module, NULL);
 
   if (vk_result != VK_SUCCESS) {
-    pso_out->pipeline = VK_NULL_HANDLE;
+    vkDestroyPipeline(device->device, pso_out->pipeline, NULL);
+    vkDestroyPipelineLayout(device->device, pso_out->layout, NULL);
+    *pso_out = (Gpu_Pipeline_t){0};
     return Graphics_NO_MEMORY;
   }
 
+  pso_out->owner = device->device;
   return Graphics_NONE;
 }
 
 Graphics_Result graphics_draw(VkCommandBuffer cmd, uint32_t n_vertices, uint32_t n_instances) {
     vkCmdDraw(cmd, n_vertices, n_instances, 0, 0);
+    return Graphics_NONE;
 }
 
-Graphics_Result graphics_bind_pso(Graphics_Device_t *device, VkPipeline pipeline) {
-  return graphics_bind_pso_layout(device, pipeline, VK_NULL_HANDLE);
-}
-
-Graphics_Result graphics_bind_pso_layout(Graphics_Device_t *device, VkPipeline pipeline, VkPipelineLayout layout) {
+Graphics_Result graphics_bind_pso(Graphics_Device_t *device, Gpu_Pipeline_t pipeline) {
   Graphics_Result tResult = Graphics_NONE;
 
-  if(device == NULL) {
+  if (device == NULL || device->device == VK_NULL_HANDLE) {
     tResult = Graphics_NO_DEVICE;
+  } else if (device->frame_index >= MAX_FRAMES_IN_FLIGHT ||
+             pipeline.pipeline == VK_NULL_HANDLE || pipeline.owner != device->device) {
+    tResult = Graphics_ERROR_INVALID_ARGUMENT;
+  } else if (device->command_buffers[device->frame_index] == VK_NULL_HANDLE) {
+    tResult = Graphics_NO_COMMAND_BUFFER;
   } else {
-    device->pipeline_layout = layout;
+    device->pipeline_layout = pipeline.layout;
     VkCommandBuffer cmd = device->command_buffers[device->frame_index];
-    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+    Graphics_Command_State_t *state = &device->command_state[device->frame_index];
+    if (!state->valid || state->pipeline != pipeline.pipeline) {
+      vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.pipeline);
+      ++device->stats.pipeline_binds;
+      state->pipeline = pipeline.pipeline;
+    }
+    if (!state->valid) {
+      // Initialize once per recording, then preserve explicit dynamic state.
+      vkCmdSetDepthTestEnable(cmd, VK_FALSE);
+      vkCmdSetDepthWriteEnable(cmd, VK_TRUE);
+      vkCmdSetDepthCompareOp(cmd, VK_COMPARE_OP_LESS);
+      vkCmdSetStencilTestEnable(cmd, VK_FALSE);
+      vkCmdSetStencilOp(cmd, VK_STENCIL_FACE_FRONT_AND_BACK,
+                      VK_STENCIL_OP_KEEP, VK_STENCIL_OP_KEEP,
+                      VK_STENCIL_OP_KEEP, VK_COMPARE_OP_ALWAYS);
+      vkCmdSetStencilCompareMask(cmd, VK_STENCIL_FACE_FRONT_AND_BACK, UINT32_MAX);
+      vkCmdSetStencilWriteMask(cmd, VK_STENCIL_FACE_FRONT_AND_BACK, UINT32_MAX);
+      vkCmdSetStencilReference(cmd, VK_STENCIL_FACE_FRONT_AND_BACK, 0U);
+      device->stats.dynamic_state_commands += 8U;
+      state->valid = true;
+      state->depth_enabled = false;
+      state->stencil_enabled = false;
+    }
   }
 
   return tResult;
+}
+
+Graphics_Result graphics_set_depth_test_enabled(Graphics_Device_t *device, bool enabled) {
+  Graphics_Result tResult = Graphics_NONE;
+
+  if (device == NULL || device->device == VK_NULL_HANDLE) {
+    tResult = Graphics_NO_DEVICE;
+  } else if (device->frame_index >= MAX_FRAMES_IN_FLIGHT) {
+    tResult = Graphics_ERROR_INVALID_ARGUMENT;
+  } else if (device->command_buffers[device->frame_index] == VK_NULL_HANDLE) {
+    tResult = Graphics_NO_COMMAND_BUFFER;
+  } else {
+    Graphics_Command_State_t *state = &device->command_state[device->frame_index];
+    if (!state->valid || state->depth_enabled != enabled) {
+      vkCmdSetDepthTestEnable(device->command_buffers[device->frame_index],
+                            enabled ? VK_TRUE : VK_FALSE);
+      ++device->stats.dynamic_state_commands;
+      state->depth_enabled = enabled;
+    }
+  }
+
+  return tResult;
+}
+
+Graphics_Result graphics_set_stencil_test_enabled(Graphics_Device_t *device, bool enabled) {
+  Graphics_Result tResult = Graphics_NONE;
+
+  if (device == NULL || device->device == VK_NULL_HANDLE) {
+    tResult = Graphics_NO_DEVICE;
+  } else if (device->frame_index >= MAX_FRAMES_IN_FLIGHT) {
+    tResult = Graphics_ERROR_INVALID_ARGUMENT;
+  } else if (device->command_buffers[device->frame_index] == VK_NULL_HANDLE) {
+    tResult = Graphics_NO_COMMAND_BUFFER;
+  } else {
+    Graphics_Command_State_t *state = &device->command_state[device->frame_index];
+    if (!state->valid || state->stencil_enabled != enabled) {
+      vkCmdSetStencilTestEnable(device->command_buffers[device->frame_index],
+                              enabled ? VK_TRUE : VK_FALSE);
+      ++device->stats.dynamic_state_commands;
+      state->stencil_enabled = enabled;
+    }
+  }
+
+  return tResult;
+}
+
+void graphics_invalidate_state(Graphics_Device_t *device) {
+  if (device != NULL && device->frame_index < MAX_FRAMES_IN_FLIGHT) {
+    device->command_state[device->frame_index] = (Graphics_Command_State_t){0};
+    device->pipeline_layout = VK_NULL_HANDLE;
+  }
 }
 
 Graphics_Result graphics_push_constant(Graphics_Device_t *device, const void *data, size_t size) {
@@ -825,193 +931,78 @@ Graphics_Result graphics_push_constant(Graphics_Device_t *device, const void *da
 
 Graphics_Result graphics_alloc(Graphics_Device_t *device, Gpu_Buffer_t *buffer,
                                VkDeviceSize size, Gpu_Alloc_Type_t alloc_type) {
-  Graphics_Result tResult = Graphics_NONE;
-
-  VkMemoryPropertyFlags required  = 0;
-  VkMemoryPropertyFlags preferred = 0;
-  VkMemoryPropertyFlags avoided   = 0;
-
-  switch (alloc_type) {
-  case CPU_VISIBLE: {
-    required = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-               VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
-    preferred = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
-  } break;
-
-  case GPU_ONLY: {
-    required = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
-    avoided = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
-  } break;
-
-  case CACHED: {
-    required = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-               VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
-
-    preferred = VK_MEMORY_PROPERTY_HOST_CACHED_BIT;
-  } break;
-  }
-
-  VkBufferUsageFlags usage =
-      VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT |
-      VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT |
-      VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT |
-      VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-
-  VkBufferCreateInfo buffer_info = {
-      .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-      .size = size,
-      .usage = usage,
-      .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+  Gpu_Buffer_Desc_t desc = {
+    .size = size,
+    .usage =
+       VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT |
+       VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT |
+       VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT |
+       VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+    .memory = alloc_type,
   };
-
-  if (vkCreateBuffer(device->device, &buffer_info, NULL, &buffer->buffer) !=
-      VK_SUCCESS) {
-    return Graphics_NO_BUFFER;
-  }
-
-  VkMemoryRequirements requirements = {0};
-  vkGetBufferMemoryRequirements(device->device, buffer->buffer, &requirements);
-
-  VkPhysicalDeviceMemoryProperties memory_properties = {0};
-  vkGetPhysicalDeviceMemoryProperties(device->physical_device,
-                                      &memory_properties);
-
-  uint32_t memory_type_index = UINT32_MAX;
-  int32_t best_score = INT32_MIN;
-
-  for (uint32_t i = 0; i < memory_properties.memoryTypeCount; ++i) {
-    if ((requirements.memoryTypeBits & (1u << i)) == 0) {
-      continue;
-    }
-
-    VkMemoryPropertyFlags flags =
-        memory_properties.memoryTypes[i].propertyFlags;
-
-    if ((flags & required) != required) {
-      continue;
-    }
-
-    int32_t score = 0;
-
-    if (preferred != 0) {
-      VkMemoryPropertyFlags preferred_flags = flags & preferred;
-
-      while (preferred_flags != 0) {
-        score += (preferred_flags & 1u) ? 1 : 0;
-        preferred_flags >>= 1u;
-      }
-    }
-
-    if (avoided != 0 && (flags & avoided) != 0) {
-      score -= 1000;
-    }
-
-    if (memory_type_index == UINT32_MAX || score > best_score) {
-      memory_type_index = i;
-      best_score = score;
-    }
-  }
-
-  if (memory_type_index == UINT32_MAX) {
-    vkDestroyBuffer(device->device, buffer->buffer, NULL);
-    buffer->buffer = VK_NULL_HANDLE;
-
-    return Graphics_NO_DEVICE_MEM;
-  }
-
-  VkMemoryAllocateFlagsInfo allocation_flags = {
-      .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO,
-      .flags = VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT,
-  };
-
-  VkMemoryAllocateInfo allocation_info = {
-      .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-      .pNext = &allocation_flags,
-      .allocationSize = requirements.size,
-      .memoryTypeIndex = memory_type_index,
-  };
-
-  if (vkAllocateMemory(device->device, &allocation_info, NULL,
-                       &buffer->memory) != VK_SUCCESS) {
-    vkDestroyBuffer(device->device, buffer->buffer, NULL);
-
-    buffer->buffer = VK_NULL_HANDLE;
-    buffer->memory = VK_NULL_HANDLE;
-
-    return Graphics_NO_DEVICE_MEM;
-  }
-
-  if (vkBindBufferMemory(device->device, buffer->buffer, buffer->memory, 0) !=
-      VK_SUCCESS) {
-    vkFreeMemory(device->device, buffer->memory, NULL);
-    vkDestroyBuffer(device->device, buffer->buffer, NULL);
-
-    buffer->buffer = VK_NULL_HANDLE;
-    buffer->memory = VK_NULL_HANDLE;
-
-    return Graphics_NO_DEVICE_MEM;
-  }
-
-  buffer->size = size;
-  buffer->usage = usage;
-  buffer->type = memory_properties.memoryTypes[memory_type_index].propertyFlags;
-  buffer->mapped = NULL;
-  buffer->address = 0;
-
-  if ((buffer->type & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) != 0) {
-    if (vkMapMemory(device->device, buffer->memory, 0, VK_WHOLE_SIZE, 0,
-                    &buffer->mapped) != VK_SUCCESS) {
-      vkFreeMemory(device->device, buffer->memory, NULL);
-      vkDestroyBuffer(device->device, buffer->buffer, NULL);
-
-      buffer->buffer = VK_NULL_HANDLE;
-      buffer->memory = VK_NULL_HANDLE;
-      buffer->mapped = NULL;
-
-      return Graphics_NO_MEMORY;
-    }
-  }
-
-  VkBufferDeviceAddressInfo address_info = {
-      .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,
-      .buffer = buffer->buffer,
-  };
-
-  buffer->address = vkGetBufferDeviceAddress(device->device, &address_info);
-
-  return tResult;
+  return graphics_create_buffer(device, &desc, buffer);
 }
 
 Graphics_Result graphics_memcpy(Graphics_Device_t *device,
-                                Gpu_Buffer_t *buffer_dst, void *data,
+                                Gpu_Buffer_t *buffer_dst, const void *data,
                                 Gpu_Range_t range) {
-
-    if (buffer_dst->mapped && (range.size - range.offset) <= buffer_dst->size) {
-      memcpy(buffer_dst->mapped + range.offset, data, range.size);
-      return Graphics_NONE;
+    Graphics_Result result = Graphics_NONE;
+    if (device == NULL || device->device == VK_NULL_HANDLE) {
+        result = Graphics_NO_DEVICE;
+    } else if (buffer_dst == NULL || data == NULL || buffer_dst->buffer == VK_NULL_HANDLE || buffer_dst->owner != device->device) {
+        result = Graphics_ERROR_INVALID_ARGUMENT;
+    } else if (range.offset > buffer_dst->size || range.size > buffer_dst->size - range.offset) {
+        result = Graphics_OUT_OF_RANGE;
+    } else if (buffer_dst->mapped == NULL) {
+        result = Graphics_NO_MAPPEABLE;
+    } else {
+        (void)memcpy((uint8_t*)buffer_dst->mapped + range.offset, data, range.size);
     }
-    return !buffer_dst->mapped ? Graphics_NO_MAPPEABLE : Graphics_OUT_OF_RANGE;
+    return result;
 }
 
 Graphics_Result graphics_copy(Graphics_Device_t *device, Gpu_Buffer_t *buffer_dst, Gpu_Buffer_t *buffer_src, Gpu_Range_t range, VkCommandBuffer cmd) {
-
-    bool local_cmd = false;
-    if (cmd == VK_NULL_HANDLE) {
-        local_cmd = true;
-        graphics_single_time_command_buffer(device, device->command_pool, &cmd);
+    Graphics_Result result = Graphics_NONE;
+    bool local_cmd = cmd == VK_NULL_HANDLE;
+    if (device == NULL || device->device == VK_NULL_HANDLE) {
+        result = Graphics_NO_DEVICE;
+    } else if (buffer_dst == NULL || buffer_src == NULL ||
+               buffer_dst->owner != device->device || buffer_src->owner != device->device ||
+               buffer_dst->buffer == VK_NULL_HANDLE || buffer_src->buffer == VK_NULL_HANDLE ||
+               buffer_dst->buffer == buffer_src->buffer || range.size == 0U ||
+               (buffer_src->usage & VK_BUFFER_USAGE_TRANSFER_SRC_BIT) == 0U ||
+               (buffer_dst->usage & VK_BUFFER_USAGE_TRANSFER_DST_BIT) == 0U) {
+        result = Graphics_ERROR_INVALID_ARGUMENT;
+    } else if (range.offset > buffer_dst->size || range.size > buffer_dst->size - range.offset ||
+               range.offset > buffer_src->size || range.size > buffer_src->size - range.offset) {
+        result = Graphics_OUT_OF_RANGE;
     }
-    
-    if (buffer_dst->size <= range.size && buffer_src->size <= range.size) {
-        VkBufferCopy copy_reg = (VkBufferCopy){.srcOffset = range.offset,
-            .dstOffset = range.offset,
-            .size = range.size};
-        if(local_cmd) {graphics_begin_command_buffer(cmd);}
-        vkCmdCopyBuffer(cmd, buffer_src->buffer, buffer_dst->buffer, 1,
-                        &copy_reg);
-        if(local_cmd) {graphics_end_command_buffer(cmd);}
-        return Graphics_NONE;
+    if (result == Graphics_NONE && local_cmd) {
+        result = graphics_single_time_command_buffer(device, device->command_pool, &cmd);
+        if (result == Graphics_NONE) {
+            result = graphics_begin_command_buffer(cmd);
+        }
     }
-    return Graphics_NO_MEMORY;
+    if (result == Graphics_NONE) {
+        VkBufferCopy region = {range.offset, range.offset, range.size};
+        graphics_issue_memory_barrier(cmd, VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+            VK_ACCESS_2_MEMORY_READ_BIT | VK_ACCESS_2_MEMORY_WRITE_BIT,
+            VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_ACCESS_2_TRANSFER_READ_BIT | VK_ACCESS_2_TRANSFER_WRITE_BIT);
+        vkCmdCopyBuffer(cmd, buffer_src->buffer, buffer_dst->buffer, 1U, &region);
+        graphics_issue_memory_barrier(cmd, VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+            VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT | VK_PIPELINE_STAGE_2_HOST_BIT,
+            VK_ACCESS_2_MEMORY_READ_BIT | VK_ACCESS_2_MEMORY_WRITE_BIT | VK_ACCESS_2_HOST_READ_BIT);
+        if (local_cmd) {
+            result = graphics_end_command_buffer(cmd);
+            if (result == Graphics_NONE) {
+                result = graphics_submit_and_wait(device, cmd);
+            }
+        }
+    }
+    if (local_cmd && cmd != VK_NULL_HANDLE) {
+        vkFreeCommandBuffers(device->device, device->command_pool, 1U, &cmd);
+    }
+    return result;
 }
 
 /**
@@ -1047,151 +1038,30 @@ VkImageCreateInfo graphics_img_create_info(VkFormat format, VkExtent3D extent,
  * ------------------------------------------------------------------
  */
 
-Gpu_Texture_t graphics_create_texture(
-    Graphics_Device_t *device,
-    int width,
-    int height
-    ) {
-    VkImageCreateInfo img_info = graphics_img_create_info(
-        VK_FORMAT_R8G8B8A8_SRGB , (VkExtent3D){width, height, 1},
-        VK_SAMPLE_COUNT_1_BIT, VK_IMAGE_TILING_OPTIMAL,
-        VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT);
-    VkImage image = VK_NULL_HANDLE;
-    VkResult vk_result = vkCreateImage(device->device, &img_info, NULL, &image);
-    assert(vk_result == VK_SUCCESS);
-
-    VkDeviceMemory img_memory = graphics_img_alloc(device, image);
-    VkImageView img_view = graphics_img_view_create(device->device, image,
-                                                    VK_FORMAT_R8G8B8A8_SRGB ,
-                                                    VK_IMAGE_ASPECT_COLOR_BIT);
-    assert(img_view != VK_NULL_HANDLE);
-
-    return (Gpu_Texture_t){
-        .image = image,
-        .view = img_view,
-        .memory = img_memory,
-        .format = VK_FORMAT_R8G8B8A8_SRGB,
-        .array_layers = 1,
-        .mip_levels   = 1,
-        .barrier_aspects = VK_IMAGE_ASPECT_COLOR_BIT,
-        .extent = (VkExtent3D){(uint32_t)width, (uint32_t)height, 1},
-        .layout = VK_IMAGE_LAYOUT_UNDEFINED,
-    };
-}
-
-/**
- * ------------------------------------------------------------------
- */
-
 Graphics_Result graphics_texture_data(
   Graphics_Device_t *tDevice,
   Gpu_Texture_t *tTexture,
   const void *data,
   size_t data_size
 ) {
-  if (tDevice == NULL || tDevice->device == VK_NULL_HANDLE ||
-      tDevice->physical_device == VK_NULL_HANDLE) {
-    return Graphics_NO_DEVICE;
+  Graphics_Result tResult = Graphics_NONE;
+  Gpu_Upload_Batch_t batch = {0};
+  tResult = graphics_create_upload_batch(tDevice, data_size, &batch);
+  if (tResult == Graphics_NONE) {
+    tResult = graphics_begin_uploads(tDevice, &batch);
   }
-  if (tTexture == NULL || data == NULL ||
-      tDevice->command_pool == VK_NULL_HANDLE ||
-      tTexture->image == VK_NULL_HANDLE ||
-      tTexture->format != VK_FORMAT_R8G8B8A8_SRGB ||
-      tTexture->extent.width == 0 || tTexture->extent.height == 0 ||
-      tTexture->extent.depth != 1 || tTexture->mip_levels != 1 ||
-      tTexture->array_layers != 1 ||
-      tTexture->barrier_aspects != VK_IMAGE_ASPECT_COLOR_BIT ||
-      (tTexture->layout != VK_IMAGE_LAYOUT_UNDEFINED &&
-       tTexture->layout != VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)) {
-    return Graphics_ERROR_INVALID_ARGUMENT;
+  if (tResult == Graphics_NONE) {
+    tResult = graphics_upload_texture(tDevice, &batch, tTexture, data, data_size);
   }
-
-  size_t width = tTexture->extent.width;
-  size_t height = tTexture->extent.height;
-  if (width > SIZE_MAX / 4 || height > SIZE_MAX / (width * 4) ||
-      data_size != width * height * 4) {
-    return Graphics_ERROR_INVALID_ARGUMENT;
+  if (tResult == Graphics_NONE) {
+    tResult = graphics_submit_uploads(tDevice, &batch);
   }
-
-  Gpu_Buffer_t staging = {0};
-  VkCommandBuffer command_buffer = VK_NULL_HANDLE;
-  Graphics_Result tResult = graphics_alloc(tDevice, &staging, data_size, CPU_VISIBLE);
-  if (tResult != Graphics_NONE) {
-    return tResult;
+  if (batch.owner != VK_NULL_HANDLE) {
+    Graphics_Result cleanup = graphics_destroy_upload_batch(tDevice, &batch);
+    if (tResult == Graphics_NONE) {
+      tResult = cleanup;
+    }
   }
-  memcpy(staging.mapped, data, data_size);
-
-  tResult = graphics_single_time_command_buffer(
-      tDevice, tDevice->command_pool, &command_buffer);
-  if (tResult != Graphics_NONE) {
-    goto cleanup;
-  }
-  tResult = graphics_begin_command_buffer(command_buffer);
-  if (tResult != Graphics_NONE) {
-    goto cleanup;
-  }
-
-  bool first_upload = tTexture->layout == VK_IMAGE_LAYOUT_UNDEFINED;
-  graphics_issue_image_barrier(
-      command_buffer, tTexture->image,
-      first_upload ? VK_PIPELINE_STAGE_2_NONE : VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
-      first_upload ? VK_ACCESS_2_NONE : VK_ACCESS_2_SHADER_SAMPLED_READ_BIT,
-      VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT,
-      tTexture->layout, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-
-  VkBufferImageCopy copy = {
-      .imageSubresource = {
-          .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-          .mipLevel = 0,
-          .baseArrayLayer = 0,
-          .layerCount = 1,
-      },
-      .imageExtent = tTexture->extent,
-  };
-  vkCmdCopyBufferToImage(command_buffer, staging.buffer, tTexture->image,
-                         VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy);
-
-  graphics_issue_image_barrier(
-      command_buffer, tTexture->image,
-      VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT,
-      VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT, VK_ACCESS_2_SHADER_SAMPLED_READ_BIT,
-      VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-      VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-
-  tResult = graphics_end_command_buffer(command_buffer);
-  if (tResult != Graphics_NONE) {
-    goto cleanup;
-  }
-
-  VkQueue queue = VK_NULL_HANDLE;
-  vkGetDeviceQueue(tDevice->device, tDevice->queue_family, 0, &queue);
-  VkCommandBufferSubmitInfo command_info = {
-      .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO,
-      .commandBuffer = command_buffer,
-  };
-  VkSubmitInfo2 submit_info = {
-      .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
-      .commandBufferInfoCount = 1,
-      .pCommandBufferInfos = &command_info,
-  };
-  if (vkQueueSubmit2(queue, 1, &submit_info, VK_NULL_HANDLE) != VK_SUCCESS) {
-    tResult = Graphics_ERROR_QUEUE_SUBMIT;
-    goto cleanup;
-  }
-  if (vkQueueWaitIdle(queue) != VK_SUCCESS) {
-    tResult = Graphics_ERROR_FENCE;
-    goto cleanup;
-  }
-  tTexture->layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-
-cleanup:
-  if (command_buffer != VK_NULL_HANDLE) {
-    vkFreeCommandBuffers(tDevice->device, tDevice->command_pool, 1, &command_buffer);
-  }
-  vkUnmapMemory(tDevice->device, staging.memory);
-  vkDestroyBuffer(tDevice->device, staging.buffer, NULL);
-  vkFreeMemory(tDevice->device, staging.memory, NULL);
-
   return tResult;
 }
 
@@ -1199,42 +1069,50 @@ cleanup:
  * ------------------------------------------------------------------
  */
 
-VkDeviceMemory graphics_img_alloc(Graphics_Device_t *tDevice, VkImage image) {
-  VkMemoryRequirements memory_req;
-
-  vkGetImageMemoryRequirements(tDevice->device, image, &memory_req);
-
-  VkMemoryAllocateInfo mem_alloc_info = {
-      .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-      .pNext = NULL,
-
-      .allocationSize = memory_req.size,
-
-      .memoryTypeIndex =
-          find_memory_type(tDevice->physical_device, memory_req.memoryTypeBits,
-                           VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)};
-
-  VkDeviceMemory img_memory = VK_NULL_HANDLE;
-
-  VkResult result =
-      vkAllocateMemory(tDevice->device, &mem_alloc_info, NULL, &img_memory);
-
-  assert(result == VK_SUCCESS);
-
-  result = vkBindImageMemory(tDevice->device, image, img_memory, 0);
-
-  assert(result == VK_SUCCESS);
-
-  return img_memory;
+Graphics_Result graphics_img_alloc(Graphics_Device_t *device, VkImage image, VkDeviceMemory *memory_out) {
+  Graphics_Result result = Graphics_NONE;
+  VkDeviceMemory memory = VK_NULL_HANDLE;
+  if (device == NULL || device->device == VK_NULL_HANDLE || device->physical_device == VK_NULL_HANDLE) {
+    result = Graphics_NO_DEVICE;
+  } else if (image == VK_NULL_HANDLE || memory_out == NULL || *memory_out != VK_NULL_HANDLE) {
+    result = Graphics_ERROR_INVALID_ARGUMENT;
+  } else {
+    VkMemoryRequirements requirements;
+    vkGetImageMemoryRequirements(device->device, image, &requirements);
+    uint32_t type = find_memory_type(device->physical_device, requirements.memoryTypeBits,
+                                     VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    if (type == UINT32_MAX) {
+      result = Graphics_NO_DEVICE_MEM;
+    } else {
+      VkMemoryDedicatedAllocateInfo dedicated = {
+          .sType = VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO, .image = image,
+      };
+      VkMemoryAllocateInfo info = {
+          .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+          .pNext = &dedicated,
+          .allocationSize = requirements.size, .memoryTypeIndex = type,
+      };
+      if (vkAllocateMemory(device->device, &info, NULL, &memory) != VK_SUCCESS) {
+        result = Graphics_NO_DEVICE_MEM;
+      } else if (vkBindImageMemory(device->device, image, memory, 0U) != VK_SUCCESS) {
+        vkFreeMemory(device->device, memory, NULL);
+        result = Graphics_NO_DEVICE_MEM;
+      } else {
+        *memory_out = memory;
+      }
+    }
+  }
+  return result;
 }
 
 /**
  * ------------------------------------------------------------------
  */
 
-VkImageView graphics_img_view_create(VkDevice device, VkImage image,
+Graphics_Result graphics_img_view_create(VkDevice device, VkImage image,
                                      VkFormat format,
-                                     VkImageAspectFlags aspect) {
+                                     VkImageAspectFlags aspect, VkImageView *view_out) {
+  Graphics_Result result = Graphics_NONE;
   VkImageViewCreateInfo view_ci = {
       .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
       .pNext = NULL,
@@ -1255,13 +1133,13 @@ VkImageView graphics_img_view_create(VkDevice device, VkImage image,
                            .baseArrayLayer = 0,
                            .layerCount = 1}};
 
-  VkImageView img_view = VK_NULL_HANDLE;
-
-  VkResult result = vkCreateImageView(device, &view_ci, NULL, &img_view);
-
-  assert(result == VK_SUCCESS);
-
-  return img_view;
+  if (device == VK_NULL_HANDLE || image == VK_NULL_HANDLE || view_out == NULL || *view_out != VK_NULL_HANDLE) {
+    result = Graphics_ERROR_INVALID_ARGUMENT;
+  } else if (vkCreateImageView(device, &view_ci, NULL, view_out) != VK_SUCCESS) {
+    *view_out = VK_NULL_HANDLE;
+    result = Graphics_NO_IMAGE_VIEW;
+  }
+  return result;
 }
 
 /**
@@ -1270,11 +1148,15 @@ VkImageView graphics_img_view_create(VkDevice device, VkImage image,
 
 Graphics_Result graphics_create_sampler(Graphics_Device_t *device,
                                         VkSampler *sampler_out) {
-  Graphics_Result tResult = Graphics_NONE;
-  if (device == NULL || device->device == VK_NULL_HANDLE || sampler_out == NULL) {
-    return Graphics_ERROR_INVALID_ARGUMENT;
-  }
-  VkSamplerCreateInfo sampler_ci = {
+  Graphics_Result result = Graphics_NONE;
+  if (device == NULL || device->device == VK_NULL_HANDLE || device->physical_device == VK_NULL_HANDLE) {
+    result = Graphics_NO_DEVICE;
+  } else if (sampler_out == NULL || *sampler_out != VK_NULL_HANDLE) {
+    result = Graphics_ERROR_INVALID_ARGUMENT;
+  } else {
+    VkPhysicalDeviceProperties properties;
+    vkGetPhysicalDeviceProperties(device->physical_device, &properties);
+    VkSamplerCreateInfo sampler_ci = {
       .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
       .magFilter = VK_FILTER_LINEAR,
       .minFilter = VK_FILTER_LINEAR,
@@ -1283,12 +1165,192 @@ Graphics_Result graphics_create_sampler(Graphics_Device_t *device,
       .addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
       .addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
       .anisotropyEnable = VK_TRUE,
-      .maxAnisotropy = 8.0f,
+      .maxAnisotropy = properties.limits.maxSamplerAnisotropy < 8.0f ? properties.limits.maxSamplerAnisotropy : 8.0f,
       .maxLod = VK_LOD_CLAMP_NONE,
-  };
-  if (vkCreateSampler(device->device, &sampler_ci, NULL, sampler_out) !=
+    };
+    if (vkCreateSampler(device->device, &sampler_ci, NULL, sampler_out) !=
       VK_SUCCESS) {
-    tResult = Graphics_NO_SAMPLER;
+      *sampler_out = VK_NULL_HANDLE;
+      result = Graphics_NO_SAMPLER;
+    }
+  }
+
+  return result;
+}
+
+/**
+ * ------------------------------------------------------------------
+ */
+
+static Graphics_Result allocate_descriptor_set(Graphics_Device_t *device,
+    const VkDescriptorPoolSize *sizes, uint32_t size_count, Gpu_Resource_t *resource) {
+  Graphics_Result result = Graphics_NONE;
+  bool allocated = false;
+  for (uint32_t i = 0U; i < GRAPHICS_MAX_DESCRIPTOR_POOLS && !allocated && result == Graphics_NONE; ++i) {
+    Graphics_Descriptor_Pool_t *pool = &device->descriptor_pools[i];
+    bool created = pool->pool == VK_NULL_HANDLE;
+    if (created) {
+      VkDescriptorPoolSize budgets[] = {
+        {VK_DESCRIPTOR_TYPE_SAMPLER, 128U}, {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 128U},
+        {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 128U}, {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 128U},
+        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 128U}, {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 128U},
+      };
+      for (uint32_t b = 0U; b < 6U; ++b) {
+        for (uint32_t s = 0U; s < size_count; ++s) {
+          if (budgets[b].type == sizes[s].type && budgets[b].descriptorCount < sizes[s].descriptorCount) {
+            budgets[b].descriptorCount = sizes[s].descriptorCount;
+          }
+        }
+      }
+      VkDescriptorPoolCreateInfo info = {
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+        .flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
+        .maxSets = 64U, .poolSizeCount = 6U, .pPoolSizes = budgets,
+      };
+      if (vkCreateDescriptorPool(device->device, &info, NULL, &pool->pool) != VK_SUCCESS) {
+        pool->pool = VK_NULL_HANDLE;
+        result = Graphics_NO_MEMORY;
+      } else {
+        ++device->stats.descriptor_pool_creations;
+        for (uint32_t b = 0U; b < 6U; ++b) {
+          pool->available[b] = budgets[b].descriptorCount;
+        }
+      }
+    }
+    bool fits = pool->live_sets < 64U;
+    for (uint32_t s = 0U; s < size_count && fits; ++s) {
+      uint32_t type_index = graphics_descriptor_type_index(sizes[s].type);
+      fits = type_index < 6U && pool->available[type_index] >= sizes[s].descriptorCount;
+    }
+    if (result == Graphics_NONE && fits) {
+      VkDescriptorSetAllocateInfo info = {
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+        .descriptorPool = pool->pool, .descriptorSetCount = 1U, .pSetLayouts = &resource->layout,
+      };
+      VkResult vk_result = vkAllocateDescriptorSets(device->device, &info, &resource->set);
+      if (vk_result == VK_SUCCESS) {
+        resource->pool = pool->pool;
+        ++pool->live_sets;
+        for (uint32_t s = 0U; s < size_count; ++s) {
+          uint32_t type_index = graphics_descriptor_type_index(sizes[s].type);
+          pool->available[type_index] -= sizes[s].descriptorCount;
+        }
+        allocated = true;
+      } else {
+        resource->set = VK_NULL_HANDLE;
+        if (created) {
+          vkDestroyDescriptorPool(device->device, pool->pool, NULL);
+          *pool = (Graphics_Descriptor_Pool_t){0};
+          result = Graphics_ERROR_RESOURCE;
+        } else if (vk_result != VK_ERROR_OUT_OF_POOL_MEMORY && vk_result != VK_ERROR_FRAGMENTED_POOL) {
+          result = Graphics_ERROR_RESOURCE;
+        }
+      }
+    }
+  }
+  if (result == Graphics_NONE && !allocated) {
+    result = Graphics_NO_MEMORY;
+  }
+  return result;
+}
+
+/**
+ * ------------------------------------------------------------------
+ */
+
+Graphics_Result graphics_create_resources(Graphics_Device_t *device,
+                                       const Gpu_Resource_Create_Info_t *desc,
+                                       Gpu_Resource_t *resource_out) {
+  Graphics_Result tResult = Graphics_NONE;
+  Gpu_Resource_t resource = {0};
+  VkDescriptorSetLayoutBinding bindings[MAX_RESOURCE_BINDINGS] = {0};
+  // One pool entry per descriptor type, including repeated types in the layout.
+  VkDescriptorPoolSize pool_sizes[6] = {0};
+  uint32_t pool_size_count = 0U;
+  Gpu_Resource_Create_Info_t resource_info = {0};
+  if (desc != NULL) {
+    resource_info = *desc;
+  }
+
+  if (device == NULL || device->device == VK_NULL_HANDLE ||
+      resource_out == NULL || resource_out->set != VK_NULL_HANDLE ||
+      resource_info.binding_count == 0U || resource_info.bindings == NULL) {
+    tResult = Graphics_ERROR_INVALID_ARGUMENT;
+  } else if (resource_info.binding_count > MAX_RESOURCE_BINDINGS) {
+    tResult = Graphics_OUT_OF_RANGE;
+  }
+
+  for (uint32_t i = 0U;
+       (i < resource_info.binding_count) && (tResult == Graphics_NONE); ++i) {
+    const Gpu_Binding_Desc_t *binding = &resource_info.bindings[i];
+    switch (binding->type) {
+      case SAMPLER:
+      case IMAGE_SAMPLER:
+      case SAMPLED_IMAGE:
+      case STORAGE_IMAGE:
+      case UNIFORM_BUFFER:
+      case STORAGE_BUFFER:
+        break;
+      default:
+        tResult = Graphics_ERROR_INVALID_ARGUMENT;
+        break;
+    }
+    if (binding->stages == 0U || binding->count == 0U) {
+      tResult = Graphics_ERROR_INVALID_ARGUMENT;
+    }
+
+    if (tResult == Graphics_NONE) {
+      VkDescriptorType type = (VkDescriptorType)binding->type;
+      bindings[i] = (VkDescriptorSetLayoutBinding){
+          .binding = i,
+          .descriptorType = type,
+          .descriptorCount = binding->count,
+          .stageFlags = binding->stages,
+      };
+
+      uint32_t pool_index = 0U;
+      while ((pool_index < pool_size_count) && (pool_sizes[pool_index].type != type)) {
+        ++pool_index;
+      }
+      if (pool_index == pool_size_count) {
+        pool_sizes[pool_index].type = type;
+        ++pool_size_count;
+      }
+      if (pool_sizes[pool_index].descriptorCount >
+          UINT32_MAX - binding->count) {
+        tResult = Graphics_OUT_OF_RANGE;
+      } else {
+        pool_sizes[pool_index].descriptorCount += binding->count;
+      }
+    }
+  }
+
+  if (tResult == Graphics_NONE) {
+    VkDescriptorSetLayoutCreateInfo layout_info = {
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+        .bindingCount = resource_info.binding_count,
+        .pBindings = bindings,
+    };
+    if (vkCreateDescriptorSetLayout(device->device, &layout_info, NULL,
+                                    &resource.layout) != VK_SUCCESS) {
+      resource.layout = VK_NULL_HANDLE;
+      tResult = Graphics_ERROR_RESOURCE;
+    }
+  }
+
+  if (tResult == Graphics_NONE) {
+    tResult = allocate_descriptor_set(device, pool_sizes, pool_size_count, &resource);
+  }
+
+  if (tResult == Graphics_NONE) {
+    resource.owner = device->device;
+    resource.binding_count = resource_info.binding_count;
+    (void)memcpy(resource.bindings, bindings, resource_info.binding_count * sizeof(bindings[0]));
+    *resource_out = resource;
+  } else {
+    if (resource.layout != VK_NULL_HANDLE) {
+      vkDestroyDescriptorSetLayout(device->device, resource.layout, NULL);
+    }
   }
 
   return tResult;
@@ -1297,124 +1359,86 @@ Graphics_Result graphics_create_sampler(Graphics_Device_t *device,
 /**
  * ------------------------------------------------------------------
  */
-
-Graphics_Result graphics_create_resources(Graphics_Device_t *device,
-                                          uint32_t n_descriptors,
-                                          Gpu_Resource_t *resource_out) {
-  if (device == NULL || resource_out == NULL || n_descriptors == 0) {
-    return Graphics_ERROR_INVALID_ARGUMENT;
+Graphics_Result
+graphics_update_resources(Graphics_Device_t *device,
+                          Gpu_Resource_Desc_t resource_desc) {
+  Graphics_Result result = Graphics_NONE;
+  VkDescriptorImageInfo image_info[SMALL_VECTOR_CAPACITY] = {0};
+  VkDescriptorBufferInfo buffer_info[SMALL_VECTOR_CAPACITY] = {0};
+  VkDescriptorType type = resource_desc.descriptor_type;
+  bool buffer_type = type == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER || type == VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+  if (device == NULL || device->device == VK_NULL_HANDLE) {
+    result = Graphics_NO_DEVICE;
+  } else if (resource_desc.resource == NULL || resource_desc.resource->owner != device->device ||
+             resource_desc.resource->set == VK_NULL_HANDLE || resource_desc.descriptor_count == 0U ||
+             (buffer_type ? resource_desc.buffers == NULL : resource_desc.textures == NULL)) {
+    result = Graphics_ERROR_INVALID_ARGUMENT;
+  } else if (resource_desc.descriptor_count > SMALL_VECTOR_CAPACITY ||
+             resource_desc.dst_binding >= resource_desc.resource->binding_count) {
+    result = Graphics_OUT_OF_RANGE;
+  } else {
+    const VkDescriptorSetLayoutBinding *binding = &resource_desc.resource->bindings[resource_desc.dst_binding];
+    if (type != binding->descriptorType) {
+      result = Graphics_ERROR_INVALID_ARGUMENT;
+    } else if (resource_desc.dst_array_elem > binding->descriptorCount ||
+               resource_desc.descriptor_count > binding->descriptorCount - resource_desc.dst_array_elem) {
+      result = Graphics_OUT_OF_RANGE;
+    }
   }
-
-  *resource_out = (Gpu_Resource_t){0};
-
-  VkDescriptorSetLayoutBinding binding = {
-      .binding = 0,
-      .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-      .descriptorCount = n_descriptors,
-      .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
-      .pImmutableSamplers = NULL,
-  };
-
-  VkDescriptorSetLayoutBinding binding2 = {
-      .binding = 1,
-      .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-      .descriptorCount = n_descriptors,
-      .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_VERTEX_BIT,
-      .pImmutableSamplers = NULL,
-  };
-
-  VkDescriptorSetLayoutBinding binding3 = {
-      .binding = 2,
-      .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-      .descriptorCount = n_descriptors,
-      .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_VERTEX_BIT,
-      .pImmutableSamplers = NULL,
-  };
-
-  VkDescriptorSetLayoutBinding bindings[] = {binding, binding2, binding3};
-
-  VkDescriptorSetLayoutCreateInfo layout_info = {
-      .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+  VkPhysicalDeviceProperties properties = {0};
+  if (result == Graphics_NONE && buffer_type) {
+    vkGetPhysicalDeviceProperties(device->physical_device, &properties);
+  }
+  for (uint32_t i = 0U; i < resource_desc.descriptor_count && result == Graphics_NONE; ++i) {
+    if (buffer_type) {
+      const Gpu_Buffer_t *buffer = &resource_desc.buffers[i];
+      VkBufferUsageFlags usage = type == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER ? VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT : VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+      VkDeviceSize max_range = type == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER ? properties.limits.maxUniformBufferRange : properties.limits.maxStorageBufferRange;
+      if (buffer->owner != device->device || buffer->buffer == VK_NULL_HANDLE ||
+          (buffer->usage & usage) == 0U || buffer->size == 0U || buffer->size > max_range) {
+        result = Graphics_ERROR_INVALID_ARGUMENT;
+      } else {
+        buffer_info[i] = (VkDescriptorBufferInfo){buffer->buffer, 0U, buffer->size};
+      }
+    } else {
+      const Gpu_Texture_t *texture = &resource_desc.textures[i];
+      bool needs_sampler = type == VK_DESCRIPTOR_TYPE_SAMPLER || type == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+      bool needs_image = type != VK_DESCRIPTOR_TYPE_SAMPLER;
+      VkImageUsageFlags usage = type == VK_DESCRIPTOR_TYPE_STORAGE_IMAGE ? VK_IMAGE_USAGE_STORAGE_BIT : VK_IMAGE_USAGE_SAMPLED_BIT;
+      if ((needs_sampler && texture->sampler == VK_NULL_HANDLE) ||
+          (needs_image && (texture->owner != device->device || texture->view == VK_NULL_HANDLE ||
+           (texture->usage & usage) == 0U ||
+           (texture->layout != VK_IMAGE_LAYOUT_GENERAL &&
+            (type == VK_DESCRIPTOR_TYPE_STORAGE_IMAGE || texture->layout != VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL))))) {
+        result = Graphics_ERROR_INVALID_ARGUMENT;
+      } else {
+        image_info[i] = (VkDescriptorImageInfo){texture->sampler, texture->view, texture->layout};
+      }
+    }
+  }
+  if (result == Graphics_NONE) {
+    VkWriteDescriptorSet dset = {
+      .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
       .pNext = NULL,
-      .flags = 0,
-      .bindingCount = 3,
-      .pBindings = bindings,
-  };
-
-  VkResult result = vkCreateDescriptorSetLayout(device->device, &layout_info,
-                                                NULL, &resource_out->layout);
-
-  if (result != VK_SUCCESS) {
-    goto error;
+      .dstSet = resource_desc.resource->set,
+      .dstBinding = resource_desc.dst_binding,
+      .dstArrayElement = resource_desc.dst_array_elem,
+      .descriptorCount = resource_desc.descriptor_count,
+      .descriptorType = resource_desc.descriptor_type,
+      .pImageInfo = buffer_type ? NULL : image_info,
+      .pBufferInfo = buffer_type ? buffer_info : NULL,
+      .pTexelBufferView = NULL
+    };
+    vkUpdateDescriptorSets(device->device, 1U, &dset, 0U, NULL);
   }
-
-  VkDescriptorPoolSize pool_sizes[] = {
-      {
-          .type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-          .descriptorCount = n_descriptors,
-      },
-      {
-          .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-          .descriptorCount = n_descriptors,
-      },
-      {
-          .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-          .descriptorCount = n_descriptors,
-      },
-  };
-
-  VkDescriptorPoolCreateInfo pool_info = {
-      .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-      .pNext = NULL,
-      .flags = 0,
-      .maxSets = 1,
-      .poolSizeCount = 3,
-      .pPoolSizes = pool_sizes,
-  };
-
-  result = vkCreateDescriptorPool(device->device, &pool_info, NULL,
-                                  &resource_out->pool);
-
-  if (result != VK_SUCCESS) {
-    goto error;
-  }
-
-  VkDescriptorSetAllocateInfo alloc_info = {
-      .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-      .pNext = NULL,
-      .descriptorPool = resource_out->pool,
-      .descriptorSetCount = 1,
-      .pSetLayouts = &resource_out->layout,
-  };
-
-  result = vkAllocateDescriptorSets(device->device, &alloc_info, &resource_out->set);
-
-  if (result != VK_SUCCESS) {
-    goto error;
-  }
-
-  return Graphics_NONE;
-
-error:
-
-  if (resource_out->pool != VK_NULL_HANDLE) {
-    vkDestroyDescriptorPool(device->device, resource_out->pool, NULL);
-  }
-
-  if (resource_out->layout != VK_NULL_HANDLE) {
-    vkDestroyDescriptorSetLayout(device->device, resource_out->layout, NULL);
-  }
-
-  *resource_out = (Gpu_Resource_t){0};
-
-  return Graphics_ERROR_RESOURCE;
+  return result;
 }
 
 /**
  * ------------------------------------------------------------------
  */
 
-Graphics_Result graphics_update_resources(Graphics_Device_t *device,
+Graphics_Result graphics_update_resources_raw(Graphics_Device_t *device,
                                           VkWriteDescriptorSet descriptor_set) {
   vkUpdateDescriptorSets(device->device, 1, &descriptor_set, 0, NULL);
 
@@ -1439,8 +1463,7 @@ static uint32_t find_memory_type(VkPhysicalDevice physical_device,
     }
   }
 
-  assert(!"Failed to find suitable memory type");
-  return 0;
+  return UINT32_MAX;
 }
 
 /**
@@ -1507,8 +1530,12 @@ graphics_single_time_command_buffer(Graphics_Device_t *tDevice,
       .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
       .commandPool = command_pool,
       .commandBufferCount = 1};
-  if (vkAllocateCommandBuffers(tDevice->device, &cb_ci, command_buffer_out) !=
-      VK_SUCCESS) {
+  if (tDevice == NULL || tDevice->device == VK_NULL_HANDLE) {
+    tResult = Graphics_NO_DEVICE;
+  } else if (command_buffer_out == NULL || command_pool == VK_NULL_HANDLE) {
+    tResult = Graphics_ERROR_INVALID_ARGUMENT;
+  } else if (vkAllocateCommandBuffers(tDevice->device, &cb_ci, command_buffer_out) != VK_SUCCESS) {
+    *command_buffer_out = VK_NULL_HANDLE;
     tResult = Graphics_NO_COMMAND_BUFFER;
   }
 
@@ -1547,8 +1574,13 @@ Graphics_Result graphics_new_semaphore(Graphics_Device_t *device,
   Graphics_Result tResult = Graphics_NONE;
   VkSemaphoreCreateInfo semaphore_ci = {
       .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
-  if (vkCreateSemaphore(device->device, &semaphore_ci, NULL, semaphore_out) !=
+  if (device == NULL || device->device == VK_NULL_HANDLE) {
+    tResult = Graphics_NO_DEVICE;
+  } else if (semaphore_out == NULL || *semaphore_out != VK_NULL_HANDLE) {
+    tResult = Graphics_ERROR_INVALID_ARGUMENT;
+  } else if (vkCreateSemaphore(device->device, &semaphore_ci, NULL, semaphore_out) !=
       VK_SUCCESS) {
+    *semaphore_out = VK_NULL_HANDLE;
     tResult = Graphics_NO_SEMAPHORE;
   }
 
@@ -1561,7 +1593,12 @@ Graphics_Result graphics_new_fence(Graphics_Device_t *device,
   VkFenceCreateInfo fence_ci = {.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
                                 .flags = VK_FENCE_CREATE_SIGNALED_BIT};
 
-  if (vkCreateFence(device->device, &fence_ci, NULL, fence_out) != VK_SUCCESS) {
+  if (device == NULL || device->device == VK_NULL_HANDLE) {
+    tResult = Graphics_NO_DEVICE;
+  } else if (fence_out == NULL || *fence_out != VK_NULL_HANDLE) {
+    tResult = Graphics_ERROR_INVALID_ARGUMENT;
+  } else if (vkCreateFence(device->device, &fence_ci, NULL, fence_out) != VK_SUCCESS) {
+    *fence_out = VK_NULL_HANDLE;
     tResult = Graphics_NO_FENCE;
   }
 
@@ -1569,26 +1606,13 @@ Graphics_Result graphics_new_fence(Graphics_Device_t *device,
 }
 
 void graphics_issue_image_barrier(VkCommandBuffer command_buffer, VkImage image,
+                                  VkImageAspectFlags aspect_flags,
                                   VkPipelineStageFlags2 src_stage,
                                   VkAccessFlags2 src_access,
                                   VkPipelineStageFlags2 dst_stage,
                                   VkAccessFlags2 dst_access,
                                   VkImageLayout old_layout,
                                   VkImageLayout new_layout) {
-
-  if (src_access == VK_ACCESS_2_TRANSFER_WRITE_BIT &&
-      dst_access == VK_ACCESS_2_SHADER_READ_BIT) {
-    old_layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-    new_layout = VK_IMAGE_LAYOUT_READ_ONLY_OPTIMAL;
-  }
-
-  VkImageAspectFlags aspect_flags = VK_IMAGE_ASPECT_COLOR_BIT;
-
-  if(src_access == VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT) {
-    aspect_flags = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
-  } else if(src_access == VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT) {
-    aspect_flags = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
-  }
 
   VkImageMemoryBarrier2 image_barrier = {
       .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
@@ -1675,8 +1699,7 @@ Graphics_Result graphics_start_frame(Graphics_Device_t *device) {
     return Graphics_NO_SWAPCHAIN;
   }
 
-  result =
-      vkResetFences(device->device, 1, &device->fences[device->frame_index]);
+  result = vkResetFences(device->device, 1, &device->fences[device->frame_index]);
 
   if (result != VK_SUCCESS) {
     return Graphics_ERROR_FENCE;
@@ -1696,9 +1719,11 @@ Graphics_Result graphics_start_frame(Graphics_Device_t *device) {
     return graphics_result;
   }
 
+  graphics_invalidate_state(device);
   graphics_issue_image_barrier(
     command_buffer,
     device->depth_image,
+    VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT,
     VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,
     VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
     VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,
@@ -1710,6 +1735,7 @@ Graphics_Result graphics_start_frame(Graphics_Device_t *device) {
   graphics_issue_image_barrier(
     command_buffer,
     device->swapchain_images[device->image_index],
+    VK_IMAGE_ASPECT_COLOR_BIT,
     VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
     VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
     VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
@@ -1733,6 +1759,7 @@ Graphics_Result graphics_end_frame(Graphics_Device_t *device) {
   graphics_issue_image_barrier(
     command_buffer,
     device->swapchain_images[device->image_index],
+    VK_IMAGE_ASPECT_COLOR_BIT,
     VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
     VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
     VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
@@ -1785,6 +1812,7 @@ Graphics_Result graphics_end_frame(Graphics_Device_t *device) {
                                    device->fences[device->frame_index]);
 
   if (result != VK_SUCCESS) {
+    fprintf(stderr, "vkQueueSubmit2: result=%d, image=%u\n", (int)result, device->image_index);
     return Graphics_ERROR_QUEUE_SUBMIT;
   }
 
@@ -2022,20 +2050,26 @@ Graphics_Result graphics_update_swapchain(Graphics_Device_t *device) {
       .oldSwapchain = old_swapchain,
   };
 
+  VkSwapchainKHR new_swapchain = VK_NULL_HANDLE;
   if (vkCreateSwapchainKHR(device->device, &swapchain_ci, NULL,
-                           &device->swapchain) != VK_SUCCESS) {
+                           &new_swapchain) != VK_SUCCESS) {
     return Graphics_NO_SWAPCHAIN;
   }
+  device->swapchain = new_swapchain;
   device->swapchain_extent = swapchain_ci.imageExtent;
 
   for (uint32_t i = 0; i < device->swapchain_image_count; ++i) {
 
     vkDestroyImageView(device->device, device->swapchain_img_views[i], NULL);
+    device->swapchain_img_views[i] = VK_NULL_HANDLE;
 
     vkDestroySemaphore(device->device, device->render_complete_semaphores[i],
                        NULL);
+    device->render_complete_semaphores[i] = VK_NULL_HANDLE;
   }
 
+  vkDestroySwapchainKHR(device->device, old_swapchain, NULL);
+  device->swapchain_image_count = 0U;
   if (vkGetSwapchainImagesKHR(device->device, device->swapchain,
                               &device->swapchain_image_count,
                               NULL) != VK_SUCCESS) {
@@ -2043,6 +2077,7 @@ Graphics_Result graphics_update_swapchain(Graphics_Device_t *device) {
   }
 
   if (device->swapchain_image_count > SMALL_VECTOR_CAPACITY) {
+    device->swapchain_image_count = 0U;
     return Graphics_NO_SWAPCHAIN;
   }
 
@@ -2054,9 +2089,12 @@ Graphics_Result graphics_update_swapchain(Graphics_Device_t *device) {
 
   for (uint32_t i = 0; i < device->swapchain_image_count; ++i) {
 
-    device->swapchain_img_views[i] = graphics_img_view_create(
+    result = graphics_img_view_create(
         device->device, device->swapchain_images[i], VK_FORMAT_R8G8B8A8_SRGB,
-        VK_IMAGE_ASPECT_COLOR_BIT);
+        VK_IMAGE_ASPECT_COLOR_BIT, &device->swapchain_img_views[i]);
+    if (result != Graphics_NONE) {
+      return result;
+    }
   }
 
   for (uint32_t i = 0; i < device->swapchain_image_count; ++i) {
@@ -2069,14 +2107,14 @@ Graphics_Result graphics_update_swapchain(Graphics_Device_t *device) {
     }
   }
 
-  // Old swapchain can now go
-  vkDestroySwapchainKHR(device->device, old_swapchain, NULL);
-
   vkDestroyImageView(device->device, device->depth_img_view, NULL);
+  device->depth_img_view = VK_NULL_HANDLE;
 
   vkDestroyImage(device->device, device->depth_image, NULL);
+  device->depth_image = VK_NULL_HANDLE;
 
   vkFreeMemory(device->device, device->depth_img_mem, NULL);
+  device->depth_img_mem = VK_NULL_HANDLE;
 
   // recreate depth image (sublime text format option made this ugly thing)
   VkImageCreateInfo depth_ci = graphics_img_create_info(device->depth_format,
@@ -2091,14 +2129,15 @@ Graphics_Result graphics_update_swapchain(Graphics_Device_t *device) {
 
   if (vkCreateImage(device->device, &depth_ci, NULL, &device->depth_image) !=
       VK_SUCCESS) {
+    device->depth_image = VK_NULL_HANDLE;
     return Graphics_NO_DEPTH_FORMAT;
   }
 
-  device->depth_img_mem = graphics_img_alloc(device, device->depth_image);
-
-  device->depth_img_view = graphics_img_view_create(
-      device->device, device->depth_image, device->depth_format,
-      VK_IMAGE_ASPECT_DEPTH_BIT);
-
-  return Graphics_NONE;
+  result = graphics_img_alloc(device, device->depth_image, &device->depth_img_mem);
+  if (result == Graphics_NONE) {
+    result = graphics_img_view_create(
+        device->device, device->depth_image, device->depth_format,
+        VK_IMAGE_ASPECT_DEPTH_BIT, &device->depth_img_view);
+  }
+  return result;
 }
