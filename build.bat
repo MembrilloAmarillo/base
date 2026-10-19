@@ -1,233 +1,147 @@
 @echo off
-:: Initialize Visual Studio environment
-:: call "C:\Program Files\Microsoft Visual Studio\18\Insiders\VC\Auxiliary\Build\vcvarsall.bat" x64
-:: call "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvarsall.bat" x64
-:: === VARIABLES DE USUARIO ===
-:: Set these paths according to your system
-set "GLSLC_PATH=C:\VulkanSDK\1.4.363.0\Bin\glslc.exe"
-set SDL_PATH=".\code\third-party\SDL\VisualC\x64\Debug\"
-:: Compiler
-set CC=cl
-set CXX=cl
+setlocal
 
-:: Debug flags
-set CFLAGS_DEBUG=/nologo /std:c++17 /FC /Z7 /DDEBUG /W3 /wd4996 /wd4576 /Od /Ob1 /EHsc
-set CXXFLAGS_DEBUG=/nologo /std:c++17 /FC /Z7 /W3 /wd4996 /wd4576 /Od /Ob1 /EHsc
-set INC=/Icode /I"C:\VulkanSDK\1.4.363.0\Include" /I".\code\third-party\SDL\include"
+:: Run from a Visual Studio developer prompt. Paths can be overridden in the environment.
+if not defined CC set "CC=cl"
+if not defined CXX set "CXX=cl"
+if not defined SDL_PATH set "SDL_PATH=%~dp0code\third-party\SDL\VisualC\x64\Debug"
+if not defined GLSLC_PATH (
+    if defined VULKAN_SDK (
+        set "GLSLC_PATH=%VULKAN_SDK%\Bin\glslc.exe"
+    ) else (
+        set "GLSLC_PATH=glslc"
+    )
+)
+if not defined GRAPHICS_OPT set "GRAPHICS_OPT=/Od"
+set "GRAPHICS_DEFINES="
+set INC=/Icode /I"%VULKAN_SDK%\Include" /I"code\third-party\SDL\include"
+set LIBS=kernel32.lib user32.lib /LIBPATH:"%SDL_PATH%" SDL3.lib /LIBPATH:"%VULKAN_SDK%\Lib" vulkan-1.lib
+set GRAPHICS_OBJECTS=graphics.obj graphics_memory.obj graphics_upload.obj graphics_lifetime.obj graphics_command.obj graphics_pipeline.obj graphics_resources.obj graphics_swapchain.obj
+set "TARGET=%~1"
+if not defined TARGET set "TARGET=all"
+if not "%~2"=="" goto usage
+for %%T in (all debug release shaders clean vulkan_cube_test graphics_api_test graphics_resource_test graphics_benchmark) do (
+    if /i "%TARGET%"=="%%T" goto run
+)
 
-:: Release flags
-set CFLAGS_RELEASE=/O2 /W3 /wd4996 /std:c++17
-set CXXFLAGS_RELEASE=/O2 /std:c++17 /W3
-
-:: Libraries (Windows .lib files)
-set LIBS=kernel32.lib ntdll.lib user32.lib gdi32.lib /LIBPATH:%SDL_PATH% SDL3.lib /LIBPATH:"C:\VulkanSDK\1.4.363.0\Lib" vulkan-1.lib ws2_32.lib
-
-:: Source files
-set XXHASH=code\third-party\xxhash.c
-set SRC_C=code\Samples\UI_Sample.c
-set SampleRender_SRC=code\Samples\RenderLibrary.c
-set VMA=code\third-party\vk_mem_alloc.c
-set GRAPHICS_OBJECTS=graphics_cube.obj graphics_memory.obj graphics_upload.obj graphics_lifetime.obj
-
-:: Output files
-set RenderLibraryExe=RenderLibrary.exe
-set DEBUG_EXE=UI_Sample.exe
-set RELEASE_EXE=UI_Sample_Release.exe
-
-set SDL_USAGE=
-
-:: === MAIN TARGETS ===
-if "%1"==""                 goto all
-if /i "%1"=="all"           goto all
-if /i "%1"=="shaders"       goto shaders
-if /i "%1"=="clean"         goto clean
-if /i "%1"=="debug"         goto debug
-if /i "%1"=="release"       goto release
-if /i "%1"=="RenderLibrary" goto render
-if /i "%1"=="DrawSample"    goto draw_sample
-if /i "%1"=="todolist"      goto todolist
-if /i "%1"=="csv_test"      goto csv_test
-if /i "%1"=="obj_test"      goto obj_test
-if /i "%1"=="vulkan_cube_test" goto vulkan_cube_test
-if /i "%1"=="graphics_api_test" goto graphics_api_test
-if /i "%1"=="graphics_resource_test" goto graphics_resource_test
-if /i "%2"=="SDL_USAGE"     set SDL_USAGE=/D SDL_USAGE
-
-echo Usage: %0 [all^|debug^|release^|shaders^|clean^|RenderLibrary^|DrawSample^|todolist^|csv_test^|obj_test^|vulkan_cube_test^|graphics_api_test^|graphics_resource_test]
+:usage
+echo Usage: %~nx0 [all^|debug^|release^|shaders^|clean^|vulkan_cube_test^|graphics_api_test^|graphics_resource_test^|graphics_benchmark]
 exit /b 1
 
-:all
-call :debug
-call :render
-call :draw_sample
+:run
+pushd "%~dp0"
 if errorlevel 1 exit /b 1
-call :shaders
-exit /b
+call :%TARGET%
+set "RESULT=%ERRORLEVEL%"
+popd
+exit /b %RESULT%
 
 :debug
-echo Compiling %DEBUG_EXE% (Debug)...
-del /q vk_mem_alloc.obj 2>nul
+set "GRAPHICS_OPT=/Od"
+goto all
 
-:: Compile VMA as C++ first
-%CXX% %CXXFLAGS_DEBUG% %INC% /c "%VMA%" /Fo:vk_mem_alloc.obj
+:release
+set "GRAPHICS_OPT=/O2"
+goto all
+
+:all
+call :vulkan_cube_test
 if errorlevel 1 exit /b 1
-
-:: Compile main app as C and link with the VMA object file
-%CC% %CFLAGS_DEBUG% %INC% /c "%XXHASH%" /Fo:xxhash.obj
-%CC% %CFLAGS_DEBUG% %INC% "%SRC_C%" /link xxhash.obj vk_mem_alloc.obj %LIBS% /OUT:"%DEBUG_EXE%"
+call :graphics_resource_test
 if errorlevel 1 exit /b 1
-echo Debug build completed.
-exit /b
-
-:render
-%CC% %CFLAGS_DEBUG% %INC% "%SampleRender_SRC%" /link xxhash.obj vk_mem_alloc.obj %LIBS% /OUT:"%RenderLibraryExe%"
+call :graphics_api_test
 if errorlevel 1 exit /b 1
-echo Release build completed.
-exit /b
-
-:draw_sample
-%CC% %CFLAGS_DEBUG% %INC% ./code/Samples/DrawSample.c /link xxhash.obj vk_mem_alloc.obj %LIBS% /OUT:DrawSample.exe
-if errorlevel 1 exit /b 1
-echo Release build completed.
-exit /b
-
-:todolist
-del /q vk_mem_alloc.obj 2>nul
-del /q xxhash.obj 2>nul
-
-:: Compile xxhash as C++ (same as other files)
-%CXX% /TP %CXXFLAGS_DEBUG% %INC% /c "%XXHASH%" /Fo:xxhash.obj
-if errorlevel 1 exit /b 1
-
-:: Compile VMA as C++
-%CXX% /TP %CXXFLAGS_DEBUG% %INC% /c "%VMA%" /Fo:vk_mem_alloc.obj
-if errorlevel 1 exit /b 1
-
-echo %CXX% %CXXFLAGS_DEBUG% %INC% ./code/Samples/ToDoList.cpp %SDL_USAGE% /link xxhash.obj vk_mem_alloc.obj %LIBS% /OUT:todolist.exe
-
-:: Compile and link ToDoList
-%CXX% %CXXFLAGS_DEBUG% %INC% ./code/Samples/ToDoList.cpp %SDL_USAGE% /link xxhash.obj vk_mem_alloc.obj %LIBS% /OUT:todolist.exe
-if errorlevel 1 exit /b 1
-echo ToDoList build completed.
-exit /b
-
-:csv_test
-echo %CXX% %CFLAGS_RELEASE% %INC% ./code/Samples/CsvTest.cpp /link %LIBS% /OUT:csv_test.exe
-%CXX% %CFLAGS_RELEASE% %INC% ./code/Samples/CsvTest.cpp /link %LIBS% /OUT:csv_test.exe
-
-if errorlevel 1 exit /b 1
-echo csv_test build completed.
-exit /b
-
-:obj_test
-del /q vk_mem_alloc.obj 2>nul
-del /q xxhash.obj 2>nul
-
-:: Compile xxhash as C++ (same as other files)
-%CXX% /TP %CXXFLAGS_DEBUG% %INC% /c "%XXHASH%" /Fo:xxhash.obj
-if errorlevel 1 exit /b 1
-
-:: Compile VMA as C++
-%CXX% /TP %CXXFLAGS_DEBUG% %INC% /c "%VMA%" /Fo:vk_mem_alloc.obj
-if errorlevel 1 exit /b 1
-
-echo %CXX% %CXXFLAGS_DEBUG% %INC% ./code/Samples/ObjLoad.cpp %SDL_USAGE% /link xxhash.obj vk_mem_alloc.obj %LIBS% /OUT:ObjLoad.exe
-
-:: Compile and link ObjLoad
-%CXX% %CXXFLAGS_DEBUG% %INC% ./code/Samples/ObjLoad.cpp %SDL_USAGE% /link xxhash.obj vk_mem_alloc.obj %LIBS% /OUT:ObjLoad.exe
-if errorlevel 1 exit /b 1
-echo ObjLoad build completed.
-exit /b
+call :graphics_benchmark
+exit /b %ERRORLEVEL%
 
 :vulkan_cube_test
-echo Compiling Vulkan cube test...
-call :graphics_test_backend
+call :text_shaders
 if errorlevel 1 exit /b 1
-for %%S in (Sample.vert Sample.frag) do (
-    "%GLSLC_PATH%" --target-env=vulkan1.2 "data\%%S" -o "data\%%S.spv"
-    if errorlevel 1 exit /b 1
-)
-%CXX% /nologo /std:c++20 /FC /Z7 /W3 /Od /EHsc /D_CRT_SECURE_NO_WARNINGS %INC% code\test\vulkan_cube_test.cpp /link %GRAPHICS_OBJECTS% %LIBS% /OUT:vulkan_cube_test.exe
+set "GRAPHICS_DEFINES="
+call :graphics_backend
 if errorlevel 1 exit /b 1
-echo Vulkan cube test build completed. Run vulkan_cube_test.exe --frames 120 or --interactive.
+%CXX% /nologo /std:c++20 /FC /Z7 /W3 %GRAPHICS_OPT% /EHsc /D_CRT_SECURE_NO_WARNINGS %INC% code\test\vulkan_cube_test.cpp /link %GRAPHICS_OBJECTS% %LIBS% /OUT:vulkan_cube_test.exe
+if errorlevel 1 exit /b 1
+echo Font demo built. Run vulkan_cube_test.exe --frames 120 or --interactive from the repository root.
 exit /b 0
 
 :graphics_api_test
-echo Compiling graphics API tests...
-call :graphics_test_backend
+call :api_shaders
 if errorlevel 1 exit /b 1
-%CC% /nologo /TC /std:clatest /FC /Z7 /W3 /Od /D_CRT_SECURE_NO_WARNINGS %INC% code\test\graphics_api_test.c /link %GRAPHICS_OBJECTS% %LIBS% /OUT:graphics_api_test.exe
+set "GRAPHICS_DEFINES=/DGRAPHICS_TESTING"
+call :graphics_backend
+if errorlevel 1 exit /b 1
+%CC% /nologo /TC /std:clatest /FC /Z7 /W3 %GRAPHICS_OPT% %GRAPHICS_DEFINES% /D_CRT_SECURE_NO_WARNINGS %INC% code\test\graphics_api_test.c /link %GRAPHICS_OBJECTS% %LIBS% /OUT:graphics_api_test.exe
 if errorlevel 1 exit /b 1
 echo Graphics API tests built. Run graphics_api_test.exe from the repository root.
 exit /b 0
 
 :graphics_resource_test
-call :graphics_test_backend
+set "GRAPHICS_DEFINES="
+call :graphics_backend
 if errorlevel 1 exit /b 1
-%CC% /nologo /TC /std:clatest /FC /Z7 /W3 /Od %INC% code\test\graphics_resource_test.c /link %GRAPHICS_OBJECTS% %LIBS% /OUT:graphics_resource_test.exe
-exit /b %errorlevel%
+%CC% /nologo /TC /std:clatest /FC /Z7 /W3 %GRAPHICS_OPT% %INC% code\test\graphics_resource_test.c /link %GRAPHICS_OBJECTS% %LIBS% /OUT:graphics_resource_test.exe
+exit /b %ERRORLEVEL%
 
-:: Shared graphics backend and shaders.
-:graphics_test_backend
-if not exist "%GLSLC_PATH%" (
-    echo Error: glslc not found at %GLSLC_PATH%.
+:graphics_benchmark
+set "GRAPHICS_OPT=/O2"
+set "GRAPHICS_DEFINES=/DGRAPHICS_BENCHMARK"
+call :graphics_backend
+if errorlevel 1 exit /b 1
+%CC% /nologo /TC /std:clatest /FC /W3 /O2 %GRAPHICS_DEFINES% %INC% code\test\graphics_benchmark.c /link %GRAPHICS_OBJECTS% %LIBS% /OUT:graphics_benchmark.exe
+exit /b %ERRORLEVEL%
+
+:graphics_backend
+if not exist "%VULKAN_SDK%\Include\vulkan\vulkan.h" (
+    echo Vulkan SDK headers not found. Set VULKAN_SDK to your SDK installation.
     exit /b 1
 )
-for %%S in (cube.vert cube.frag cube_ui.vert cube_ui.frag) do (
-    "%GLSLC_PATH%" --target-env=vulkan1.2 "code\test\shaders\%%S" -o "code\test\shaders\%%S.spv"
-    if errorlevel 1 exit /b 1
+if not exist "%SDL_PATH%\SDL3.lib" (
+    echo SDL3.lib not found. Build SDL3 or set SDL_PATH to its library directory.
+    exit /b 1
 )
-:: Compile the C API separately; the test no longer depends on VMA or Slang.
-%CC% /nologo /TC /std:clatest /FC /Z7 /W3 /Od %INC% /c code\rendering\graphics.c /Fo:graphics_cube.obj
-if errorlevel 1 exit /b 1
-for %%S in (graphics_memory graphics_upload graphics_lifetime) do (
-    %CC% /nologo /TC /std:clatest /FC /Z7 /W3 /Od %INC% /c code\rendering\%%S.c /Fo:%%S.obj
+for %%S in (graphics graphics_memory graphics_upload graphics_lifetime graphics_command graphics_pipeline graphics_resources graphics_swapchain) do (
+    %CC% /nologo /TC /std:clatest /FC /Z7 /W3 %GRAPHICS_OPT% %GRAPHICS_DEFINES% %INC% /c code\rendering\%%S.c /Fo:%%S.obj
     if errorlevel 1 exit /b 1
 )
 if not exist SDL3.dll (
-    copy /y %SDL_PATH%SDL3.dll .\SDL3.dll >nul
+    copy /y "%SDL_PATH%\SDL3.dll" SDL3.dll >nul
     if errorlevel 1 exit /b 1
 )
 exit /b 0
 
-:release
-echo Compiling %RELEASE_EXE% (Release)...
-del /q vk_mem_alloc_release.obj 2>nul
+:shader
+"%GLSLC_PATH%" --target-env=vulkan1.3 "%~1" -o "%~1.spv"
+exit /b %ERRORLEVEL%
 
-:: Compile VMA as C++ first
-%CXX% %CXXFLAGS_RELEASE% %INC% /c "%VMA%" /Fo:vk_mem_alloc_release.obj
-if errorlevel 1 exit /b 1
+:text_shaders
+for %%S in (data\Sample.vert data\Sample.frag) do (
+    call :shader "%%S"
+    if errorlevel 1 exit /b 1
+)
+exit /b 0
 
-:: Compile main app as C and link with the VMA object file
-%CC% %CFLAGS_RELEASE% %INC% "%SRC_C%" /link vk_mem_alloc_release.obj %LIBS% /OUT:"%RELEASE_EXE%"
-if errorlevel 1 exit /b 1
-echo Release build completed.
-exit /b
+:api_shaders
+for %%S in (code\test\shaders\graphics_test.vert code\test\shaders\graphics_test.frag) do (
+    call :shader "%%S"
+    if errorlevel 1 exit /b 1
+)
+exit /b 0
 
 :shaders
-echo Compiling shaders...
-if not exist "%GLSLC_PATH%" (
-    echo Warning: glslc not found at %GLSLC_PATH%. Skipping shader compilation.
-    echo Please update GLSLC_PATH or install the Vulkan SDK.
-    exit /b 0
-)
-"%GLSLC_PATH%" ./data/compute.comp -o ./data/compute.comp.spv
-"%GLSLC_PATH%" ./data/ColoredTriangle.vert -o ./data/ColoredTriangle.vert.spv
-"%GLSLC_PATH%" ./data/ColoredTriangle.frag -o ./data/ColoredTriangle.frag.spv
-"%GLSLC_PATH%" ./data/ui_render.vert -o ./data/ui_render.vert.spv
-"%GLSLC_PATH%" ./data/ui_render.frag -o ./data/ui_render.frag.spv
-"%GLSLC_PATH%" ./data/Sample.vert -o ./data/Sample.vert.spv
-"%GLSLC_PATH%" ./data/Sample.frag -o ./data/Sample.frag.spv
-"%GLSLC_PATH%" ./data/line.vert -o ./data/line.vert.spv
-"%GLSLC_PATH%" ./data/line.frag -o ./data/line.frag.spv
-
-echo Shader compilation completed.
-exit /b
+call :text_shaders
+if errorlevel 1 exit /b 1
+call :api_shaders
+exit /b %ERRORLEVEL%
 
 :clean
-echo Cleaning build artifacts...
-del /q *.exe *.pdb *.obj *.ilk 2>nul
-del /q .\data\*.spv 2>nul
-del /q .\code\test\shaders\*.spv 2>nul
+:: Delete only known outputs; do not remove arbitrary executables or user files.
+for %%T in (vulkan_cube_test graphics_api_test graphics_resource_test graphics_benchmark) do (
+    for %%E in (exe pdb obj ilk) do if exist "%%T.%%E" del /q "%%T.%%E"
+)
+for %%O in (%GRAPHICS_OBJECTS% graphics_cube.obj) do if exist "%%O" del /q "%%O"
+for %%S in (data\Sample.vert.spv data\Sample.frag.spv code\test\shaders\graphics_test.vert.spv code\test\shaders\graphics_test.frag.spv) do (
+    if exist "%%S" del /q "%%S"
+)
 echo Clean completed.
-exit /b
+exit /b 0

@@ -1,4 +1,6 @@
 /CMakeLists.txt text eol=lf
+/.gitattributes text eol=lf
+/.clang-format text eol=lf
 /build.bat text eol=lf
 /build.sh text eol=lf
 /code/rendering/graphics.c text eol=lf
@@ -7,8 +9,16 @@
 /code/rendering/graphics_lifetime.c text eol=lf
 /code/rendering/graphics_memory.c text eol=lf
 /code/rendering/graphics_upload.c text eol=lf
+/code/rendering/graphics_command.c text eol=lf
+/code/rendering/graphics_pipeline.c text eol=lf
+/code/rendering/graphics_resources.c text eol=lf
+/code/rendering/graphics_swapchain.c text eol=lf
 /code/rendering/README.md text eol=lf
 /code/test/vulkan_cube_test.cpp text eol=lf
 /code/test/graphics_resource_test.c text eol=lf
+/code/test/graphics_api_test.c text eol=lf
+/code/test/graphics_benchmark.c text eol=lf
+/code/test/shaders/graphics_test.vert text eol=lf
+/code/test/shaders/graphics_test.frag text eol=lf
 /data/Sample.vert text eol=lf
 /data/Sample.frag text eol=lf

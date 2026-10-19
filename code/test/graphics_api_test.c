@@ -1,192 +1,396 @@
-/* A C-only client of the public API. It intentionally includes no SDL/Vulkan
- * headers. Run from the repository root with validation enabled. */
-#include "../rendering/graphics.h"
+/* Production lifecycle, recovery and indexed offscreen depth/stencil readback.
+ * Internal access is limited to compile-time fault injection. */
+#include "rendering/graphics.h"
+#ifdef GRAPHICS_TESTING
+#include "rendering/graphics_internal.h"
+#endif
+#include <SDL3/SDL.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
-typedef struct { float position[2], color[4], uv[2]; } Test_Vertex;
-static int failures;
+static unsigned failures;
+static unsigned validation_errors;
+#define CHECK(condition)                                                                           \
+    do {                                                                                           \
+        if (!(condition)) {                                                                        \
+            fprintf(stderr, "FAIL line %d: %s\n", __LINE__, #condition);                           \
+            ++failures;                                                                            \
+        }                                                                                          \
+    } while (0)
+#define OK(call)                                                                                   \
+    do {                                                                                           \
+        Graphics_Result status = (call);                                                           \
+        if (status != Graphics_NONE) {                                                             \
+            fprintf(stderr,                                                                        \
+                    "FAIL line %d: %s: %s\n",                                                      \
+                    __LINE__,                                                                      \
+                    #call,                                                                         \
+                    graphics_result_string(status));                                               \
+            ++failures;                                                                            \
+        }                                                                                          \
+    } while (0)
 
-static void expect(Graphics_Result actual, Graphics_Result expected, const char *operation) {
-    if (actual != expected) {
-        fprintf(stderr, "FAIL: %s: %s (expected %s)\n", operation,
-                graphics_result_string(actual), graphics_result_string(expected));
-        ++failures;
+static VKAPI_ATTR VkBool32 VKAPI_CALL validation(VkDebugUtilsMessageSeverityFlagBitsEXT severity,
+                                                 VkDebugUtilsMessageTypeFlagsEXT type,
+                                                 const VkDebugUtilsMessengerCallbackDataEXT *data,
+                                                 void *user) {
+    (void)type;
+    (void)user;
+    if ((severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) != 0U) {
+        ++validation_errors;
+        fprintf(stderr, "%s\n", data->pMessage);
     }
+    return VK_FALSE;
 }
-#define EXPECT(call, result) expect((call), (result), #call)
-#define REQUIRE(call) do { Graphics_Result result = (call); \
-    expect(result, Graphics_NONE, #call); if (result != Graphics_NONE) goto cleanup; } while (0)
 
-static uint32_t *read_shader(const char *path, size_t *word_count) {
+static uint32_t *read_shader(const char *path, size_t *words) {
     FILE *file = fopen(path, "rb");
-    if (!file) return NULL;
-    fseek(file, 0, SEEK_END);
-    long bytes = ftell(file);
-    rewind(file);
-    if (bytes <= 0 || bytes % 4) { fclose(file); return NULL; }
-    uint32_t *words = malloc((size_t)bytes);
-    if (words && fread(words, 1, (size_t)bytes, file) != (size_t)bytes) { free(words); words = NULL; }
-    fclose(file);
-    *word_count = (size_t)bytes / 4;
-    return words;
+    uint32_t *data = NULL;
+    *words = 0U;
+    if (file != NULL) {
+        (void)fseek(file, 0, SEEK_END);
+        long bytes = ftell(file);
+        rewind(file);
+        if (bytes > 0 && bytes % 4 == 0) {
+            data = (uint32_t *)malloc((size_t)bytes);
+            if (data != NULL && fread(data, 1U, (size_t)bytes, file) == (size_t)bytes)
+                *words = (size_t)bytes / 4U;
+            else {
+                free(data);
+                data = NULL;
+            }
+        }
+        fclose(file);
+    }
+    return data;
+}
+
+static void test_rendering(Graphics_Device_t *device) {
+    Gpu_Texture_t color = {0}, depth = {0};
+    Gpu_Texture_Desc_t image_desc = {16U,
+                                     16U,
+                                     VK_FORMAT_R8G8B8A8_UNORM,
+                                     VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+                                         VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
+                                     1U};
+    OK(graphics_create_texture(device, &image_desc, &color));
+    image_desc.format = VK_FORMAT_D32_SFLOAT_S8_UINT;
+    image_desc.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+    Graphics_Result depth_result = graphics_create_texture(device, &image_desc, &depth);
+    if (depth_result == Graphics_UNSUPPORTED) {
+        image_desc.format = VK_FORMAT_D24_UNORM_S8_UINT;
+        depth_result = graphics_create_texture(device, &image_desc, &depth);
+    }
+    CHECK(depth_result == Graphics_NONE);
+    Gpu_Buffer_t index = {0}, uniform = {0}, readback = {0};
+    uint16_t indices[] = {0U, 1U, 2U};
+    Gpu_Buffer_Desc_t buffer_desc = {
+        sizeof(indices), VK_BUFFER_USAGE_INDEX_BUFFER_BIT, GPU_MEMORY_UPLOAD};
+    OK(graphics_create_buffer(device, &buffer_desc, &index));
+    OK(graphics_write_buffer(device, &index, 0U, indices, sizeof(indices)));
+    VkDeviceSize alignment =
+        graphics_device_properties(device)->limits.minUniformBufferOffsetAlignment;
+    if (alignment < 16U)
+        alignment = 16U;
+    buffer_desc =
+        (Gpu_Buffer_Desc_t){alignment + 16U, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, GPU_MEMORY_UPLOAD};
+    OK(graphics_create_buffer(device, &buffer_desc, &uniform));
+    const float white[] = {1.0f, 1.0f, 1.0f, 1.0f};
+    OK(graphics_write_buffer(device, &uniform, alignment, white, sizeof(white)));
+    buffer_desc =
+        (Gpu_Buffer_Desc_t){16U * 16U * 4U, VK_BUFFER_USAGE_TRANSFER_DST_BIT, GPU_MEMORY_READBACK};
+    OK(graphics_create_buffer(device, &buffer_desc, &readback));
+    Gpu_Binding_Layout_t *layout = NULL;
+    Gpu_Binding_Desc_t binding = {
+        3U, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT, 1U};
+    OK(graphics_create_binding_layout(device, &binding, 1U, &layout));
+    Gpu_Binding_Set_t resources = {0};
+    OK(graphics_create_resources(device, layout, &resources));
+    Gpu_Binding_Value_t value = {.buffer = &uniform, .offset = alignment, .size = 16U};
+    Gpu_Binding_Write_t write = {&resources, 3U, 0U, 1U, &value};
+    OK(graphics_update_resources(device, &write, 1U));
+    size_t vertex_words = 0U, fragment_words = 0U;
+    uint32_t *vertex = read_shader("code/test/shaders/graphics_test.vert.spv", &vertex_words);
+    uint32_t *fragment = read_shader("code/test/shaders/graphics_test.frag.spv", &fragment_words);
+    CHECK(vertex != NULL && fragment != NULL);
+    Gpu_Color_Target_t target = graphics_color_target_default(color.format);
+    VkPushConstantRange range = {
+        VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0U, 20U};
+    Gpu_Pipeline_Desc_t pipeline_desc = {.vertex_spirv = vertex,
+                                         .vertex_words = vertex_words,
+                                         .fragment_spirv = fragment,
+                                         .fragment_words = fragment_words,
+                                         .colors = &target,
+                                         .color_count = 1U,
+                                         .depth_format = depth.format,
+                                         .stencil_format = depth.format,
+                                         .layouts = &layout,
+                                         .layout_count = 1U,
+                                         .push_ranges = &range,
+                                         .push_range_count = 1U};
+    Gpu_Pipeline_t pipeline = {0};
+    if (vertex != NULL && fragment != NULL && depth.image != VK_NULL_HANDLE) {
+        range.size = 3U;
+        CHECK(graphics_create_pipeline(device, &pipeline_desc, &pipeline) ==
+              Graphics_ERROR_INVALID_ARGUMENT);
+        CHECK(pipeline.pipeline == VK_NULL_HANDLE && pipeline.layout == VK_NULL_HANDLE);
+        range.size = graphics_device_properties(device)->limits.maxPushConstantsSize + 4U;
+        CHECK(graphics_create_pipeline(device, &pipeline_desc, &pipeline) == Graphics_OUT_OF_RANGE);
+        range.size = 20U;
+        VkPushConstantRange repeated[] = {range, range};
+        pipeline_desc.push_ranges = repeated;
+        pipeline_desc.push_range_count = 2U;
+        CHECK(graphics_create_pipeline(device, &pipeline_desc, &pipeline) ==
+              Graphics_ERROR_INVALID_ARGUMENT);
+        pipeline_desc.push_ranges = &range;
+        pipeline_desc.push_range_count = 1U;
+        OK(graphics_create_pipeline(
+            device, &pipeline_desc, &pipeline)); /* NULL state and entry point defaults. */
+    }
+    Graphics_Command_t *command = NULL;
+    OK(graphics_create_command(device, &command));
+    if (command != NULL && pipeline.pipeline != VK_NULL_HANDLE) {
+        CHECK(graphics_draw(command, 3U, 1U, 0U, 0U) == Graphics_ERROR_STATE);
+        OK(graphics_begin_command(command));
+        OK(graphics_transition_texture(command,
+                                       &color,
+                                       VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL,
+                                       VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+                                       VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT));
+        OK(graphics_cancel_command(command));
+        CHECK(color.layout == VK_IMAGE_LAYOUT_UNDEFINED);
+        OK(graphics_begin_command(command));
+        Graphics_Attachment_t color_attachment = {.texture = &color,
+                                                  .load = VK_ATTACHMENT_LOAD_OP_CLEAR,
+                                                  .store = VK_ATTACHMENT_STORE_OP_STORE};
+        Graphics_Attachment_t depth_attachment = {.texture = &depth,
+                                                  .load = VK_ATTACHMENT_LOAD_OP_CLEAR,
+                                                  .store = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+                                                  .clear = {.depthStencil = {1.0f, 0U}}};
+        Graphics_Render_Desc_t render = {.area = {{0, 0}, {16U, 16U}},
+                                         .color_count = 1U,
+                                         .colors = &color_attachment,
+                                         .depth = &depth_attachment,
+                                         .stencil = &depth_attachment};
+        OK(graphics_begin_render(command, &render));
+        CHECK(graphics_begin_render(command, &render) == Graphics_ERROR_STATE);
+        CHECK(graphics_submit_command(command) == Graphics_ERROR_STATE);
+        OK(graphics_set_depth_test_enabled(command,
+                                           true)); /* Before binding: must survive first bind. */
+        OK(graphics_set_stencil_test_enabled(command, true));
+        VkStencilOpState stencil = {VK_STENCIL_OP_KEEP,
+                                    VK_STENCIL_OP_REPLACE,
+                                    VK_STENCIL_OP_KEEP,
+                                    VK_COMPARE_OP_ALWAYS,
+                                    255U,
+                                    255U,
+                                    7U};
+        OK(graphics_set_stencil_state(command, &stencil, &stencil));
+        uint64_t binds = graphics_stats(device).pipeline_binds;
+        OK(graphics_bind_pipeline(command, &pipeline));
+        OK(graphics_bind_pipeline(command, &pipeline));
+        CHECK(graphics_stats(device).pipeline_binds == binds + 1U);
+        OK(graphics_bind_resources(command, 0U, &resources));
+        OK(graphics_bind_index_buffer(command, &index, 0U, VK_INDEX_TYPE_UINT16));
+        CHECK(graphics_draw_indexed(command, 4U, 1U, 0U, 0, 0U) == Graphics_OUT_OF_RANGE);
+        float push[] = {1.0f, 0.0f, 0.0f, 1.0f, 0.25f};
+        CHECK(graphics_push_constants(command, range.stageFlags, 0U, 24U, push) ==
+              Graphics_OUT_OF_RANGE);
+        CHECK(graphics_push_constants(command, VK_SHADER_STAGE_VERTEX_BIT, 0U, 20U, push) ==
+              Graphics_ERROR_INVALID_ARGUMENT);
+        OK(graphics_push_constants(command, range.stageFlags, 0U, sizeof(push), push));
+        OK(graphics_draw_indexed(command, 3U, 1U, 0U, 0, 0U));
+        stencil.passOp = VK_STENCIL_OP_KEEP;
+        stencil.compareOp = VK_COMPARE_OP_EQUAL;
+        stencil.reference = 0U;
+        stencil.writeMask = 0U;
+        OK(graphics_set_stencil_state(command, &stencil, &stencil));
+        OK(graphics_set_depth_test_enabled(command, false));
+        push[0] = 0.0f;
+        push[1] = 1.0f;
+        OK(graphics_push_constants(command, range.stageFlags, 0U, sizeof(push), push));
+        OK(graphics_draw_indexed(command, 3U, 1U, 0U, 0, 0U)); /* Rejected by stencil. */
+        stencil.reference = 7U;
+        OK(graphics_set_stencil_state(command, &stencil, &stencil));
+        OK(graphics_set_depth_test_enabled(command, true));
+        push[1] = 0.0f;
+        push[2] = 1.0f;
+        push[4] = 0.75f;
+        OK(graphics_push_constants(command, range.stageFlags, 0U, sizeof(push), push));
+        OK(graphics_draw_indexed(command, 3U, 1U, 0U, 0, 0U)); /* Rejected by depth. */
+        OK(graphics_end_render(command));
+        CHECK(graphics_end_render(command) == Graphics_ERROR_STATE);
+        OK(graphics_transition_texture(command,
+                                       &color,
+                                       VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                                       VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+                                       VK_ACCESS_2_TRANSFER_READ_BIT));
+        VkBufferImageCopy copy = {.imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0U, 0U, 1U},
+                                  .imageExtent = {16U, 16U, 1U}};
+        VkCommandBuffer native = graphics_native_command(command);
+        vkCmdCopyImageToBuffer(
+            native, color.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, readback.buffer, 1U, &copy);
+        VkBufferMemoryBarrier2 barrier = {.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2,
+                                          .srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+                                          .srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT,
+                                          .dstStageMask = VK_PIPELINE_STAGE_2_HOST_BIT,
+                                          .dstAccessMask = VK_ACCESS_2_HOST_READ_BIT,
+                                          .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                                          .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                                          .buffer = readback.buffer,
+                                          .size = VK_WHOLE_SIZE};
+        VkDependencyInfo dependency = {.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+                                       .bufferMemoryBarrierCount = 1U,
+                                       .pBufferMemoryBarriers = &barrier};
+        vkCmdPipelineBarrier2(native, &dependency);
+        OK(graphics_submit_command(command));
+        OK(graphics_wait_command(command));
+        CHECK(color.layout == VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+        if (readback.mapped != NULL) {
+            const uint8_t red[] = {255U, 0U, 0U, 255U};
+            for (uint32_t i = 0U; i < 256U; ++i)
+                CHECK(memcmp((uint8_t *)readback.mapped + i * 4U, red, 4U) == 0);
+        }
+        graphics_invalidate_state(command);
+        OK(graphics_begin_command(command));
+        CHECK(graphics_push_constants(command, range.stageFlags, 0U, 4U, white) ==
+              Graphics_ERROR_STATE);
+        OK(graphics_cancel_command(command));
+    }
+    OK(graphics_destroy_command(&command));
+    OK(graphics_destroy_pipeline(device, &pipeline));
+    OK(graphics_destroy_resources(device, &resources));
+    OK(graphics_destroy_binding_layout(device, &layout));
+    OK(graphics_destroy_texture(device, &color));
+    OK(graphics_destroy_texture(device, &depth));
+    OK(graphics_destroy_buffer(device, &index));
+    OK(graphics_destroy_buffer(device, &uniform));
+    OK(graphics_destroy_buffer(device, &readback));
+    free(vertex);
+    free(fragment);
+}
+
+static void test_frames(Graphics_Device_t *device, SDL_Window *window) {
+    Graphics_Swapchain_t *swapchain = NULL;
+#ifdef GRAPHICS_TESTING
+    graphics_test_fault(GRAPHICS_FAIL_VIEW);
+    CHECK(graphics_create_swapchain(device, window, &swapchain) == Graphics_NO_MEMORY &&
+          swapchain == NULL);
+#endif
+    OK(graphics_create_swapchain(device, window, &swapchain));
+    if (swapchain == NULL)
+        return;
+    CHECK(graphics_end_frame(swapchain) == Graphics_ERROR_STATE);
+    CHECK(graphics_cancel_frame(swapchain) == Graphics_ERROR_STATE);
+    for (uint32_t frame = 0U; frame < 12U; ++frame) {
+        Graphics_Command_t *command = NULL;
+        Graphics_Result result = graphics_start_frame(swapchain, &command);
+        if (result == Graphics_SWAPCHAIN_OUT_OF_DATE) {
+            OK(graphics_update_swapchain(swapchain));
+            result = graphics_start_frame(swapchain, &command);
+        }
+        CHECK(result == Graphics_NONE);
+        if (result != Graphics_NONE)
+            break;
+        Graphics_Command_t *second = NULL;
+        CHECK(graphics_start_frame(swapchain, &second) == Graphics_ERROR_STATE && second == NULL);
+        CHECK(graphics_update_swapchain(swapchain) == Graphics_ERROR_STATE);
+        CHECK(graphics_destroy_swapchain(&swapchain) == Graphics_ERROR_STATE);
+        Gpu_Texture_t *target = graphics_swapchain_target(swapchain);
+        CHECK(graphics_destroy_texture(device, target) == Graphics_ERROR_INVALID_ARGUMENT);
+        Graphics_Attachment_t attachment = {.texture = target,
+                                            .load = VK_ATTACHMENT_LOAD_OP_CLEAR,
+                                            .store = VK_ATTACHMENT_STORE_OP_STORE,
+                                            .clear = {.color = {{0.1f, 0.2f, 0.3f, 1.0f}}}};
+        Graphics_Render_Desc_t render = {.area = {{0, 0}, graphics_swapchain_extent(swapchain)},
+                                         .color_count = 1U,
+                                         .colors = &attachment};
+        OK(graphics_begin_render(command, &render));
+        CHECK(graphics_end_frame(swapchain) == Graphics_ERROR_STATE);
+        if (frame % 2U == 0U)
+            result = graphics_cancel_frame(swapchain);
+        else {
+            OK(graphics_end_render(command));
+            result = graphics_end_frame(swapchain);
+        }
+        CHECK(result == Graphics_NONE || result == Graphics_SWAPCHAIN_OUT_OF_DATE);
+        if (result == Graphics_SWAPCHAIN_OUT_OF_DATE)
+            OK(graphics_update_swapchain(swapchain));
+        if (frame == 3U || frame == 7U) {
+            CHECK(SDL_SetWindowSize(window, frame == 3U ? 400 : 320, frame == 3U ? 300 : 240));
+            SDL_PumpEvents();
+            OK(graphics_update_swapchain(swapchain));
+        }
+    }
+#ifdef GRAPHICS_TESTING
+    graphics_test_fault(GRAPHICS_FAIL_SWAPCHAIN);
+    CHECK(graphics_update_swapchain(swapchain) == Graphics_NO_MEMORY);
+    Graphics_Command_t *command = NULL;
+    CHECK(graphics_start_frame(swapchain, &command) == Graphics_SWAPCHAIN_OUT_OF_DATE);
+    OK(graphics_update_swapchain(swapchain));
+    graphics_test_fault(GRAPHICS_FAIL_BEGIN);
+    CHECK(graphics_start_frame(swapchain, &command) == Graphics_NO_COMMAND_BUFFER);
+    CHECK(command == NULL);
+    OK(graphics_update_swapchain(swapchain));
+    OK(graphics_start_frame(swapchain, &command));
+    graphics_test_fault(GRAPHICS_FAIL_SUBMIT);
+    CHECK(graphics_end_frame(swapchain) == Graphics_ERROR_QUEUE_SUBMIT);
+    command = NULL;
+    CHECK(graphics_start_frame(swapchain, &command) == Graphics_SWAPCHAIN_OUT_OF_DATE);
+    OK(graphics_update_swapchain(swapchain));
+    OK(graphics_start_frame(swapchain, &command));
+    Graphics_Result cancelled = graphics_cancel_frame(swapchain);
+    CHECK(cancelled == Graphics_NONE || cancelled == Graphics_SWAPCHAIN_OUT_OF_DATE);
+#endif
+    CHECK(SDL_MinimizeWindow(window));
+    SDL_PumpEvents();
+    if ((SDL_GetWindowFlags(window) & SDL_WINDOW_MINIMIZED) != 0U)
+        CHECK(graphics_update_swapchain(swapchain) == Graphics_SWAPCHAIN_OUT_OF_DATE);
+    CHECK(SDL_RestoreWindow(window));
+    SDL_PumpEvents();
+    OK(graphics_update_swapchain(swapchain));
+    OK(graphics_destroy_swapchain(&swapchain));
 }
 
 int main(void) {
-    Graphics_Device_t *device = NULL, *other_device = NULL;
-    Gpu_Buffer_t *vertices = NULL, *indices = NULL, *indices16 = NULL, *uniform = NULL, *storage = NULL, *foreign = NULL, *tiny = NULL;
-    Gpu_Texture_t *texture = NULL;
-    Gpu_Sampler_t *sampler = NULL;
-    Gpu_Resource_t *resources = NULL;
-    Gpu_Pipeline_t *pipeline = NULL;
-    uint32_t *vertex_shader = NULL, *fragment_shader = NULL;
-    size_t vertex_words = 0, fragment_words = 0;
-    const uint8_t pixels[4] = {255, 255, 255, 255};
-    const uint32_t index_data[] = {0, 1, 2};
-    const uint16_t index_data16[] = {0, 1, 2, 0};
-    const float buffer_data[4] = {1, 2, 3, 4};
-    const Test_Vertex vertex_data[] = {
-        {{-0.5f,-0.5f}, {1,0,0,1}, {-1,-1}},
-        {{0.5f,-0.5f}, {0,1,0,1}, {-1,-1}},
-        {{0,0.5f}, {0,0,1,1}, {-1,-1}}
-    };
-
-    Graphics_Device_Desc_t desc = graphics_device_desc_default();
-    desc.title = "Graphics API tests"; desc.width = 320; desc.height = 240; desc.validation = true;
-    Graphics_Device_Desc_t invalid_desc = desc;
-    invalid_desc.width = 0;
-    EXPECT(graphics_init(&device, &invalid_desc), Graphics_ERROR_INVALID_ARGUMENT);
-    if (device) { ++failures; goto cleanup; }
-    REQUIRE(graphics_init(&device, &desc));
-    EXPECT(graphics_init(&device, &desc), Graphics_ERROR_INVALID_ARGUMENT);
-    EXPECT(graphics_end_frame(device), Graphics_ERROR_INVALID_ARGUMENT);
-    EXPECT(graphics_begin_render(device, NULL), Graphics_ERROR_INVALID_ARGUMENT);
-
-    Gpu_Buffer_Desc_t buffer_desc = {32, GPU_BUFFER_VERTEX, CPU_VISIBLE, true};
-    REQUIRE(graphics_create_buffer(device, &vertices, &buffer_desc, NULL));
-    EXPECT(graphics_update_buffer(device, vertices, 0, vertex_data, sizeof(vertex_data)), Graphics_ERROR_INVALID_ARGUMENT);
-    buffer_desc = (Gpu_Buffer_Desc_t){sizeof(index_data), GPU_BUFFER_INDEX, GPU_ONLY, false};
-    REQUIRE(graphics_create_buffer(device, &indices, &buffer_desc, index_data));
-    REQUIRE(graphics_update_buffer(device, indices, 0, index_data, sizeof(index_data)));
-    EXPECT(graphics_update_buffer(device, indices, 1, index_data, 4), Graphics_ERROR_INVALID_ARGUMENT);
-    EXPECT(graphics_update_buffer(device, indices, SIZE_MAX, index_data, 4), Graphics_ERROR_INVALID_ARGUMENT);
-    buffer_desc.size = sizeof(index_data16);
-    REQUIRE(graphics_create_buffer(device, &indices16, &buffer_desc, index_data16));
-    buffer_desc = (Gpu_Buffer_Desc_t){1, GPU_BUFFER_STORAGE, GPU_ONLY, false};
-    REQUIRE(graphics_create_buffer(device, &tiny, &buffer_desc, pixels));
-    REQUIRE(graphics_update_buffer(device, tiny, 0, pixels, 1));
-    REQUIRE(graphics_destroy_buffer(device, &tiny));
-    buffer_desc = (Gpu_Buffer_Desc_t){sizeof(buffer_data), GPU_BUFFER_UNIFORM, CPU_VISIBLE, true};
-    REQUIRE(graphics_create_buffer(device, &uniform, &buffer_desc, buffer_data));
-    buffer_desc.usage = GPU_BUFFER_STORAGE; buffer_desc.dynamic = false;
-    REQUIRE(graphics_create_buffer(device, &storage, &buffer_desc, buffer_data));
-
-    Gpu_Texture_Desc_t texture_desc = {2, 2, FORMAT_R8_UNORM};
-    EXPECT(graphics_create_texture(device, &texture, &texture_desc, pixels, 3), Graphics_ERROR_INVALID_ARGUMENT);
-    REQUIRE(graphics_create_texture(device, &texture, &texture_desc, pixels, sizeof(pixels)));
-    REQUIRE(graphics_create_sampler(device, &sampler, NULL));
-    Gpu_Resource_Binding_t bindings[] = {
-        {0, GPU_RESOURCE_TEXTURE, GPU_STAGE_FRAGMENT},
-        {1, GPU_RESOURCE_UNIFORM_BUFFER, GPU_STAGE_VERTEX},
-        {2, GPU_RESOURCE_STORAGE_BUFFER, GPU_STAGE_VERTEX}
-    };
-    Gpu_Resource_Desc_t resource_desc = {bindings, 3};
-    Gpu_Resource_Binding_t duplicate_bindings[] = {bindings[0], bindings[0]};
-    Gpu_Resource_Desc_t invalid_resources = {duplicate_bindings, 2};
-    EXPECT(graphics_create_resources(device, &resources, &invalid_resources), Graphics_ERROR_INVALID_ARGUMENT);
-    REQUIRE(graphics_create_resources(device, &resources, &resource_desc));
-    Gpu_Resource_Write_t writes[] = {
-        {.binding = 0, .texture = texture, .sampler = sampler},
-        {.binding = 1, .buffer = uniform, .size = sizeof(buffer_data)},
-        {.binding = 2, .buffer = storage, .size = sizeof(buffer_data)}
-    };
-    REQUIRE(graphics_update_resources(device, resources, writes, 3));
-    Gpu_Resource_Write_t invalid_write = writes[1];
-    invalid_write.offset = 1;
-    EXPECT(graphics_update_resources(device, resources, &invalid_write, 1), Graphics_ERROR_INVALID_ARGUMENT);
-    EXPECT(graphics_destroy_texture(device, &texture), Graphics_ERROR_INVALID_ARGUMENT);
-    EXPECT(graphics_destroy_sampler(device, &sampler), Graphics_ERROR_INVALID_ARGUMENT);
-    EXPECT(graphics_destroy_buffer(device, &uniform), Graphics_ERROR_INVALID_ARGUMENT);
-
-    /* Handles from another device cannot be bound, updated, or destroyed here. */
-    REQUIRE(graphics_init(&other_device, &desc));
-    REQUIRE(graphics_create_buffer(other_device, &foreign, &buffer_desc, buffer_data));
-    invalid_write = writes[2]; invalid_write.buffer = foreign;
-    EXPECT(graphics_update_resources(device, resources, &invalid_write, 1), Graphics_ERROR_INVALID_ARGUMENT);
-    EXPECT(graphics_destroy_buffer(device, &foreign), Graphics_ERROR_INVALID_ARGUMENT);
-    graphics_shutdown(&other_device); foreign = NULL;
-
-    vertex_shader = read_shader("code/test/shaders/cube_ui.vert.spv", &vertex_words);
-    fragment_shader = read_shader("code/test/shaders/cube_ui.frag.spv", &fragment_words);
-    if (!vertex_shader || !fragment_shader) { fprintf(stderr, "Cannot read test shaders\n"); ++failures; goto cleanup; }
-    const Gpu_Vertex_Attribute_t attributes[] = {
-        {0, FORMAT_RG32_FLOAT, offsetof(Test_Vertex, position)},
-        {1, FORMAT_RGBA32_FLOAT, offsetof(Test_Vertex, color)},
-        {2, FORMAT_RG32_FLOAT, offsetof(Test_Vertex, uv)}
-    };
-    Gpu_PSO_Desc_t pipeline_desc = graphics_pso_desc_default();
-    pipeline_desc.first_stage_spirv = vertex_shader; pipeline_desc.first_stage_spirv_size = vertex_words;
-    pipeline_desc.fragment_spirv = fragment_shader; pipeline_desc.fragment_spirv_size = fragment_words;
-    pipeline_desc.vertex_stride = sizeof(Test_Vertex); pipeline_desc.attributes = attributes; pipeline_desc.attribute_count = 3;
-    pipeline_desc.resources = &resources; pipeline_desc.n_resources = 1;
-    Gpu_Range_t constant_range = {0, 4};
-    pipeline_desc.ranges = &constant_range; pipeline_desc.n_ranges = 1;
-    REQUIRE(graphics_create_pso(device, &pipeline, &pipeline_desc));
-    EXPECT(graphics_destroy_resources(device, &resources), Graphics_ERROR_INVALID_ARGUMENT);
-
-    for (unsigned frame = 0; frame < 4; ++frame) {
-        REQUIRE(graphics_start_frame(device));
-        EXPECT(graphics_start_frame(device), Graphics_ERROR_INVALID_ARGUMENT);
-        EXPECT(graphics_destroy_buffer(device, &indices), Graphics_ERROR_INVALID_ARGUMENT);
-        EXPECT(graphics_update_buffer(device, indices, 0, index_data, sizeof(index_data)), Graphics_ERROR_INVALID_ARGUMENT);
-        /* Grow both dynamic copies, including one referenced by a resource set. */
-        REQUIRE(graphics_update_buffer(device, vertices, 0, vertex_data, sizeof(vertex_data)));
-        float larger_uniform[8] = {0};
-        REQUIRE(graphics_update_buffer(device, uniform, 0, larger_uniform, sizeof(larger_uniform)));
-        REQUIRE(graphics_begin_render(device, NULL));
-        Graphics_Viewport_t viewport = {0, 0, 320, 240, 0, 1};
-        REQUIRE(graphics_set_viewport(device, &viewport));
-        viewport.width = -1;
-        EXPECT(graphics_set_viewport(device, &viewport), Graphics_ERROR_INVALID_ARGUMENT);
-        EXPECT(graphics_begin_render(device, NULL), Graphics_ERROR_INVALID_ARGUMENT);
-        EXPECT(graphics_end_frame(device), Graphics_ERROR_INVALID_ARGUMENT);
-        EXPECT(graphics_update_buffer(device, vertices, 0, vertex_data, sizeof(vertex_data)), Graphics_ERROR_INVALID_ARGUMENT);
-        EXPECT(graphics_draw(device, 3, 0), Graphics_ERROR_INVALID_ARGUMENT);
-        REQUIRE(graphics_bind_pso(device, pipeline));
-        REQUIRE(graphics_push_constant(device, buffer_data, 4));
-        EXPECT(graphics_push_constant(device, buffer_data, 8), Graphics_ERROR_INVALID_ARGUMENT);
-        REQUIRE(graphics_bind_resources(device, 0, resources));
-        REQUIRE(graphics_bind_resources(device, 0, resources)); /* Rebind must not invalidate the command buffer. */
-        REQUIRE(graphics_bind_vertex_buffer(device, vertices, 0));
-        EXPECT(graphics_bind_vertex_buffer(device, indices, 0), Graphics_ERROR_INVALID_ARGUMENT);
-        REQUIRE(graphics_bind_index_buffer(device, indices, GPU_INDEX_UINT32, 0));
-        EXPECT(graphics_draw_indexed(device, 4, 0, 0), Graphics_ERROR_INVALID_ARGUMENT);
-        EXPECT(graphics_draw(device, 100, 0), Graphics_ERROR_INVALID_ARGUMENT);
-        REQUIRE(graphics_set_scissor(device, (Graphics_Rect_t){-20, -20, 1000, 1000}));
-        REQUIRE(graphics_draw_indexed(device, 3, 0, 0));
-        REQUIRE(graphics_bind_index_buffer(device, indices16, GPU_INDEX_UINT16, 0));
-        REQUIRE(graphics_draw_indexed(device, 3, 0, 0));
-        REQUIRE(graphics_set_scissor(device, (Graphics_Rect_t){0, 0, 0, 0}));
-        REQUIRE(graphics_draw(device, 3, 0));
-        REQUIRE(graphics_end_render(device));
-        EXPECT(graphics_begin_render(device, NULL), Graphics_ERROR_INVALID_ARGUMENT);
-        EXPECT(graphics_update_buffer(device, vertices, 0, vertex_data, sizeof(vertex_data)), Graphics_ERROR_INVALID_ARGUMENT);
-        REQUIRE(graphics_end_frame(device));
+    (void)setvbuf(stdout, NULL, _IONBF, 0U);
+    Graphics_Device_Desc_t desc = {
+        .validation = true, .synchronization_validation = true, .debug_callback = validation};
+    Graphics_Device_t *device = NULL;
+    Graphics_Device_Desc_t invalid = {.synchronization_validation = true};
+    CHECK(graphics_init(&invalid, &device) == Graphics_ERROR_INVALID_ARGUMENT && device == NULL);
+#ifdef GRAPHICS_TESTING
+    graphics_test_fault(GRAPHICS_FAIL_INSTANCE);
+    CHECK(graphics_init(&desc, &device) == Graphics_NO_MEMORY && device == NULL);
+    graphics_test_fault(GRAPHICS_FAIL_DEVICE);
+    CHECK(graphics_init(&desc, &device) == Graphics_NO_MEMORY && device == NULL);
+#endif
+    OK(graphics_init(&desc, &device));
+    if (device != NULL) {
+        CHECK(graphics_init(&desc, &device) == Graphics_ERROR_INVALID_ARGUMENT);
+        puts("Testing indexed offscreen rendering, depth/stencil and push constants...");
+        test_rendering(device);
+        OK(graphics_shutdown(&device));
     }
-
-    REQUIRE(graphics_destroy_pso(device, &pipeline));
-    REQUIRE(graphics_destroy_resources(device, &resources));
-    REQUIRE(graphics_destroy_sampler(device, &sampler));
-    REQUIRE(graphics_destroy_texture(device, &texture));
-    REQUIRE(graphics_destroy_buffer(device, &uniform));
-    REQUIRE(graphics_destroy_buffer(device, &uniform)); /* NULL-safe. */
-    REQUIRE(graphics_destroy_buffer(device, &storage));
-    /* Leave vertices/indices alive to exercise device-owned cleanup. */
-cleanup:
-    free(vertex_shader); free(fragment_shader);
-    graphics_shutdown(&other_device);
-    graphics_shutdown(&device);
-    graphics_shutdown(&device);
-    if (!failures) puts("Graphics API tests passed.");
-    return failures ? 1 : 0;
+    CHECK(SDL_Init(SDL_INIT_VIDEO));
+    SDL_Window *window = SDL_CreateWindow(
+        "Graphics lifecycle regression", 320, 240, SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE);
+    CHECK(window != NULL);
+    if (window != NULL) {
+        desc.window = window;
+        OK(graphics_init(&desc, &device));
+        if (device != NULL) {
+            puts("Testing frame cancellation, swapchain replacement and injected failures...");
+            test_frames(device, window);
+            OK(graphics_shutdown(&device));
+        }
+        CHECK(SDL_GetWindowID(window) !=
+              0U); /* Borrowed SDL ownership survived graphics shutdown. */
+        SDL_DestroyWindow(window);
+    }
+    SDL_Quit();
+    CHECK(validation_errors == 0U);
+    printf("Graphics API tests: %u failures, %u validation errors\n", failures, validation_errors);
+    return failures == 0U ? 0 : 1;
 }
