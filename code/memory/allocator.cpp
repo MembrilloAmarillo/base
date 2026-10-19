@@ -73,16 +73,14 @@ namespace Mem_Allocator {
         for( auto block = allocator->free_blocks->Next; block != allocator->free_blocks && block; block = block->Next ) {
             if (block->Size >= sizeof(T) * capacity) {
                 void* result = block->Data;
-                if (block->Size > sizeof(T) * capacity) {
-                    // block->Data = (char*)block->Data + sizeof(T) * capacity;
-                    // block->Size -= sizeof(T) * capacity;
-                    block->Prev->Next = block->Next;
-                    block->Next->Prev = block->Prev;
-                    #ifndef NDEBUG
-                    allocator->total_freed -= block->Size;
-                    #endif
-                }
-                return result;
+                // block->Data = (char*)block->Data + sizeof(T) * capacity;
+                // block->Size -= sizeof(T) * capacity;
+                block->Prev->Next = block->Next;
+                block->Next->Prev = block->Prev;
+                #ifndef NDEBUG
+                allocator->total_freed -= block->Size;
+                #endif
+                return reinterpret_cast<T*>(result);
             }
         }
     }

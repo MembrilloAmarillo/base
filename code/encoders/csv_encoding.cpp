@@ -1,8 +1,10 @@
+#include "csv_encoding.h"
+
 fn_internal csv_encoder CSV_Init(const char* FilePath, u64 N_Columns, Arena* Arena) {
   csv_encoder Csv = {};
 
   Csv.File  = F_OpenFile( FilePath, static_cast<f_flags>(WRONLY | APPEND) );
-  Csv.Arena = Arena;
+  Csv.BackingArena = Arena;
   #ifdef __linux__
   Csv.BackBuffer = ArenaPushWithFlags(Arena, F_FileLength(&Csv.File), PROT_READ | PROT_WRITE, MAP_PRIVATE );
   #elif _WIN32
@@ -37,7 +39,8 @@ fn_internal void CSV_SetTitleNames(csv_encoder* Csv, const char* names[]) {
 
     // Write delimiter only if it's NOT the last column
     if (i < Csv->NColumns - 1) {
-      StringAppend(&Csv->Rows, &Csv->Delimiter);
+      char delimiter[2] = { Csv->Delimiter, '\0' };
+      StringAppend(&Csv->Rows, delimiter);
     }
   }
   // Write a newline after the headers
@@ -50,7 +53,7 @@ fn_internal void CSV_BeginRow(csv_encoder* Csv) {
 
 fn_internal void CSV_EndRow(csv_encoder* Csv) {
   if (Csv->CurrentColumn >= Csv->NColumns + 1) {
-    fprintf(stderr, "[ERROR] Appended too many columns to row: %d\n", Csv->CurrentRow);
+    fprintf(stderr, "[ERROR] Appended too many columns to row: %lu\n", Csv->CurrentRow);
   }
   // Write the newline at the end of the row
   StringAppend(&Csv->Rows, "\n");
@@ -62,7 +65,8 @@ fn_internal void CSV_EndRow(csv_encoder* Csv) {
 fn_internal void CSV_PushValue(csv_encoder* Csv, const char* Value) {
   StringAppend(&Csv->Rows, Value);
   if (Csv->CurrentColumn < Csv->NColumns - 1) {
-    StringAppend(&Csv->Rows, &Csv->Delimiter);
+    char delimiter[2] = { Csv->Delimiter, '\0' };
+    StringAppend(&Csv->Rows, delimiter);
   }
   Csv->CurrentColumn += 1;
 }

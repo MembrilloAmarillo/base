@@ -1,126 +1,39 @@
 cmake_minimum_required(VERSION 3.15)
 project(base_project LANGUAGES C CXX)
+include(CTest)
+include(CMakeParseArguments)
 
-option(USE_SDL "Enable SDL integration" OFF)
-option(USE_FREETYPE "Enable FreeType" OFF)
+option(USE_SDL "Enable SDL integration" ON)
 option(DEBUG_TRACE "Enable tracing for output debugging" OFF)
+option(USE_CPP23_WHEN_AVAILABLE "Try to compile in C++23 mode when compiler+cmake support it" ON)
+option(USE_CPP26_WHEN_AVAILABLE "Try to compile in C++26 mode when compiler+cmake support it" OFF)
+option(BASE_ENABLE_TESTS "Build and register project tests" ON)
+option(ENABLE_GRAPHICS_TESTS "Build graphics/window integration tests" ON)
+option(REGISTER_GRAPHICS_TESTS "Register graphics/window integration tests in CTest" OFF)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS OFF)
-set(CMAKE_CXX_STANDARD 20)
+
+set(PROJECT_CXX_STANDARD 20)
+if(USE_CPP26_WHEN_AVAILABLE)
+  if("cxx_std_26" IN_LIST CMAKE_CXX_COMPILE_FEATURES)
+    set(PROJECT_CXX_STANDARD 26)
+  elseif(USE_CPP23_WHEN_AVAILABLE AND "cxx_std_23" IN_LIST CMAKE_CXX_COMPILE_FEATURES)
+    set(PROJECT_CXX_STANDARD 23)
+  endif()
+elseif(USE_CPP23_WHEN_AVAILABLE)
+  if("cxx_std_23" IN_LIST CMAKE_CXX_COMPILE_FEATURES)
+    set(PROJECT_CXX_STANDARD 23)
+  endif()
+endif()
+
+set(CMAKE_CXX_STANDARD ${PROJECT_CXX_STANDARD})
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+message(STATUS "Configured C++ standard: C++${CMAKE_CXX_STANDARD}")
 
-# Allow user to pass VULKAN_SDK path. If not set, try environment.
-if(NOT VULKAN_SDK AND DEFINED ENV{VULKAN_SDK})
-  set(VULKAN_SDK $ENV{VULKAN_SDK})
-endif()
-
-if (NOT IS_DIRECTORY $ENV{VULKAN_SDK})
-    message(WARNING "Vulkan SDK not detected, if installed please set VULKAN_SDK env var or manually provide libraries")
-else()
-    message(STATUS "Found Vulkan SDK in $ENV{VULKAN_SDK}")
-endif()
-
-if(VULKAN_SDK)
-  include_directories(${VULKAN_SDK}/include)
-  link_directories(${VULKAN_SDK}/lib)
-endif()
-
-# Common include dirs and compile defs
-include_directories(
-  ${CMAKE_SOURCE_DIR}/code
-  ${CMAKE_SOURCE_DIR}/code/third-party/ktx/include
-  ${CMAKE_SOURCE_DIR}/code/third-party/ktx/other_include
-)
+include_directories(${CMAKE_SOURCE_DIR}/code)
 add_compile_definitions(_POSIX_PTHREAD_SEMANTICS)
-
-# Find Vulkan
-find_package(Vulkan QUIET)
-if(TARGET Vulkan::Vulkan)
-  message(STATUS "Found Vulkan target Vulkan::Vulkan")
-  set(VULKAN_LIBS Vulkan::Vulkan)
-elseif(Vulkan_FOUND)
-  # older CMake modules may set Vulkan_FOUND and Vulkan_LIBRARY
-  if(DEFINED Vulkan_LIBRARY)
-    message(STATUS "Found Vulkan library: ${Vulkan_LIBRARY}")
-    set(VULKAN_LIBS ${Vulkan_LIBRARY})
-  else()
-    message(STATUS "Vulkan found but no target; falling back to -lvulkan")
-    set(VULKAN_LIBS vulkan)
-  endif()
-else()
-  message(STATUS "Vulkan not found by CMake; linking -lvulkan and relying on VULKAN_SDK if set")
-  find_library(VULKAN_LIB vulkan)
-  if(VULKAN_LIB)
-    set(VULKAN_LIBS ${VULKAN_LIB})
-  else()
-    set(VULKAN_LIBS vulkan)
-  endif()
-endif()
-
-find_library(SPIRV_LIBRARY NAMES spirv-reflect-static spirvreflect  HINTS "$ENV{VULKAN_SDK}/lib" REQUIRED)
-find_library(Slang_LIBRARY NAMES slang slang-compiler HINTS "$ENV{VULKAN_SDK}/lib" REQUIRED)
-
-# SDL integration (optional)
-if(USE_SDL)
-  find_library(SDL_LIBRARY NAMES SDL3 HINTS "$ENV{VULKAN_SDK}/lib" REQUIRED)
-  add_compile_definitions(SDL_USAGE)
-endif()
-if(SDL_LIBRARY)
-  message(STATUS "SDL Found")
-else()
-  message(STATUS "SDL Not Found")
-endif()
-if(USE_FREETYPE)
-  find_library(FREETYPE_LIBRARY freetype)
-  include_directories(/usr/include/freetype2)
-  add_compile_definitions(USE_FREETYPE)
-endif()
-
-# KTX: build all C sources under code/third-party/ktx/lib as a static lib
-file(GLOB KTX_C_SOURCES RELATIVE ${CMAKE_SOURCE_DIR} "code/third-party/ktx/lib/*.c")
-if(KTX_C_SOURCES)
-  add_library(ktxlib STATIC ${KTX_C_SOURCES})
-  target_include_directories(ktxlib PUBLIC ${CMAKE_SOURCE_DIR}/code/third-party/ktx/include ${CMAKE_SOURCE_DIR}/code/third-party/ktx/other_include)
-  target_compile_options(ktxlib PRIVATE)
-endif()
-
-# ImGui library
-file(GLOB IMGUI_SOURCES
-  "code/third-party/imgui/imgui.cpp"
-  "code/third-party/imgui/imgui_draw.cpp"
-  "code/third-party/imgui/imgui_widgets.cpp"
-  "code/third-party/imgui/imgui_tables.cpp"
-  "code/third-party/imgui/imgui_demo.cpp"
-  "code/third-party/imgui/backends/imgui_impl_vulkan.cpp"
-  "code/third-party/imgui/backends/imgui_impl_sdl3.cpp"
-)
-
-add_library(imgui_lib STATIC ${IMGUI_SOURCES})
-target_include_directories(imgui_lib PUBLIC
-  "${CMAKE_SOURCE_DIR}/code/third-party/imgui"
-  "${CMAKE_SOURCE_DIR}/code/third-party/imgui/backends"
-)
-target_compile_options(imgui_lib PRIVATE -w)  # Suppress warnings from imgui
-
-# Common link libraries
-set(COMMON_LIBS ${VULKAN_LIBS} m pthread dl rt)
-if(SLANG_LIBRARY)
-  list(APPEND COMMON_LIBS ${SLANG_LIBRARY})
-else()
-  list(APPEND COMMON_LIBS slang)
-endif()
-
-if(SPIRV_LIBRARY)
-  list(APPEND COMMON_LIBS ${SPIRV_LIBRARY})
-endif()
-
-if(USE_SDL AND SDL3_LIBS_LIST)
-  # SDL3 libs string may contain flags; attach as INTERFACE_LINK_LIBRARIES when creating targets
-  set(SDL3_RAW_LIBS ${SDL3_LIBS_LIST})
-endif()
-
 
 if(DEBUG_TRACE)
   message(STATUS "Debug trace enabled")
@@ -128,37 +41,157 @@ else()
   add_compile_definitions(NO_DEBUG_TRACE)
 endif()
 
-# test_allocator
-add_executable(test_allocator code/test/allocator_test.cpp)
-target_include_directories(test_allocator PRIVATE ${CMAKE_SOURCE_DIR}/code)
-target_link_libraries(test_allocator PRIVATE ${COMMON_LIBS})
-target_compile_options(test_allocator PRIVATE -g -ggdb -DDEBUG -Wall -fdiagnostics-all-candidates)
-
-# test_vector
-add_executable(test_vector code/test/vector_test.cpp)
-target_include_directories(test_vector PRIVATE ${CMAKE_SOURCE_DIR}/code)
-target_link_libraries(test_vector PRIVATE ${COMMON_LIBS})
-target_compile_options(test_vector PRIVATE -g -ggdb -DDEBUG -Wall -fdiagnostics-all-candidates)
-
-# test_vulkan: test_vulkan depends on ktxlib
-add_executable(test_vulkan code/test/vulkan_test.cpp)
-target_include_directories(test_vulkan PRIVATE ${CMAKE_SOURCE_DIR}/code)
-if(KTX_C_SOURCES)
-  target_link_libraries(test_vulkan PRIVATE ktxlib)
+if(MSVC)
+  set(TEST_COMPILE_OPTIONS /FC /Z7 /W3 /D_CRT_SECURE_NO_WARNINGS)
+else()
+  set(TEST_COMPILE_OPTIONS -g -Wall)
 endif()
 
-if(USE_SDL)
-  # SDL3 raw libs string may contain multiple tokens; add them
-  separate_arguments(SDL3_RAW_LIBS)
-  target_link_libraries(test_vulkan PRIVATE ${SDL_LIBRARY})
+function(base_add_test target_name source_file)
+  set(options NO_CTEST)
+  set(oneValueArgs)
+  set(multiValueArgs LINK_LIBS LABELS COMPILE_DEFINITIONS ARGS)
+  cmake_parse_arguments(BASE_TEST "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+
+  add_executable(${target_name} ${source_file})
+  target_include_directories(${target_name} PRIVATE ${CMAKE_SOURCE_DIR}/code)
+  target_compile_options(${target_name} PRIVATE ${TEST_COMPILE_OPTIONS})
+  target_compile_definitions(${target_name} PRIVATE _POSIX_PTHREAD_SEMANTICS ${BASE_TEST_COMPILE_DEFINITIONS})
+  target_link_libraries(${target_name} PRIVATE ${BASE_TEST_LINK_LIBS})
+
+  if(NOT BASE_TEST_NO_CTEST)
+    add_test(NAME ${target_name} COMMAND ${target_name} ${BASE_TEST_ARGS})
+    if(BASE_TEST_LABELS)
+      set_tests_properties(${target_name} PROPERTIES LABELS "${BASE_TEST_LABELS}")
+    endif()
+  endif()
+endfunction()
+
+if(BASE_ENABLE_TESTS)
+  enable_testing()
+  base_add_test(test_allocator code/test/allocator_test.cpp LABELS unit)
+  base_add_test(test_vector code/test/vector_test.cpp LABELS unit)
+  base_add_test(test_ui_core code/test/ui_core_test.cpp LABELS unit)
+
+  if(ENABLE_GRAPHICS_TESTS)
+    if(NOT USE_SDL)
+      message(FATAL_ERROR "Graphics tests require SDL3. Set ENABLE_GRAPHICS_TESTS=OFF for unit tests only.")
+    endif()
+    if(VULKAN_SDK)
+      set(ENV{VULKAN_SDK} "${VULKAN_SDK}")
+    endif()
+    find_package(Vulkan REQUIRED)
+    find_package(SDL3 CONFIG QUIET)
+    if(NOT TARGET SDL3::SDL3)
+      find_path(BASE_SDL_INCLUDE_DIR SDL3/SDL.h HINTS "${CMAKE_SOURCE_DIR}/code/third-party/SDL/include")
+      find_library(BASE_SDL_LIBRARY NAMES SDL3 HINTS "$ENV{SDL_PATH}"
+        "${CMAKE_SOURCE_DIR}/code/third-party/SDL/VisualC/x64/Debug")
+      if(NOT BASE_SDL_INCLUDE_DIR OR NOT BASE_SDL_LIBRARY)
+        message(FATAL_ERROR "SDL3 headers/library not found. Install SDL3 or build the bundled SDL project.")
+      endif()
+      add_library(SDL3::SDL3 UNKNOWN IMPORTED)
+      set_target_properties(SDL3::SDL3 PROPERTIES IMPORTED_LOCATION "${BASE_SDL_LIBRARY}"
+        INTERFACE_INCLUDE_DIRECTORIES "${BASE_SDL_INCLUDE_DIR}")
+      if(WIN32)
+        get_filename_component(BASE_SDL_LIBRARY_DIR "${BASE_SDL_LIBRARY}" DIRECTORY)
+        find_file(BASE_SDL_DLL SDL3.dll HINTS "${BASE_SDL_LIBRARY_DIR}" NO_DEFAULT_PATH)
+      endif()
+    endif()
+    set(GRAPHICS_TEST_LINK_LIBS Vulkan::Vulkan SDL3::SDL3)
+    if(UNIX)
+      list(APPEND GRAPHICS_TEST_LINK_LIBS m)
+    endif()
+
+    if(REGISTER_GRAPHICS_TESTS)
+      base_add_test(test_vulkan_cube code/test/vulkan_cube_test.cpp
+        LABELS integration graphics
+        LINK_LIBS ${GRAPHICS_TEST_LINK_LIBS}
+        ARGS --frames 120
+      )
+    else()
+      base_add_test(test_vulkan_cube code/test/vulkan_cube_test.cpp
+        NO_CTEST
+        LABELS integration graphics
+        LINK_LIBS ${GRAPHICS_TEST_LINK_LIBS}
+      )
+    endif()
+    set(GRAPHICS_BACKEND_SOURCES code/rendering/graphics.c code/rendering/graphics_memory.c
+      code/rendering/graphics_upload.c code/rendering/graphics_lifetime.c code/rendering/graphics_command.c
+      code/rendering/graphics_pipeline.c code/rendering/graphics_resources.c code/rendering/graphics_swapchain.c)
+    target_sources(test_vulkan_cube PRIVATE ${GRAPHICS_BACKEND_SOURCES})
+    base_add_test(graphics_resource_test code/test/graphics_resource_test.c
+      NO_CTEST LABELS integration graphics LINK_LIBS ${GRAPHICS_TEST_LINK_LIBS})
+    target_sources(graphics_resource_test PRIVATE ${GRAPHICS_BACKEND_SOURCES})
+    base_add_test(graphics_api_test code/test/graphics_api_test.c
+      NO_CTEST LABELS integration graphics LINK_LIBS ${GRAPHICS_TEST_LINK_LIBS} COMPILE_DEFINITIONS GRAPHICS_TESTING)
+    target_sources(graphics_api_test PRIVATE ${GRAPHICS_BACKEND_SOURCES})
+    base_add_test(graphics_benchmark code/test/graphics_benchmark.c
+      NO_CTEST LINK_LIBS ${GRAPHICS_TEST_LINK_LIBS} COMPILE_DEFINITIONS GRAPHICS_BENCHMARK)
+    target_sources(graphics_benchmark PRIVATE ${GRAPHICS_BACKEND_SOURCES})
+    if(MSVC)
+      target_compile_options(graphics_benchmark PRIVATE /O2)
+    else()
+      target_compile_options(graphics_benchmark PRIVATE -O2)
+    endif()
+    if(WIN32 AND BASE_SDL_DLL)
+      foreach(GRAPHICS_TARGET test_vulkan_cube graphics_resource_test graphics_api_test graphics_benchmark)
+        add_custom_command(TARGET ${GRAPHICS_TARGET} POST_BUILD
+          COMMAND ${CMAKE_COMMAND} -E copy_if_different "${BASE_SDL_DLL}" "$<TARGET_FILE_DIR:${GRAPHICS_TARGET}>"
+          VERBATIM)
+      endforeach()
+    endif()
+    if(REGISTER_GRAPHICS_TESTS)
+      add_test(NAME graphics_resource_test COMMAND graphics_resource_test)
+      set_tests_properties(graphics_resource_test PROPERTIES TIMEOUT 60 LABELS "integration;graphics")
+      add_test(NAME graphics_api_test COMMAND graphics_api_test)
+      set_tests_properties(graphics_api_test PROPERTIES TIMEOUT 60 LABELS "integration;graphics" WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+    endif()
+    find_program(BASE_GLSLC NAMES glslc HINTS "${VULKAN_SDK}/bin" "$ENV{VULKAN_SDK}/Bin")
+    if(NOT BASE_GLSLC)
+      message(FATAL_ERROR "glslc not found. Install the Vulkan SDK or set BASE_GLSLC.")
+    endif()
+    set(SAMPLE_SHADER_OUTPUTS)
+    foreach(SAMPLE_SHADER Sample.vert Sample.frag)
+      set(SAMPLE_SHADER_SOURCE "${CMAKE_SOURCE_DIR}/data/${SAMPLE_SHADER}")
+      add_custom_command(
+        OUTPUT "${SAMPLE_SHADER_SOURCE}.spv"
+        COMMAND "${BASE_GLSLC}" --target-env=vulkan1.3 "${SAMPLE_SHADER_SOURCE}" -o "${SAMPLE_SHADER_SOURCE}.spv"
+        DEPENDS "${SAMPLE_SHADER_SOURCE}"
+        VERBATIM
+      )
+      list(APPEND SAMPLE_SHADER_OUTPUTS "${SAMPLE_SHADER_SOURCE}.spv")
+    endforeach()
+    add_custom_target(sample_text_shaders DEPENDS ${SAMPLE_SHADER_OUTPUTS})
+    add_dependencies(test_vulkan_cube sample_text_shaders)
+    set(GRAPHICS_API_SHADER_OUTPUTS)
+    foreach(SHADER graphics_test.vert graphics_test.frag)
+      set(SHADER_SOURCE "${CMAKE_SOURCE_DIR}/code/test/shaders/${SHADER}")
+      add_custom_command(OUTPUT "${SHADER_SOURCE}.spv"
+        COMMAND ${BASE_GLSLC} --target-env=vulkan1.3 "${SHADER_SOURCE}" -o "${SHADER_SOURCE}.spv"
+        DEPENDS "${SHADER_SOURCE}" VERBATIM)
+      list(APPEND GRAPHICS_API_SHADER_OUTPUTS "${SHADER_SOURCE}.spv")
+    endforeach()
+    add_custom_target(graphics_api_shaders DEPENDS ${GRAPHICS_API_SHADER_OUTPUTS})
+    add_dependencies(graphics_api_test graphics_api_shaders)
+    if(REGISTER_GRAPHICS_TESTS)
+      set_tests_properties(test_vulkan_cube PROPERTIES
+        WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+      set_property(TEST test_vulkan_cube PROPERTY TIMEOUT 60)
+    endif()
+  endif()
+
+  add_custom_target(check
+    COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
+    DEPENDS test_allocator test_vector test_ui_core
+    USES_TERMINAL
+  )
+  if(ENABLE_GRAPHICS_TESTS AND REGISTER_GRAPHICS_TESTS)
+    add_dependencies(check test_vulkan_cube graphics_resource_test graphics_api_test)
+  endif()
 endif()
 
-target_compile_options(test_vulkan PRIVATE -g -ggdb -DDEBUG -Wall -fdiagnostics-all-candidates)
-# Define VOLK_IMPLEMENTATION only in the test translation unit, not globally, to avoid
-# duplicate definition warnings. The test sources already define it; do not force it here.
-target_compile_definitions(test_vulkan PRIVATE _POSIX_PTHREAD_SEMANTICS)
-target_link_libraries(test_vulkan PRIVATE ${COMMON_LIBS})
 
-
-
-message(STATUS "CMake configuration finished. Use: mkdir build && cmake -S . -B build -DUSE_SDL=ON -DCMAKE_BUILD_TYPE=Debug && cmake --build build --target test_vulkan")
+message(STATUS "CMake configuration finished.")
+message(STATUS "Build tests: cmake --build build --target test_allocator test_vector")
+message(STATUS "Run tests: ctest --test-dir build --output-on-failure")
+message(STATUS "Build graphics test: cmake --build build --target test_vulkan_cube")

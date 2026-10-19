@@ -22,7 +22,7 @@ typedef enum f_flags {
     RDONLY = (1 << 0),
     WRONLY = (1 << 1),
     APPEND = (1 << 2)
-};
+} f_flags;
 
 typedef struct f_file f_file;
 struct f_file {
@@ -69,7 +69,8 @@ F_OpenFile(const char* c, f_flags o_flags) {
 
     f.Fd = open(c, flags, 0644);
     if (f.Fd == -1) {
-        // Optionally set an error flag in f_file
+      // Optionally set an error flag in f_file
+        printf("[ERROR] Could not open file %s\n", c);
     }
 
 #elif _WIN32
@@ -83,7 +84,7 @@ F_OpenFile(const char* c, f_flags o_flags) {
     if (o_flags & WRONLY) {
         dwDesiredAccess |= GENERIC_WRITE;
     }
-    // Si quieres leer después de abrir en escritura, asegúrate de pedir lectura también:
+    // Si quieres leer despues de abrir en escritura, asegurate de pedir lectura tambien:
     if ((o_flags & WRONLY) && !(o_flags & RDONLY)) {
         // si solo WRONLY, pero vas a leer, añade lectura
         dwDesiredAccess |= GENERIC_READ;
@@ -184,13 +185,12 @@ F_FileRead(f_file* f) {
 
 #ifdef _WIN32
     DWORD bytesRead = 0;
-    OVERLAPPED overlapped = {0};
     BOOL result = ReadFile(
         f->Fd,
         (u8*)f->Data,
         (DWORD)file_length,
         &bytesRead,
-        &overlapped
+        NULL
     );
 
     if (!result) {

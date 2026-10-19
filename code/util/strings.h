@@ -23,7 +23,7 @@ struct U8_String_List {
 
 U8_String StringCreate(i64 len, Allocator* a);
 U8_String StringNew(const char* str, i64 len, Allocator* a);
-void StringDestroy(U8_String* s);
+void StringDestroy(U8_String* s, Allocator* a);
 
 void StringAppend(U8_String* Dst, const char* Str);
 void StringAppendStr(U8_String* Dst, U8_String* Str);

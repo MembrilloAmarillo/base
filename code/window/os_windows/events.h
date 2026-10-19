@@ -1,6 +1,9 @@
 #ifndef _EVENTS_WINDOWS_H_
 #define _EVENTS_WINDOWS_H_
 
+#include <windows.h>
+#include "../../util/strings.h"
+
 #define ui_input u64
 
 #define Input_None               ((ui_input)1 << 0)
@@ -12,6 +15,7 @@
 #define Input_CursorHover        ((ui_input)1 << 6)
 #define Input_Backspace          ((ui_input)1 << 7)
 #define Input_Ctrol              ((ui_input)1 << 8)
+#define Input_Ctrl               Input_Ctrol
 #define Input_Shift              ((ui_input)1 << 9)
 #define Input_Alt                ((ui_input)1 << 10)
 #define Input_Return             ((ui_input)1 << 11)
@@ -74,7 +78,11 @@ fn_internal char*
                         WideCharToMultiByte(CP_UTF8, 0, wstr, -1, utf8_str, size_needed, NULL, NULL);
                         // Append the pasted text to your UI context's text buffer
                         memset(window->ClipboardContent, 0, 256);
-                        memcpy(window->ClipboardContent, utf8_str, UCF_Strlen(utf8_str));
+                        u64 clip_len = CustomStrlen(utf8_str);
+                        if (clip_len > sizeof(window->ClipboardContent) - 1) {
+                            clip_len = sizeof(window->ClipboardContent) - 1;
+                        }
+                        memcpy(window->ClipboardContent, utf8_str, clip_len);
                         free(utf8_str);
                     }
                 }
@@ -91,14 +99,6 @@ fn_internal char*
 fn_internal ui_input GetNextEvent(api_window* window) {
     ui_input Input = 0;
     MSG msg;
-	
-	DWORD result = MsgWaitForMultipleObjects(
-		0,          // number of handles
-		NULL,       // array of handles
-		FALSE,      // wait for all handles? FALSE = any
-		INFINITE,   // wait forever
-		QS_ALLINPUT // wait for any message/input
-	);
 
     while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
         TranslateMessage(&msg);
@@ -147,7 +147,7 @@ fn_internal ui_input
                 window->KeyPressed = ch;
                 InputState |= Input_KeyChar;
             }
-        }
+        } break;
         case WM_KEYUP: {
             InputState |= Input_KeyRelease;
             //window->KeyPressed = msg->wParam;
@@ -222,8 +222,6 @@ fn_internal ui_input
             PostQuitMessage(0);
             break;
         default:
-            TranslateMessage(msg);
-            DispatchMessage(msg);
             break;
     }
 

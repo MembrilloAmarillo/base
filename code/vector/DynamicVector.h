@@ -40,25 +40,25 @@ struct dyn_vector {
   }
 
   T* begin()              noexcept { return Data; }
-  T* end()                noexcept { return Data + Size; }
+  T* end()                noexcept { return Data + Len; }
   const T* begin()  const noexcept { return Data; }
-  const T* end()    const noexcept { return Data + Size; }
+  const T* end()    const noexcept { return Data + Len; }
   const T* cbegin() const noexcept { return Data; }
-  const T* cend()   const noexcept { return Data + Size; }
+  const T* cend()   const noexcept { return Data + Len; }
 
-  void Append(T & value)           noexcept;
-  void AppendByCopy(T value)       noexcept;
-  void Insert(T & value, u64 idx)  noexcept;
-  void PushFirst(T & value)        noexcept;
-  void Pop()                       noexcept;
-  void Delete(u64 idx)             noexcept;
-  void Resize(u64 new_size)        noexcept;
+  void Append(T & value);
+  void AppendByCopy(T value);
+  void Insert(T & value, u64 idx);
+  void PushFirst(T & value);
+  void Pop();
+  void Delete(u64 idx);
+  void Resize(u64 new_size);
 
   T* Memory() { return Data; }
 
-  const u64 Capacity()  const noexcept { return Size; }
-  const u64 Length()    const noexcept { return Len; }
-  const u64 SizeBytes() const noexcept { return Offset; }
+  u64 Capacity()  const noexcept { return Size; }
+  u64 Length()    const noexcept { return Len; }
+  u64 SizeBytes() const noexcept { return Offset; }
   const T & At(u64 idx) const noexcept { return Data[idx]; }
 
   T& operator [](u64 idx) {

@@ -1,9 +1,11 @@
 .vs/
 .vscode/
-.exe
-.pdb
-.o
-.obj
+*.exe
+*.pdb
+*.o
+*.obj
+*.ilk
+*.spv
 
 # build dir
 build/
